@@ -169,6 +169,7 @@ if __name__ == "__main__":
 
     # 生成仅展示标题和链接的最终消息
     final_summary = f"内容由HamunaStock.AI生成\n\n 📅 **{today_str} 财经新闻摘要**\n\n✍️ **今日分析总结：**\n{summary}\n\n---\n\n"
+    final_summary += '**模型参考以下新闻生成决策内容**\n\n'
     for category, content in articles_data.items():
         if content.strip():
             final_summary += f"## {category}\n{content}\n\n"
