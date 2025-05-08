@@ -28,8 +28,10 @@ jobs:
 
       - name: 🔑 设置环境变量
         run: |
-          echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> $GITHUB_ENV
+          echo "OPENAI_COMPATIBLE_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> $GITHUB_ENV
           echo "SERVER_CHAN_KEYS=${{ secrets.SERVER_CHAN_KEYS }}" >> $GITHUB_ENV
+          echo "OPENAI_COMPATIBLE_MODEL=${{ secrets.MODEL_NAME }}" >> $GITHUB_ENV
+          echo "OPENAI_COMPATIBLE_BASE_URL=${{ secrets.OPENAI_COMPATIBLE_BASE_URL }}" >> $GITHUB_ENV
 
       - name: 🚀 运行脚本
         run: python financebot.py
