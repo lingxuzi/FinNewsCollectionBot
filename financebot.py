@@ -4,6 +4,7 @@ import feedparser
 import requests
 from newspaper import Article
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 import time
 import pytz
 import os
@@ -87,38 +88,45 @@ def fetch_feed_with_retry(url, retries=3, delay=5):
     print(f"❌ 跳过 {url}, 尝试 {retries} 次后仍失败。")
     return None
 
+def process_source(source, url):
+    print(f"📡 正在获取 {source} 的 RSS 源: {url}")
+    feed = fetch_feed_with_retry(url)
+    if not feed:
+        print(f"⚠️ 无法获取 {source} 的 RSS 数据")
+        return
+    print(f"✅ {source} RSS 获取成功，共 {len(feed.entries)} 条新闻")
+
+    articles = []  # 每个source都需要重新初始化列表
+    analysis_text = ''
+    for entry in feed.entries[:5]:
+        title = entry.get('title', '无标题')
+        link = entry.get('link', '') or entry.get('guid', '')
+        if not link:
+            print(f"⚠️ {source} 的新闻 '{title}' 没有链接，跳过")
+            return
+
+        # 爬取正文用于分析（不展示）
+        article_text = fetch_article_text(link)
+        analysis_text += f"【{title}】\n{article_text}\n\n"
+
+        print(f"🔹 {source} - {title} 获取成功")
+        articles.append(f"- [{title}]({link})")
+    return source, articles, analysis_text
+
 # 获取RSS内容（爬取正文但不展示）
 def fetch_rss_articles(rss_feeds, max_articles=10):
     news_data = {}
     analysis_text = ""  # 用于AI分析的正文内容
-
     for category, sources in rss_feeds.items():
         category_content = ""
-        for source, url in sources.items():
-            print(f"📡 正在获取 {source} 的 RSS 源: {url}")
-            feed = fetch_feed_with_retry(url)
-            if not feed:
-                print(f"⚠️ 无法获取 {source} 的 RSS 数据")
-                continue
-            print(f"✅ {source} RSS 获取成功，共 {len(feed.entries)} 条新闻")
-
-            articles = []  # 每个source都需要重新初始化列表
-            for entry in feed.entries[:5]:
-                title = entry.get('title', '无标题')
-                link = entry.get('link', '') or entry.get('guid', '')
-                if not link:
-                    print(f"⚠️ {source} 的新闻 '{title}' 没有链接，跳过")
-                    continue
-
-                # 爬取正文用于分析（不展示）
-                article_text = fetch_article_text(link)
-                analysis_text += f"【{title}】\n{article_text}\n\n"
-
-                print(f"🔹 {source} - {title} 获取成功")
-                articles.append(f"- [{title}]({link})")
-
-            if articles:
-                category_content += f"### {source}\n" + "\n".join(articles) + "\n\n"
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = [executor.submit(process_source, source, url) for source, url in sources.items()]
+            for future in futures:
+                articles = future.result(timeout=20)
+                if articles:
+                    source, articles, _analysis_text = articles
+                    category_content += f"### {source}\n" + "\n".join(articles) + "\n\n"
+                    analysis_text += _analysis_text
 
         news_data[category] = category_content
 
@@ -129,7 +137,7 @@ def summarize(text):
     completion = openai_client.chat.completions.create(
         model=model_name,
         messages=[
-            {"role": "system", "content": "你是一位经验丰富、逻辑严谨的财经新闻分析师，服务对象为券商分析师、基金经理、金融研究员、宏观策略师等专业人士。请基于以下财经新闻原文内容，完成高质量的内容理解与结构化总结，形成一份专业、精准、清晰的财经要点摘要，用于支持机构投资者的日常研判工作。【输出要求】1.全文控制在 2000 字以内，内容精炼、逻辑清晰；2.从宏观政策、金融市场、行业动态、公司事件、风险提示等角度进行分类总结；3.每一部分要突出数据支持、趋势研判、可能的市场影响；4.明确指出新闻背后的核心变量或政策意图，并提出投资视角下的参考意义；5.语气专业、严谨、无情绪化表达，适配专业机构投研阅读习惯；6.禁止套话，不重复新闻原文，可用条列式增强结构性；7.如涉及数据和预测，请标注来源或指出主张机构（如高盛、花旗等）；8.若原文较多内容无关财经市场，可酌情略去，只保留关键影响要素。"},
+            {"role": "system", "content": "你是一位经验丰富、逻辑严谨的财经新闻分析师，服务对象为券商分析师、基金经理、金融研究员、宏观策略师等专业人士。请基于以下财经新闻原文内容，完成高质量的内容理解与结构化总结，形成一份专业、精准、清晰的财经要点摘要，用于支持机构投资者的日常研判工作。【输出要求】1.全文控制在 2000 字以内，内容精炼、逻辑清晰；2.从宏观政策、金融市场、行业动态、公司事件、风险提示等角度进行分类总结；3.每一部分要突出数据支持、趋势研判、可能的市场影响；4.明确指出新闻背后的核心变量或政策意图，并提出投资视角下的参考意义；5.语气专业、严谨、无情绪化表达，适配专业机构投研阅读习惯；6.禁止套话，不重复新闻原文，可用条列式增强结构性；7.如涉及数据和预测，请标注来源或指出主张机构（如高盛、花旗等）；8.若原文较多内容无关财经市场，可酌情略去，只保留关键影响要素。9.请根据新闻要素推荐目前热门的股票投资板块"},
             {"role": "user", "content": text}
         ]
     )
