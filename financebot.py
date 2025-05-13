@@ -59,12 +59,6 @@ rss_feeds = {
     },
 }
 
-rss_feeds = {
-    "💻 36氪": {
-        "36氪": "https://36kr.com/feed",
-    },
-}
-
 
 # 获取北京时间
 def today_date():
@@ -187,10 +181,6 @@ def summarize(text):
                 7.如涉及数据和预测，请标注来源或指出主张机构（如高盛、花旗等）；
                 8.若原文较多内容无关财经市场，可酌情略去，只保留关键影响要素。
                 9.请综合所有新闻要素总结目前热门的股票投资板块"
-                10. 如果同一新闻内容在多条新闻中出现多次，请优先把此类重要新闻涉及股票总结出来。**这些是消息侧重要新闻**。
-                11. 请直接给出 `股票名称`、`股票编码（不确定不知道就写不知道）`、`预测涨幅（百分比）`、`消息侧原因`。每一只股票占据一行
-                12. 按顺序给出，从前到后依次是`涨幅最大股票`到`跌幅最大`的先后顺序。
-                
 
                 **仅关注本周新闻，过滤掉老旧新闻**
                 """
@@ -204,13 +194,15 @@ def summarize(text):
 # 发送微信推送
 def send_to_wechat(title, content):
     for key in server_chan_keys:
-        url = f"https://sctapi.ftqq.com/{key}.send"
-        data = {"title": title, "desp": content}
-        response = requests.post(url, data=data, timeout=10)
-        if response.ok:
-            print(f"✅ 推送成功: {key}")
-        else:
-            print(f"❌ 推送失败: {key}, 响应：{response.text}")
+        for _ in range(3):
+            url = f"https://sctapi.ftqq.com/{key}.send"
+            data = {"title": title, "desp": content}
+            response = requests.post(url, data=data, timeout=20)
+            if response.ok:
+                print(f"✅ 推送成功: {key}")
+                break
+            else:
+                print(f"❌ 推送失败: {key}, 响应：{response.text}")
 
 
 if __name__ == "__main__":
@@ -224,13 +216,13 @@ if __name__ == "__main__":
     # 生成仅展示标题和链接的最终消息
     final_summary = f"内容由HamunaStock.AI生成\n\n 📅 **{today_str} 财经新闻摘要**\n\n✍️ **今日分析总结：**\n{summary}\n\n---\n\n"
 
-    recommended_stocks, md_lines = get_stock_recommends_from_news()
+    result = get_stock_recommends_from_news()
     
     final_summary += "✍️ **基于新闻内容分析所提到的股票利好/利空结论(仅根据新闻判断，并不构成投资建议)：**\n\n"
 
-    final_summary += f"{md_lines}"
+    final_summary += f"{result}"
 
-    final_summary += "**模型参考以下新闻生成决策内容**\n\n"
+    final_summary += "\n\n**模型参考以下新闻生成决策内容**\n\n"
     for category, content in articles_data.items():
         if content.strip():
             final_summary += f"## {category}\n{content}\n\n"

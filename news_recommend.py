@@ -144,15 +144,11 @@ def get_stock_recommends_from_news():
             {"stock_name":"比亚迪", "stock_code": "32456", "content": "【比亚迪：上半年净利润同比预增192%-225%】财联社7月14日电，比亚迪公告，预计上半年净利润105亿元-117亿元，同比增加192.05%-225.43%。2023年上半年度，新能源汽车行业保持快速增长，公司新能源汽车销量在去年同期的高基数上实现强劲增长，市场份额持续提升，继续强化在新能源汽车行业的领导地位。小财注：Q1净净利润41.30亿元，据此计算，Q2预计净利润63.7亿元-75.7亿元，环比增长54%-83%。"}
             ```
 
-            # 输出格式
-            请用字典格式输出，在字典以外不要输出任何内容。
-            key涵义：
-            * stock_code: 股票代码，与输入时相同。
-            * stock_name: 需要判断利好程度的股票名称
-            * eval: 新闻对股票的利好程度判断。从利好到利空依次分为“强烈利好”、“利好”、“中性”、“利空”、“强烈利空”5个等级。另外，如果不确定或者缺乏足够判断信息，或者新闻和要判断的股票关系不大，则回答“无法判断”。
-            * reason: 解释你的判断依据。
-
-            **严格按照输出格式要求，并且输出格式要为JSON**
+            # 输出内容
+            - 输出表格格式的内容，包括股票代码， 股票名称， 利好程度, 以及判断依据
+            - 股票代码，股票名称要同输入内容一致
+            - 按照利好程度进行信息分组
+            
     """
 
     completion = openai_client.chat.completions.create(
@@ -167,9 +163,9 @@ def get_stock_recommends_from_news():
             """},
         ],
     )
-    jsonObj = repair_json(completion.choices[0].message.content.strip(), return_objects=True)
-    md_lines = json_to_markdown_table(['股票代码', '股票名称', '结论', '原因'], jsonObj)
-    return jsonObj, md_lines
+    # jsonObj = repair_json(completion.choices[0].message.content.strip(), return_objects=True)
+    # md_lines = json_to_markdown_table(['股票代码', '股票名称', '结论', '原因'], jsonObj)
+    return completion.choices[0].message.content.strip()
 
 def json_to_markdown_table(headers, data):
     if not data:
@@ -187,7 +183,7 @@ def json_to_markdown_table(headers, data):
     return "\n\n".join(table)
 
 if __name__ == '__main__':
-    jsonobj, md_lines = get_stock_recommends_from_news()
+    output = get_stock_recommends_from_news()
     
 
-    print(md_lines)
+    print(output)
