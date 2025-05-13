@@ -6,9 +6,11 @@ from newspaper import Article
 from newspaper.configuration import Configuration
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
+from news_recommend import get_stock_recommends_from_news
 import time
 import pytz
 import os
+import jsonschema2md
 
 # OpenAI API Key
 openai_api_key = os.getenv("OPENAI_COMPATIBLE_API_KEY")
@@ -55,6 +57,12 @@ rss_feeds = {
     "🌍 世界经济": {
         "华尔街日报 - 经济": "https://feeds.content.dowjones.io/public/rss/socialeconomyfeed",
         "BBC全球经济": "http://feeds.bbci.co.uk/news/business/rss.xml",
+    },
+}
+
+rss_feeds = {
+    "💻 36氪": {
+        "36氪": "https://36kr.com/feed",
     },
 }
 
@@ -214,9 +222,15 @@ if __name__ == "__main__":
 
     # AI生成摘要
     summary = summarize(analysis_text)
-
     # 生成仅展示标题和链接的最终消息
     final_summary = f"内容由HamunaStock.AI生成\n\n 📅 **{today_str} 财经新闻摘要**\n\n✍️ **今日分析总结：**\n{summary}\n\n---\n\n"
+
+    recommended_stocks, md_lines = get_stock_recommends_from_news()
+    
+    final_summary += "✍️ **基于新闻内容分析所提到的股票利好/利空结论(仅根据新闻判断，并不构成投资建议)：**\n\n"
+
+    final_summary += f"{md_lines}"
+
     final_summary += "**模型参考以下新闻生成决策内容**\n\n"
     for category, content in articles_data.items():
         if content.strip():
