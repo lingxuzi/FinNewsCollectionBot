@@ -10,7 +10,6 @@ from news_recommend import get_stock_recommends_from_news
 import time
 import pytz
 import os
-import jsonschema2md
 
 # OpenAI API Key
 openai_api_key = os.getenv("OPENAI_COMPATIBLE_API_KEY")
