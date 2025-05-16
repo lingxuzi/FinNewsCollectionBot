@@ -216,16 +216,18 @@ if __name__ == "__main__":
     # 生成仅展示标题和链接的最终消息
     final_summary = f"内容由HamunaStock.AI生成\n\n 📅 **{today_str} 财经新闻摘要**\n\n✍️ **今日分析总结：**\n{summary}\n\n---\n\n"
 
-    result = get_stock_recommends_from_news()
+    result, markdown = get_stock_recommends_from_news()
     
     final_summary += "✍️ **基于新闻内容分析所提到的股票利好/利空结论(仅根据新闻判断，并不构成投资建议)：**\n\n"
 
-    final_summary += f"{result}"
+    final_summary += f"{markdown}"
 
     final_summary += "\n\n**模型参考以下新闻生成决策内容**\n\n"
     for category, content in articles_data.items():
         if content.strip():
             final_summary += f"## {category}\n{content}\n\n"
+
+    print(final_summary)
 
     # 推送到多个server酱key
     send_to_wechat(title=f"📌 {today_str} 财经新闻摘要", content=final_summary)

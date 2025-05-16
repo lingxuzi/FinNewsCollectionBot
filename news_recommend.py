@@ -2,7 +2,7 @@ import akshare as ak
 import pandas as pd
 import os
 import re  # 用于正则表达式
-import difflib  # 用于名称相似度匹配
+import time
 from json_repair import repair_json
 from concurrent.futures import ThreadPoolExecutor
 
@@ -145,45 +145,84 @@ def get_stock_recommends_from_news():
             ```
 
             # 输出内容
-            - 输出表格格式的内容，包括股票代码， 股票名称， 利好程度, 以及判断依据
+            - 输出表格格式的内容，包括股票代码， 股票名称， 利好程度, 推荐持仓时间，以及判断依据
+            - 分析得到的新闻具体涉及哪些【行业】，会对哪些【个股股票】的升值和下跌产生影响。并对这种影响进行打分，打分标准如下：
+                - 5分：会对某些股票产生极大影响，直接导致股票的大幅上涨或下跌8%以上
+                - 4分：会对某些股票产生较大影响，股票可能有较大幅度上涨下跌5%~8%
+                - 3分：会对某些股票产生一般影响，股票可能有一定幅度上涨下跌3%~5%
+                - 2分：会对某些股票产生较小幅度影响，导致股票有可能微小上涨下跌1~3%
+                - 1分：没什么影响，无关紧要的新闻，对于此类新闻，你可以不回答出来0%~1%
+                - 如果上涨的影响，就是上述打分，如果是下跌的影响，那就是相应分数的负分值。
+            - 持仓时间可根据新闻内容判断为长期效应新闻还是短期效应新闻，输出为 短 / 长
+            - 如果利好程度为负，持仓时间输出为"观望"
+            - 如果上涨或下跌涉及到的是【行业】，请根据标题内容，展开说出几只该行业的**龙头个股**。
+            - 在说出任何一支涉及个股的时候，请明确其股票编号，如`金发科技（600143）`
+            - 新闻内容需要有明确信息，没有明确信息或只涉及到股价涨跌等内容，如 “紧跟政策导向呼应市场需求 上市公司巨资布局职业教育” 或 “"CPO概念股走强，涨超5%"
+”，此类应过滤掉，不可胡编乱造
+            - 专业严谨，善于分析提炼关键信息，能用清晰结构化且友好的语言，确保用户易理解使用。
+            - 输出强制为JSON结构 输出示例为: [{"股票名称":"比亚迪", "股票代码": "32456", "利好程度": "5", "持仓时间": 1, "结果判断理由": "南山智尚与其合作拓展机器人外壳等新兴领域，人形机器人概念股走高。"}]
+            
+
+            # 限制
+            - 如新闻内容中没有相关股市的有价值信息，仅返回“无价值”，严禁添加、编造任何其他内容。
+            - 如果多篇新闻内容针对同一个股票，请综合分析并输出为一条,并给出综合上涨下跌判断
             - 股票代码，股票名称要同输入内容一致
-            - 按照利好程度进行信息分组
             
     """
 
-    completion = openai_client.chat.completions.create(
-        model=model_name,
-        messages=[
-            {
-                "role": "system",
-                "content": system_prompt
-            },
-            {"role": "user", "content": f"""
-                {results[:40]}
-            """},
-        ],
-    )
-    # jsonObj = repair_json(completion.choices[0].message.content.strip(), return_objects=True)
-    # md_lines = json_to_markdown_table(['股票代码', '股票名称', '结论', '原因'], jsonObj)
-    return completion.choices[0].message.content.strip()
+    for i in range(3):
+        try:
+            completion = openai_client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": system_prompt
+                    },
+                    {"role": "user", "content": f"""
+                        {results[:40]}
+                    """},
+                ],
+            )
+            message = completion.choices[0].message.content.strip()
+            
+            message = repair_json(message, True)
 
-def json_to_markdown_table(headers, data):
-    if not data:
+            markdown = json_to_markdown(message)
+
+            return message, markdown
+
+        except:
+            time.sleep(2)
+            pass
+
+def json_to_markdown(json_list):
+    if not json_list:
         return ""
     
-    # 构建表格行
-    table = []
-    table.append("|" + "|".join(headers) + "|")
-    table.append("|" + "|".join(["---"] * len(headers)) + "|")
-
-    for item in data:
-        row = "|" + "|".join(str(value) for value in item.values()) + "|"
-        table.append(row)
-
-    return "\n\n".join(table)
+    # 提取表头（键名）
+    headers = list(json_list[0].keys())
+    markdown = "| " + " | ".join(headers) + " |\n"
+    markdown += "|-" + "-|-".join(["-"*len(h) for h in headers]) + "|\n"
+    
+    # 填充数据行
+    for item in json_list:
+        row = []
+        for key in headers:
+            value = item[key]
+            if isinstance(value, list):
+                value = "、".join(map(str, value))  # 处理数组
+            row.append(str(value))
+        markdown += "| " + " | ".join(row) + " |\n"
+    return markdown
 
 if __name__ == '__main__':
     output = get_stock_recommends_from_news()
-    
+
+    output = repair_json(output, True)
 
     print(output)
+
+    markdown = json_to_markdown(output)
+
+    print(markdown)
