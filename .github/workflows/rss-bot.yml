@@ -2,8 +2,8 @@ name: 📡 RSS 财经新闻自动推送
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # 北京时间 9:00 (UTC 1:00)
-    - cron: '0 9 * * *'  # 北京时间 17:00 (UTC 9:00)
+    - cron: '0 23 * * *'  # 北京时间 9:00 (UTC 1:00)
+    - cron: '0 8 * * *'  # 北京时间 17:00 (UTC 9:00)
 
   workflow_dispatch:  # 允许手动触发
 
@@ -17,7 +17,7 @@ jobs:
       - name: 🛠️ 设置 Python 环境
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.10'
 
       - name: 📦 安装依赖
         run: |
