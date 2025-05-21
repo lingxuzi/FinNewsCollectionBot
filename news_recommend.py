@@ -105,16 +105,23 @@ def get_stock_recommends_from_news():
                         } for s in matched_stocks]
 
                     results.extend(out)
-                # else:
-                #     matched_stocks = pattern.findall(content)
-                #     matched_stocks = [m for m in matched_stocks if m in stock_name_clean]
 
-                #     if len(matched_stocks) > 0:
-                #         # 这里使用了list comprehension, 对每个匹配的stock都新建一个tuple
-                #         out = [(s, stock_codes_map[s], content) for s in matched_stocks]
-
-                #         results.extend(out)
-
+    from collections import defaultdict
+    
+    # 按股票代码分组并融合content
+    merged_results = defaultdict(list)
+    for item in results:
+        merged_results[item['stock_code']].append(item['content'])
+    
+    # 重新构建结果列表，每个股票代码对应的content用|连接
+    final_results = []
+    for stock_code, contents in merged_results.items():
+        final_results.append({
+            'stock_name': next(item['stock_name'] for item in results if item['stock_code'] == stock_code),
+            'stock_code': stock_code,
+            'content': '|'.join(contents)
+        })
+    
 
     from openai import OpenAI
 
@@ -166,6 +173,7 @@ def get_stock_recommends_from_news():
             # 限制
             - 如新闻内容中没有相关股市的有价值信息，仅返回“无价值”，严禁添加、编造任何其他内容。
             - 如果多篇新闻内容针对同一个股票，请综合分析并输出为一条,并给出综合上涨下跌判断
+            - 股票代码如果不足六位，请在前面补0，如“000001”
             - 股票代码，股票名称要同输入内容一致
             
     """
@@ -180,12 +188,18 @@ def get_stock_recommends_from_news():
                         "content": system_prompt
                     },
                     {"role": "user", "content": f"""
-                        {results[:40]}
+                        {final_results}
                     """},
                 ],
+                stream=True
             )
-            message = completion.choices[0].message.content.strip()
-            
+            message = ""
+            for chunk in completion:
+                if chunk.choices[0].delta.content is None:
+                    break
+                message += chunk.choices[0].delta.content
+            message = message.strip()            
+
             message = repair_json(message, True)
 
             markdown = json_to_markdown(message)

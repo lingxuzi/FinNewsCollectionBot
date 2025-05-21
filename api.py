@@ -188,8 +188,8 @@ def get_financial_statements(symbol: str) -> Dict[str, Any]:
 
                 # 从现金流量表获取
                 "depreciation_and_amortization": float(latest_cash_flow.get("固定资产折旧、油气资产折耗、生产性生物资产折旧", 0)),
-                "capital_expenditure": abs(float(latest_cash_flow.get("购建固定资产、无形资产和其他长期资产支付的现金", 0))),
-                "free_cash_flow": float(latest_cash_flow.get("经营活动产生的现金流量净额", 0)) - abs(float(latest_cash_flow.get("购建固定资产、无形资产和其他长期资产支付的现金", 0)))
+                "capital_expenditure": abs(float(latest_cash_flow.get("购建固定资产、无形资产和其他长期资产所支付的现金", 0))),
+                "free_cash_flow": float(latest_cash_flow.get("经营活动产生的现金流量净额", 0)) - abs(float(latest_cash_flow.get("购建固定资产、无形资产和其他长期资产所支付的现金", 0)))
             }
             line_items.append(current_item)
             pass #logger.info("✓ Latest period data processed successfully")
@@ -201,8 +201,8 @@ def get_financial_statements(symbol: str) -> Dict[str, Any]:
                 "operating_profit": float(previous_income.get("营业利润", 0)),
                 "working_capital": float(previous_balance.get("流动资产合计", 0)) - float(previous_balance.get("流动负债合计", 0)),
                 "depreciation_and_amortization": float(previous_cash_flow.get("固定资产折旧、油气资产折耗、生产性生物资产折旧", 0)),
-                "capital_expenditure": abs(float(previous_cash_flow.get("购建固定资产、无形资产和其他长期资产支付的现金", 0))),
-                "free_cash_flow": float(previous_cash_flow.get("经营活动产生的现金流量净额", 0)) - abs(float(previous_cash_flow.get("购建固定资产、无形资产和其他长期资产支付的现金", 0)))
+                "capital_expenditure": abs(float(previous_cash_flow.get("购建固定资产、无形资产和其他长期资产所支付的现金", 0))),
+                "free_cash_flow": float(previous_cash_flow.get("经营活动产生的现金流量净额", 0)) - abs(float(previous_cash_flow.get("购建固定资产、无形资产和其他长期资产所支付的现金", 0)))
             }
             line_items.append(previous_item)
             pass #logger.info("✓ Previous period data processed successfully")
