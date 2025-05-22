@@ -119,7 +119,7 @@ def get_stock_recommends_from_news():
         final_results.append({
             'stock_name': next(item['stock_name'] for item in results if item['stock_code'] == stock_code),
             'stock_code': stock_code,
-            'content': '|'.join(contents)
+            'content': ';'.join(contents)
         })
     
 
@@ -167,7 +167,7 @@ def get_stock_recommends_from_news():
             - 新闻内容需要有明确信息，没有明确信息或只涉及到股价涨跌等内容，如 “紧跟政策导向呼应市场需求 上市公司巨资布局职业教育” 或 “"CPO概念股走强，涨超5%"
 ”，此类应过滤掉，不可胡编乱造
             - 专业严谨，善于分析提炼关键信息，能用清晰结构化且友好的语言，确保用户易理解使用。
-            - 输出强制为JSON结构 输出示例为: [{"股票名称":"比亚迪", "股票代码": "32456", "利好程度": "5", "持仓时间": 1, "结果判断理由": "南山智尚与其合作拓展机器人外壳等新兴领域，人形机器人概念股走高。"}]
+            - 输出强制为标准JSON结构 中间禁止输出转义文字 输出示例为: [{"股票名称":"比亚迪", "股票代码": "32456", "利好程度": "5", "持仓时间": 1, "结果判断理由": "南山智尚与其合作拓展机器人外壳等新兴领域，人形机器人概念股走高。"}]
             
 
             # 限制

@@ -149,7 +149,7 @@ def detect_distribution_signals(tech_indicator):
     
     return df
 
-def analyze_recent_days(self, df, days=5):
+def analyze_recent_days(df, days=5):
     """分析最近几天的主力出货可能性"""
     if df is None or df.empty:
         print("请先检测主力出货信号")
