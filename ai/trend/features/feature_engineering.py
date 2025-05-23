@@ -4,8 +4,10 @@ import pandas as pd
 import numpy as np
 import talib
 
+from ai.trend.config.config import FEATURE_COLS
 
-def calculate_technical_indicators(df):
+
+def calculate_technical_indicators(df, lookback_days=5):
     """
     计算技术指标并添加到数据框
 
@@ -16,6 +18,8 @@ def calculate_technical_indicators(df):
         pd.DataFrame: 包含技术指标的DataFrame
     """
     df = df.copy()
+
+    features = FEATURE_COLS.copy()
 
     # 计算EMA20_ratio
     df['EMA20'] = talib.EMA(df['close'], timeperiod=20)
@@ -40,7 +44,14 @@ def calculate_technical_indicators(df):
     # 计算ADX
     df['ADX'] = talib.ADX(df['high'], df['low'], df['close'], timeperiod=14)
 
+    # 添加历史价格作为特征
+    for i in range(1, lookback_days + 1):
+        df[f'close_lag{i}'] = df['close'].shift(i)
+        df[f'volume_lag{i}'] = df['volume'].shift(i)
+        features.append(f'close_lag{i}')
+        features.append(f'volume_lag{i}')
+
     # 计算未来5日收益率作为目标
     df['pct_chg_5d'] = df['close'].pct_change(periods=5).shift(-5)
 
-    return df
+    return df, features

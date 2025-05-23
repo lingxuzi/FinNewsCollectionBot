@@ -60,12 +60,12 @@ def main():
                 continue
 
             # 获取最新数据
-            df = get_stock_data(code)
+            df, features = get_stock_data(code)
             if df is None or len(df) < 500:
                 continue
 
             # 生成预测
-            X = df[FEATURE_COLS].replace([np.inf, -np.inf], np.nan).ffill().fillna(0)
+            X = df[features].replace([np.inf, -np.inf], np.nan).ffill().fillna(0)
             latest_features = X.iloc[[-1]].values.astype(np.float32)
             prob = booster.predict(latest_features)[0]
 

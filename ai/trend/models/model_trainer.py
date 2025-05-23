@@ -91,14 +91,14 @@ def train_and_save_model(code, force_retrain=False):
             print(f"模型{code}加载失败，重新训练... 错误：{str(e)}")
 
     # 获取训练数据
-    df = run_with_cache(get_stock_data,code)
+    df, features = run_with_cache(get_stock_data,code)
     if df is None or len(df) < 500:
         return None
 
     try:
         # 数据预处理
         df = df.dropna(subset=['pct_chg_5d'])
-        X = df[FEATURE_COLS]
+        X = df[features]
         y = (df['pct_chg_5d'] > 0).astype(int)
 
         # 时间序列分割

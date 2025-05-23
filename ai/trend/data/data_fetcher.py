@@ -25,8 +25,8 @@ def get_stock_data(code):
         df = df.set_index('date')
 
         # 计算技术指标
-        df = calculate_technical_indicators(df)
-        return df
+        df, features = calculate_technical_indicators(df)
+        return df, features
     except Exception as e:
         print(f"获取股票{code}数据失败: {str(e)}")
         return None
