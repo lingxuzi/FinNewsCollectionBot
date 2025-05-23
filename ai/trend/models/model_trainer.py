@@ -29,17 +29,22 @@ def optimize_hyperparameters(X, y):
 
     def objective(trial):
         params = {
-            'n_estimators': trial.suggest_int('n_estimators', 100, 500),
-            'learning_rate': trial.suggest_float('learning_rate', 1e-5, 0.3, log=True),
+            'n_estimators': trial.suggest_int('n_estimators', 100, 1000),
+            'learning_rate': trial.suggest_float('learning_rate', 1e-2, 0.3, log=True),
             'max_depth': trial.suggest_int('max_depth', 3, 30),
-            'max_leaves': trial.suggest_int('max_leaves', 10, 80),
+            'max_leaves': trial.suggest_int('max_leaves', 20, 3000, step=20),
             'subsample': trial.suggest_float('subsample', 0.6, 1.0),
             'colsample_bytree': trial.suggest_float('colsample_bytree', 0.6, 1.0),
             'reg_alpha': trial.suggest_float('reg_alpha', 1e-8, 10.0, log=True),
             'reg_lambda': trial.suggest_float('reg_lambda', 1e-8, 10.0, log=True),
             'max_bin': trial.suggest_int('max_bin', 125, 750),
+            "min_gain_to_split": trial.suggest_float("min_gain_to_split", 0, 15),
+            "bagging_fraction": trial.suggest_float("bagging_fraction", 0.2, 0.95, step=0.1),
+            "bagging_freq": trial.suggest_categorical("bagging_freq", [1]),
+            "feature_fraction": trial.suggest_float("feature_fraction", 0.2, 0.95, step=0.1),
             'verbose': -1,
-            'random_state': 42
+            'random_state': 42,
+            'n_jobs': 4
         }
 
         tscv = TimeSeriesSplit(n_splits=5)
@@ -61,7 +66,7 @@ def optimize_hyperparameters(X, y):
         return np.mean(scores)
 
     study = optuna.create_study(direction='maximize')
-    study.optimize(objective, n_trials=50, show_progress_bar=False)
+    study.optimize(objective, n_trials=50, show_progress_bar=True)
     return study.best_params
 
 
