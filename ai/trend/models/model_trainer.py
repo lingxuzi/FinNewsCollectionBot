@@ -7,7 +7,6 @@ import numpy as np
 import traceback
 from sklearn.metrics import roc_auc_score, accuracy_score, f1_score
 from sklearn.model_selection import TimeSeriesSplit
-from sklearn.preprocessing import RobustScaler
 import logging
 from ai.trend.config.config import MODEL_DIR, FEATURE_COLS
 from ai.trend.data.data_fetcher import get_stock_data
@@ -16,6 +15,8 @@ import warnings
 import joblib
 
 warnings.filterwarnings("ignore")
+
+
 
 def optimize_hyperparameters(X, y):
     """
@@ -28,29 +29,39 @@ def optimize_hyperparameters(X, y):
     Returns:
         dict: 最佳超参数
     """
-    logging.getLogger('optuna').setLevel(logging.ERROR)
+    logging.getLogger("optuna").setLevel(logging.ERROR)
 
-    def objective(trial):
+    def objective(trial: optuna.Trial):
         params = {
-            'n_estimators': trial.suggest_int('n_estimators', 200, 2000),
-            'learning_rate': trial.suggest_float('learning_rate', 1e-5, 0.3, log=True),
-            'max_depth': trial.suggest_int('max_depth', 3, 9),
-            'num_leaves': trial.suggest_int('num_leaves', 10, 500, step=20),
-            'min_child_samples': trial.suggest_int('min_child_samples', 5, 100), # 叶子节点最少样本数
-            'subsample': trial.suggest_float('subsample', 0.6, 1.0),
-            'colsample_bytree': trial.suggest_float('colsample_bytree', 0.6, 1.0),
-            'reg_alpha': trial.suggest_float('reg_alpha', 1e-8, 10.0, log=True),
-            'reg_lambda': trial.suggest_float('reg_lambda', 1e-8, 10.0, log=True),
-            'max_bin': trial.suggest_int('max_bin', 125, 750),
-            "min_gain_to_split": trial.suggest_float("min_gain_to_split", 0, 15),
-            "bagging_fraction": trial.suggest_float("bagging_fraction", 0.8, 0.99, step=0.03),
+            "n_estimators": trial.suggest_int("n_estimators", 700, 2000),
+            "learning_rate": trial.suggest_float("learning_rate", 1e-5, 0.3, log=True),
+            "max_depth": trial.suggest_int("max_depth", 3, 9),
+            "num_leaves": trial.suggest_int("num_leaves", 300, 500, step=10),
+            "min_child_samples": trial.suggest_int(
+                "min_child_samples", 80, 100
+            ),  # 叶子节点最少样本数
+            "subsample": trial.suggest_float("subsample", 0.8, 1.0),
+            "colsample_bytree": trial.suggest_float("colsample_bytree", 0.8, 1.0),
+            "reg_alpha": trial.suggest_float("reg_alpha", 1e-2, 10.0, log=True),
+            "reg_lambda": trial.suggest_float("reg_lambda", 1e-2, 10.0, log=True),
+            "max_bin": trial.suggest_int("max_bin", 500, 750),
+            "min_gain_to_split": trial.suggest_float(
+                "min_gain_to_split", 10, 15, step=0.01
+            ),
+            "bagging_fraction": trial.suggest_float(
+                "bagging_fraction", 0.8, 0.99, step=0.03
+            ),
             "bagging_freq": trial.suggest_int("bagging_freq", 1, 7),
-            "feature_fraction": trial.suggest_float("feature_fraction", 0.8, 0.99, step=0.03),
-            'min_data_in_bin': trial.suggest_int('min_data_in_bin', 3, 20), # 每个bin的最小数据量
-            'verbose': -1,
-            'random_state': 42,
-            'n_jobs': 4,
-            'is_unbalance': True
+            "feature_fraction": trial.suggest_float(
+                "feature_fraction", 0.8, 0.99, step=0.03
+            ),
+            "min_data_in_bin": trial.suggest_int(
+                "min_data_in_bin", 10, 20
+            ),  # 每个bin的最小数据量
+            "verbose": -1,
+            "random_state": 42,
+            "n_jobs": 4,
+            "is_unbalance": trial.suggest_categorical('is_unbalance', [True, False])
         }
 
         tscv = TimeSeriesSplit(n_splits=5)
@@ -60,30 +71,29 @@ def optimize_hyperparameters(X, y):
             y_train, y_val = y[train_idx], y[val_idx]
 
             model = lgb.LGBMClassifier(**params)
-            model.fit(X_train, y_train,
-                      eval_set=[(X_val, y_val)],
-                      eval_metric='f1'
-                      )
-            
+            model.fit(X_train, y_train, eval_set=[(X_val, y_val)], eval_metric="f1")
+
             model = model.booster_
 
             y_pred = model.predict(X_val)
             y_pred_binary = (y_pred >= 0.5).astype(int)
             try:
-                accuracy = f1_score(y_val, y_pred_binary, average='binary')
+                accuracy = f1_score(y_val, y_pred_binary, average="binary")
                 scores.append(accuracy)
             except:
                 scores.append(0)
         return np.mean(scores)
 
-    study = optuna.create_study(direction='maximize')
+    study = optuna.create_study(direction="maximize")
     study.optimize(objective, n_trials=50, show_progress_bar=True)
 
     print(study.best_params)
     return study.best_params
 
 
-def train_and_save_model(code, force_retrain=False, start_date='20000101', end_date='20230101'):
+def train_and_save_model(
+    code, force_retrain=False, start_date="20000101", end_date="20230101"
+):
     """
     训练并保存模型
 
@@ -94,8 +104,8 @@ def train_and_save_model(code, force_retrain=False, start_date='20000101', end_d
     Returns:
         lgb.Booster: 训练好的模型，或None（如果训练失败）
     """
-    model_path = os.path.join(MODEL_DIR, f'{code}_model.txt')
-    scaler_path = os.path.join(MODEL_DIR, f'{code}_model.scaler')
+    model_path = os.path.join(MODEL_DIR, f"{code}_model.txt")
+    scaler_path = os.path.join(MODEL_DIR, f"{code}_model.scaler")
 
     # 尝试加载已有模型
     if not force_retrain and os.path.exists(model_path) and os.path.exists(scaler_path):
@@ -110,7 +120,6 @@ def train_and_save_model(code, force_retrain=False, start_date='20000101', end_d
         return None
 
     try:
-
         # 时间序列分割
         split_idx = int(len(X) * 0.8)
         X_train, X_valid = X[:split_idx], X[split_idx:]
@@ -119,19 +128,21 @@ def train_and_save_model(code, force_retrain=False, start_date='20000101', end_d
         # 超参数优化
         best_params = optimize_hyperparameters(X_train, y_train)
 
-        # best_params = {'n_estimators': 926, 'learning_rate': 0.25222220058786443, 'max_depth': 4, 'num_leaves': 1112, 'subsample': 0.646788323361658, 'colsample_bytree': 0.6063487053623333, 'reg_alpha': 0.009857127671661406, 'reg_lambda': 3.120409827663489e-08, 'max_bin': 746, 'min_gain_to_split': 7.872954831666084, 'bagging_fraction': 0.6000000000000001, 'bagging_freq': 1, 'feature_fraction': 0.5}
-
         # 全量数据训练
         model = lgb.LGBMClassifier(**best_params)
-        model.fit(X_train, y_train, eval_metric='f1', eval_set=[(X_valid, y_valid)], callbacks=[])
-
-        
+        model.fit(
+            X_train,
+            y_train,
+            eval_metric="f1",
+            eval_set=[(X_valid, y_valid)],
+            callbacks=[],
+        )
 
         # 在测试集上评估
         model = model.booster_
         y_pred = model.predict(X_valid)
         y_pred_binary = (y_pred >= 0.5).astype(int)
-        
+
         print("\n模型评估结果:")
         print(f"测试集准确率: {f1_score(y_valid, y_pred_binary):.4f}")
 

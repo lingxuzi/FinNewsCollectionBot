@@ -7,6 +7,7 @@ from utils.cache import run_with_cache
 from sklearn.preprocessing import RobustScaler, StandardScaler
 from sklearn.linear_model import Lasso, LassoCV
 from ai.trend.features.feature_engineering import calculate_technical_indicators
+from ai.trend.config.config import TARGET_DAYS
 
 
 def select_features_with_lasso(features, target):
@@ -51,7 +52,7 @@ def get_stock_data(code, start_date=None, end_date=None, scaler=None, mode='trai
         df['date'] = pd.to_datetime(df['date'])
 
         # 计算技术指标
-        df, label = calculate_technical_indicators(df, mode=mode)
+        df, label = calculate_technical_indicators(df, forcast_days=TARGET_DAYS, mode=mode)
 
         # 预处理
         if not scaler:
