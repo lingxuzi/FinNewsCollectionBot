@@ -4,12 +4,13 @@ import feedparser
 import requests
 from newspaper import Article
 from newspaper.configuration import Configuration
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from concurrent.futures import ThreadPoolExecutor
 from news_recommend import get_stock_recommends_from_news
 import time
 import pytz
 import os
+import qstock
 
 # OpenAI API Key
 openai_api_key = os.getenv("OPENAI_COMPATIBLE_API_KEY")
@@ -202,14 +203,44 @@ def send_to_wechat(title, content):
                 print(f"✅ 推送成功: {key}")
                 break
             else:
-                print(f"❌ 推送失败: {key}, 响应：{response.text}")
+                print(f"❌ 推送失败: {key}, 响应：{qstock_newsresponse.text}")
 
+def get_qstock_news():
+    datenow = today_date()
+    lastday = (datenow - timedelta(days=1))
+    for _ in range(3):
+        try:
+            cailian_news = qstock.news_data(news_type=None,start=lastday,end=datenow,code=None)
+            cailian_news = '\n\n'.join(cailian_news['内容'].values)
+            break
+        except Exception as e:
+            cailian_news = ''
+
+    for _ in range(3):
+        try:
+            cctv_news = qstock.news_data(news_type='cctv',start=lastday,end=datenow,code=None)
+            cctv_news = '\n\n'.join(cctv_news['content'].values)
+            break
+        except Exception as e:
+            cctv_news = ''
+
+    for _ in range(3):
+        try:
+            js_news = qstock.news_data(news_type='js',start=lastday,end=datenow,code=None)
+            js_news = '\n\n'.join(js_news['content'].values)
+            break
+        except Exception as e:
+            js_news = ''
 
 if __name__ == "__main__":
     today_str = today_date().strftime("%Y-%m-%d")
 
     # 每个网站获取最多 5 篇文章
     articles_data, analysis_text = fetch_rss_articles(rss_feeds, max_articles=5)
+
+    qstock_news = get_qstock_news()
+
+    analysis_text += qstock_news
 
     # AI生成摘要
     summary = summarize(analysis_text)

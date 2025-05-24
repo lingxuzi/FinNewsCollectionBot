@@ -6,3 +6,4 @@ pytz
 lxml_html_clean
 akshare
 json_repair
+qstock

@@ -2,7 +2,8 @@
 """主程序入口"""
 import os
 import glob
-from datetime import datetime
+import traceback
+from datetime import datetime, date, timedelta
 import pandas as pd
 import akshare as ak
 from tqdm import tqdm
@@ -47,6 +48,7 @@ def main():
     stock_list['code'] = stock_list['code'].apply(lambda x: str(x).zfill(6))
     stock_list = stock_list[~stock_list['name'].str.contains('ST|退')]
     stock_list = stock_list[~stock_list['code'].str.startswith(('300', '688', '8'))]
+    stock_list = stock_list[stock_list['code'] == '600789']
 
     results = []
     pbar = tqdm(stock_list['code'], desc="处理股票", ncols=100)
@@ -55,19 +57,17 @@ def main():
         pbar.set_postfix_str(f"正在处理：{code}")
         try:
             # 获取并训练模型
-            booster = train_and_save_model(code, force_retrain=not load_cache)
+            booster, scaler = train_and_save_model(code, force_retrain=not load_cache, start_date=None, end_date='20241231')
             if not booster:
                 continue
 
             # 获取最新数据
-            df, features = get_stock_data(code)
-            if df is None or len(df) < 500:
-                continue
+            current_date_str = date.today().strftime("%Y%m%d")
+            past_90_days = (date.today() - timedelta(days=120)).strftime("%Y%m%d")
+            df, X, y, scaler = get_stock_data(code, scaler=scaler, start_date=past_90_days, end_date=current_date_str, mode='forcast')
 
             # 生成预测
-            X = df[features].replace([np.inf, -np.inf], np.nan).ffill().fillna(0)
-            latest_features = X.iloc[[-1]].values.astype(np.float32)
-            prob = booster.predict(latest_features)[0]
+            prob = booster.predict(X[:-1])[0]
 
             # 记录结果
             latest_pct = df['pct_chg'].iloc[-1]
@@ -81,24 +81,18 @@ def main():
             })
 
         except Exception as e:
+            traceback.print_exc()
             print(f"\n处理{code}时发生错误: {str(e)}")
             continue
-
-    # 生成推荐结果
-    if results:
-        result_df = pd.DataFrame(results)
-        result_df['推荐评级'] = pd.cut(result_df['预测概率'],
-                                       bins=[0, 0.6, 0.75, 1],
-                                       labels=['C', 'B', 'A'])
-        result_df = result_df[['代码', '名称', '是否涨停', '预测概率', '推荐评级', '收盘价', '更新日期']]
-
-        result_file = f'stock_recommend_{datetime.today().strftime("%Y%m%d")}.xlsx'
-        result_df.to_excel(result_file, index=False, engine='openpyxl')
-        print(f"\n✅ 分析完成！共处理{len(results)}只股票，推荐结果已保存至 {result_file}")
-        print(result_df.head(10))
-    else:
-        print("\n⚠️ 未找到有效股票数据，请检查数据源或过滤条件")
-
+        
+        if results:
+            result_df = pd.DataFrame(results)
+            result_df['推荐评级'] = pd.cut(result_df['预测概率'],
+                                        bins=[0, 0.6, 0.75, 1],
+                                        labels=['C', 'B', 'A'])
+            result_df = result_df[['代码', '名称', '是否涨停', '预测概率', '推荐评级', '收盘价', '更新日期']]
+            print(f"\n✅ 分析完成！共处理{len(results)}只股票")
+            print(result_df.head(10))
 
 if __name__ == '__main__':
     main()
