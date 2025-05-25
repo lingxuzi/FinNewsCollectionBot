@@ -49,7 +49,7 @@ def main():
     stock_list = stock_list[~stock_list['name'].str.contains('ST|退')]
     stock_list = stock_list[~stock_list['code'].str.startswith(('300', '688', '8'))]
     # stock_list = stock_list[stock_list['code'] == '300233']
-    stock_list = stock_list[:1]
+    # stock_list = stock_list[:1]
 
     results = []
     pbar = tqdm(stock_list['code'], desc="处理股票", ncols=100)

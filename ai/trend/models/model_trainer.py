@@ -33,10 +33,10 @@ def optimize_hyperparameters(X, y):
 
     def objective(trial: optuna.Trial):
         params = {
-            "n_estimators": trial.suggest_int("n_estimators", 1000, 3000),
-            "learning_rate": trial.suggest_float("learning_rate", 1e-1, 0.3, log=True),
-            "max_depth": trial.suggest_int("max_depth", 3, 9),
-            "num_leaves": trial.suggest_int("num_leaves", 300, 500, step=10),
+            "n_estimators": trial.suggest_int("n_estimators", 500, 3000),
+            "learning_rate": trial.suggest_float("learning_rate", 1e-5, 0.3, log=True),
+            "max_depth": trial.suggest_int("max_depth", 3, 12),
+            "num_leaves": trial.suggest_int("num_leaves", 32, 500, step=10),
             "min_child_samples": trial.suggest_int(
                 "min_child_samples", 80, 100
             ),  # 叶子节点最少样本数
