@@ -203,7 +203,7 @@ def send_to_wechat(title, content):
                 print(f"✅ 推送成功: {key}")
                 break
             else:
-                print(f"❌ 推送失败: {key}, 响应：{qstock_newsresponse.text}")
+                print(f"❌ 推送失败: {key}, 响应：{response.text}")
 
 def get_qstock_news():
     datenow = today_date()
@@ -237,17 +237,12 @@ if __name__ == "__main__":
 
     # 每个网站获取最多 5 篇文章
     articles_data, analysis_text = fetch_rss_articles(rss_feeds, max_articles=5)
-
-    qstock_news = get_qstock_news()
-
-    analysis_text += qstock_news
+    result, markdown, news_text = get_stock_recommends_from_news()
 
     # AI生成摘要
-    summary = summarize(analysis_text)
+    summary = summarize(analysis_text + '\n\n' + analysis_text)
     # 生成仅展示标题和链接的最终消息
     final_summary = f"内容由HamunaStock.AI生成\n\n 📅 **{today_str} 财经新闻摘要**\n\n✍️ **今日分析总结：**\n{summary}\n\n---\n\n"
-
-    result, markdown = get_stock_recommends_from_news()
     
     final_summary += "✍️ **基于新闻内容分析所提到的股票利好/利空结论(仅根据新闻判断，并不构成投资建议)：**\n\n"
 

@@ -33,8 +33,8 @@ def optimize_hyperparameters(X, y):
 
     def objective(trial: optuna.Trial):
         params = {
-            "n_estimators": trial.suggest_int("n_estimators", 700, 2000),
-            "learning_rate": trial.suggest_float("learning_rate", 1e-5, 0.3, log=True),
+            "n_estimators": trial.suggest_int("n_estimators", 1000, 3000),
+            "learning_rate": trial.suggest_float("learning_rate", 1e-1, 0.3, log=True),
             "max_depth": trial.suggest_int("max_depth", 3, 9),
             "num_leaves": trial.suggest_int("num_leaves", 300, 500, step=10),
             "min_child_samples": trial.suggest_int(
@@ -42,8 +42,8 @@ def optimize_hyperparameters(X, y):
             ),  # 叶子节点最少样本数
             "subsample": trial.suggest_float("subsample", 0.8, 1.0),
             "colsample_bytree": trial.suggest_float("colsample_bytree", 0.8, 1.0),
-            "reg_alpha": trial.suggest_float("reg_alpha", 1e-2, 10.0, log=True),
-            "reg_lambda": trial.suggest_float("reg_lambda", 1e-2, 10.0, log=True),
+            "reg_alpha": trial.suggest_float("reg_alpha", 1e-4, 10.0, log=True),
+            "reg_lambda": trial.suggest_float("reg_lambda", 1e-4, 10.0, log=True),
             "max_bin": trial.suggest_int("max_bin", 500, 750),
             "min_gain_to_split": trial.suggest_float(
                 "min_gain_to_split", 10, 15, step=0.01

@@ -107,13 +107,16 @@ def get_stock_recommends_from_news():
                     results.extend(out)
 
     from collections import defaultdict
+
+    news_text = ''
     
     # 按股票代码分组并融合content
     merged_results = defaultdict(list)
     for item in results:
         merged_results[item['stock_code']].append(item['content'])
+        news_text += item['content'] + '\n\n'
     
-    # 重新构建结果列表，每个股票代码对应的content用|连接
+    # 重新构建结果列表，每个股票代码对应的content用;连接
     final_results = []
     for stock_code, contents in merged_results.items():
         final_results.append({
@@ -203,7 +206,7 @@ def get_stock_recommends_from_news():
 
             markdown = json_to_markdown(message)
 
-            return message, markdown
+            return message, markdown, news_text
 
         except:
             time.sleep(2)
