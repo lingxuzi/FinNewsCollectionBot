@@ -145,6 +145,7 @@ def calculate_technical_indicators(df, forcast_days=5, mode='train'):
     df_feat.ta.ema(length=5, append=True, col_names='EMA_5')
     df_feat.ta.ema(length=12, append=True, col_names='EMA_12')
     df_feat.ta.ema(length=26, append=True, col_names='EMA_26')
+    df_feat.ta.ema(length=48, append=True, col_names='EMA_48')
 
     # MACD
     macd_df = df_feat.ta.macd(fast=12, slow=26, signal=9, append=True)
@@ -162,6 +163,15 @@ def calculate_technical_indicators(df, forcast_days=5, mode='train'):
 
     # ATR (Average True Range) - 波动性
     df_feat.ta.atr(length=14, append=True, col_names='ATR_14')
+
+    # 计算OBV
+    df['OBV'] = talib.OBV(df['close'], df['volume'])
+
+    # 计算CCI
+    df['CCI'] = talib.CCI(df['high'], df['low'], df['close'], timeperiod=14)
+
+    # 计算ADX
+    df['ADX'] = talib.ADX(df['high'], df['low'], df['close'], timeperiod=14)
 
     # CCI (Commodity Channel Index)
     df_feat.ta.cci(length=20, append=True, col_names='CCI_20')

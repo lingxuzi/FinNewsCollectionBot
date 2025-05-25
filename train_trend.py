@@ -28,7 +28,7 @@ def main():
     os.makedirs(MODEL_DIR, exist_ok=True)
 
     # 缓存处理
-    load_cache = input("是否加载缓存模型？(y/n): ").lower() == 'y'
+    load_cache = False #input("是否加载缓存模型？(y/n): ").lower() == 'y'
     if load_cache:
         model_files = glob.glob(os.path.join(MODEL_DIR, '*_model.txt'))
         if model_files:
@@ -58,7 +58,7 @@ def main():
         pbar.set_postfix_str(f"正在处理：{code}")
         try:
             # 获取并训练模型
-            booster, scaler = train_and_save_model(code, force_retrain=not load_cache, start_date=None, end_date='20241231')
+            booster, scaler, best_thres = train_and_save_model(code, force_retrain=not load_cache, start_date=None, end_date='20241231')
             if not booster:
                 continue
 
@@ -77,6 +77,7 @@ def main():
                 '名称': stock_list.loc[stock_list['code'] == code, 'name'].values[0],
                 '是否涨停': "是" if latest_pct >= 9.9 else "否",
                 '预测概率': prob,
+                '正收益概率': '超大概率' if prob >= best_thres else '大概率',
                 '收盘价': df['close'].iloc[-1],
                 '更新日期': datetime.today().strftime('%Y-%m-%d')
             })
@@ -86,14 +87,14 @@ def main():
             print(f"\n处理{code}时发生错误: {str(e)}")
             continue
         
-        if results:
-            result_df = pd.DataFrame(results)
-            result_df['推荐评级'] = pd.cut(result_df['预测概率'],
-                                        bins=[0, 0.6, 0.75, 1],
-                                        labels=['C', 'B', 'A'])
-            result_df = result_df[['代码', '名称', '是否涨停', '预测概率', '推荐评级', '收盘价', '更新日期']]
-            print(f"\n✅ 分析完成！共处理{len(results)}只股票")
-            print(result_df.head(10))
+    if results:
+        result_df = pd.DataFrame(results)
+        result_df['推荐评级'] = pd.cut(result_df['预测概率'],
+                                    bins=[0, 0.6, 0.75, 1],
+                                    labels=['C', 'B', 'A'])
+        result_df = result_df[['代码', '名称', '是否涨停', '预测概率', '正收益概率', '推荐评级',  '收盘价', '更新日期']]
+        print(f"\n✅ 分析完成！共处理{len(results)}只股票")
+        print(result_df.head(10))
 
 if __name__ == '__main__':
     main()
