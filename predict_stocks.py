@@ -9,7 +9,7 @@ from tqdm import tqdm
 import numpy as np
 from ai.trend.config.config import MODEL_DIR, FEATURE_COLS
 from ai.trend.data.data_fetcher import get_stock_data
-from ai.trend.models.model_trainer import train_and_save_model
+from ai.trend.models.lgb_model_trainer import train_and_save_model
 from utils.cache import run_with_cache
 
 def main():

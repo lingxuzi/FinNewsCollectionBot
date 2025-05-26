@@ -111,16 +111,16 @@ from stockstats import wrap
 #     return df, label
 
 
-def calculate_technical_indicators(df, forcast_days=5, mode='train'):
+def calculate_technical_indicators(df, forcast_days=5, keep_date=False, mode='traineval'):
     epsilon = 1e-9
 
     df_feat = df[FEATURE_COLS]
 
-    df_feat['year'] = df_feat['date'].dt.year
-    df_feat['month'] = df_feat['date'].dt.month
-    df_feat['day'] = df_feat['date'].dt.day
-    df_feat['dayofweek'] = df_feat['date'].dt.dayofweek
-    df_feat['dayofyear'] = df_feat['date'].dt.dayofyear
+    df_feat['year'] = df_feat['date'].dt.year / 3000
+    df_feat['month'] = df_feat['date'].dt.month / 12
+    df_feat['day'] = df_feat['date'].dt.day / 31
+    df_feat['dayofweek'] = df_feat['date'].dt.dayofweek / 7
+    df_feat['dayofyear'] = df_feat['date'].dt.dayofyear / 366
 
     # 2.1 基本价格与成交量衍生的简单特征
     df_feat['price_range_daily'] = df_feat['high'] - df_feat['low']
@@ -137,7 +137,7 @@ def calculate_technical_indicators(df, forcast_days=5, mode='train'):
     # 如果DataFrame的列名已经是 'open', 'high', 'low', 'close', 'volume' (小写)
     # pandas_ta 会自动识别它们。
 
-    # 移动平均线 (Moving Averages)
+    #移动平均线 (Moving Averages)
     df_feat.ta.sma(length=5, append=True, col_names='SMA_5') # SMA_5_close
     df_feat.ta.sma(length=10, append=True, col_names='SMA_10')
     df_feat.ta.sma(length=20, append=True, col_names='SMA_20')
@@ -146,6 +146,11 @@ def calculate_technical_indicators(df, forcast_days=5, mode='train'):
     df_feat.ta.ema(length=12, append=True, col_names='EMA_12')
     df_feat.ta.ema(length=26, append=True, col_names='EMA_26')
     df_feat.ta.ema(length=48, append=True, col_names='EMA_48')
+
+
+    df_feat['MA_5'] =talib.MA(df_feat['close'], timeperiod=5)
+    df_feat['MA_10'] =talib.MA(df_feat['close'], timeperiod=10)
+    df_feat['MA_20'] =talib.MA(df_feat['close'], timeperiod=20)
 
     # MACD
     macd_df = df_feat.ta.macd(fast=12, slow=26, signal=9, append=True)
@@ -160,6 +165,10 @@ def calculate_technical_indicators(df, forcast_days=5, mode='train'):
     bb_df = df_feat.ta.bbands(length=20, std=2, append=True)
     # 列名: BBL_20_2.0, BBM_20_2.0, BBU_20_2.0, BBB_20_2.0, BBP_20_2.0
     # df_feat.rename(columns={'BBL_20_2.0':'BB_lower', 'BBM_20_2.0':'BB_middle', 'BBU_20_2.0':'BB_upper'}, inplace=True, errors='ignore')
+
+
+    df_feat['WR_6'] = talib.WILLR(df_feat['high'], df_feat['low'], df_feat['close'], timeperiod=6)
+    df_feat['WR_10'] = talib.WILLR(df_feat['high'], df_feat['low'], df_feat['close'], timeperiod=10)
 
     # ATR (Average True Range) - 波动性
     df_feat.ta.atr(length=14, append=True, col_names='ATR_14')
@@ -215,8 +224,10 @@ def calculate_technical_indicators(df, forcast_days=5, mode='train'):
         if 'volume_change_pct_1d' in df_feat.columns:
              df_feat['vol_chg_x_zigzag'] = df_feat['volume_change_pct_1d'] * df_feat['zigzag_trend']
 
-    
-    df_feat.drop(['date','open'], axis=1, inplace=True)
+    drop_cols = ['open']
+    if not keep_date:
+        drop_cols.append('date')
+    df_feat.drop(drop_cols, axis=1, inplace=True)
 
     if mode == 'traineval':
         df_feat["label"] = df_feat["close"].pct_change(periods=forcast_days).shift(-forcast_days)
@@ -224,10 +235,12 @@ def calculate_technical_indicators(df, forcast_days=5, mode='train'):
         df_feat.dropna(inplace=True)
 
         label = df_feat["label"]
-        label = (label > 0.01).astype(int)
+        label.loc[label > 0.01] = 2
+        label.loc[(-0.01 <= label) & (label <= 0.01)] = 1
+        label.loc[label < -0.01] = 0
         df_feat = df_feat.drop("label", axis=1)
     else:
-        df_feat.dropna(inplace=True)
+        df_feat.fillna(0, inplace=True)
         label = None
 
     return df_feat, label

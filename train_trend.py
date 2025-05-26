@@ -10,7 +10,7 @@ from tqdm import tqdm
 import numpy as np
 from ai.trend.config.config import MODEL_DIR, FEATURE_COLS
 from ai.trend.data.data_fetcher import get_stock_data
-from ai.trend.models.model_trainer import train_and_save_model
+from ai.trend.models import get_trainer
 from utils.cache import run_with_cache
 
 
@@ -28,7 +28,7 @@ def main():
     os.makedirs(MODEL_DIR, exist_ok=True)
 
     # 缓存处理
-    load_cache = False #input("是否加载缓存模型？(y/n): ").lower() == 'y'
+    load_cache = True #input("是否加载缓存模型？(y/n): ").lower() == 'y'
     if load_cache:
         model_files = glob.glob(os.path.join(MODEL_DIR, '*_model.txt'))
         if model_files:
@@ -47,8 +47,8 @@ def main():
     })
     stock_list['code'] = stock_list['code'].apply(lambda x: str(x).zfill(6))
     stock_list = stock_list[~stock_list['name'].str.contains('ST|退')]
-    stock_list = stock_list[~stock_list['code'].str.startswith(('300', '688', '8'))]
-    # stock_list = stock_list[stock_list['code'] == '300233']
+    # stock_list = stock_list[~stock_list['code'].str.startswith(('300', '688', '8'))]
+    stock_list = stock_list[stock_list['code'] == '300233']
     # stock_list = stock_list[:1]
 
     results = []
@@ -58,7 +58,7 @@ def main():
         pbar.set_postfix_str(f"正在处理：{code}")
         try:
             # 获取并训练模型
-            booster, scaler, best_thres = train_and_save_model(code, force_retrain=not load_cache, start_date=None, end_date='20241231')
+            booster, scaler, best_thres = get_trainer()(code, force_retrain=not load_cache, start_date=None, end_date='20241231')
             if not booster:
                 continue
 
@@ -68,7 +68,7 @@ def main():
             df, X, y, scaler = get_stock_data(code, scaler=scaler, start_date=past_90_days, end_date=current_date_str, mode='forcast')
 
             # 生成预测
-            prob = booster.predict(X[:-1])[0]
+            prob = booster.predict_proba(X[:-1])[0, 1]
 
             # 记录结果
             latest_pct = df['pct_chg'].iloc[-1]
