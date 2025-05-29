@@ -198,7 +198,7 @@ def train_whole_market():
     class_weights, weights = get_class_weights(y)
 
 
-    split_idx = int(len(X) * 0.8)
+    split_idx = int(len(X) * 0.6)
     X_train, X_val = X.iloc[:split_idx].to_numpy(), X.iloc[split_idx:].to_numpy()
     y_train, y_val = y.iloc[:split_idx].to_numpy(), y.iloc[split_idx:].to_numpy()
 
