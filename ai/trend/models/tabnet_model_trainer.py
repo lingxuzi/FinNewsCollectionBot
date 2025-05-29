@@ -86,7 +86,7 @@ def build_model(cat_dims, cat_idxs, cat_emb_dim=32, lr=1e-2, pretrained=False) -
             n_steps=3,
             gamma=1.3,  # 特征重用系数
             n_independent=2,  # 独立GLU层数
-            n_shared=1,  # 共享GLU层数
+            n_shared=2,  # 共享GLU层数
             lambda_sparse=1e-3,  # 稀疏性损失权重
             clip_value=2,
             seed=42,
