@@ -204,6 +204,8 @@ def train_whole_market():
 
     batch_size = int(0.1 * len(X_train))
 
+    print(f'batch size: {batch_size}')
+
     model = build_model(cat_dims=categorical_dims, cat_idxs=categorical_features_indices, cat_emb_dim=16, lr=5e-3)
     model.fit(
         X_train,
