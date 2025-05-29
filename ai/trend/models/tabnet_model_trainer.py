@@ -198,7 +198,7 @@ def train_whole_market():
     class_weights, weights = get_class_weights(y)
 
 
-    split_idx = int(len(X) * 0.6)
+    split_idx = int(len(X) * 0.8)
     X_train, X_val = X.iloc[:split_idx].to_numpy(), X.iloc[split_idx:].to_numpy()
     y_train, y_val = y.iloc[:split_idx].to_numpy(), y.iloc[split_idx:].to_numpy()
 
@@ -214,7 +214,7 @@ def train_whole_market():
         eval_metric=['balanced_accuracy', 'balanced_accuracy'],
         eval_name=['train', 'valid'],
         loss_fn=PolyLoss(),
-        patience=40,
+        patience=50,
         num_workers=4,
         batch_size=batch_size,
         virtual_batch_size=batch_size,
