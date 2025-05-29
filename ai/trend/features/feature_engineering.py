@@ -125,6 +125,13 @@ def calculate_technical_indicators(df, forcast_days=5, keep_date=False, mode='tr
     df_feat['return_1d'] = df_feat['close'].pct_change(1) # 1日收益率
     df_feat['return_3d'] = df_feat['close'].pct_change(3) # 3日收益率
     df_feat['return_5d'] = df_feat['close'].pct_change(5) # 5日收益率 (注意：这是历史5日收益，不是未来)
+
+
+    # 2.3 波动率特征 (Returns)
+    df_feat['vol_1d'] = df_feat['volume'].pct_change(1) # 1日收益率
+    df_feat['vol_3d'] = df_feat['volume'].pct_change(3) # 3日收益率
+    df_feat['vol_5d'] = df_feat['volume'].pct_change(5) # 5日收益率 (注意：这是历史5日收益，不是未来)
+
     # 也可以用log return: np.log(df_feat['close'] / df_feat['close'].shift(1))
 
     # 2.3 技术指标 (Technical Indicators using pandas_ta)
@@ -228,12 +235,12 @@ def calculate_technical_indicators(df, forcast_days=5, keep_date=False, mode='tr
 
 
     # RSI与MACD的交叉 (简单乘积，或更复杂的逻辑)
-    if 'RSI_14' in df_feat.columns and 'MACD' in df_feat.columns:
-        df_feat['RSI_x_MACDhist'] = df_feat['RSI_14'] * df_feat.get('MACD_hist', 0) # 使用.get避免KeyError
+    if 'RSI_14' in df_feat.columns and 'MACDh_12_26_9' in df_feat.columns:
+        df_feat['RSI_x_MACDhist'] = df_feat['RSI_14'] * df_feat.get('MACDh_12_26_9', 0) # 使用.get避免KeyError
 
     # 成交量变化与价格变化的交叉
-    if 'return_1d' in df_feat.columns and 'volume_change_pct_1d' in df_feat.columns:
-        df_feat['vol_price_interaction_1d'] = df_feat['return_1d'] * df_feat['volume_change_pct_1d']
+    if 'return_1d' in df_feat.columns and 'vol_1d' in df_feat.columns:
+        df_feat['vol_price_interaction_1d'] = df_feat['return_1d'] * df_feat['vol_1d']
 
     # 与ZigZag趋势的交叉
     if 'zigzag_trend' in df_feat.columns:
@@ -241,8 +248,100 @@ def calculate_technical_indicators(df, forcast_days=5, keep_date=False, mode='tr
             df_feat['RSI_x_zigzag'] = df_feat['RSI_14'] * df_feat['zigzag_trend']
         if 'SMA5_minus_SMA20' in df_feat.columns:
             df_feat['SMA_cross_x_zigzag'] = df_feat['SMA5_minus_SMA20'] * df_feat['zigzag_trend']
-        if 'volume_change_pct_1d' in df_feat.columns:
-             df_feat['vol_chg_x_zigzag'] = df_feat['volume_change_pct_1d'] * df_feat['zigzag_trend']
+        if 'vol_1d' in df_feat.columns:
+             df_feat['vol_chg_x_zigzag'] = df_feat['vol_1d'] * df_feat['zigzag_trend']
+
+    # 钱德动量振荡器 (Chande Momentum Oscillator)
+    df_feat['CMO_14'] = talib.CMO(df_feat['close'], timeperiod=14)
+
+    # 真实波动幅度均值 (MATR)
+    df_feat['MATR_14'] = talib.ATR(df_feat['high'], df_feat['low'], df_feat['close'], 14).rolling(14).mean()
+
+    # 历史波动率 (Annualized)
+    returns = df_feat['close'].pct_change()
+    df_feat['HV_20'] = returns.rolling(20).std() * np.sqrt(252)
+
+    # 成交量加权MACD
+    df_feat['VW_MACD'] = (df_feat['volume'] * macd_df['MACD_12_26_9']).rolling(5).mean()
+
+    # 量价趋势指标 (VPT)
+    df_feat['VPT'] = (df_feat['volume'] * (df_feat['close'] - df_feat['close'].shift(1)) / df_feat['close'].shift(1)).cumsum()
+
+    # 成交量震荡器
+    df_feat['Volume_Osc'] = df_feat['volume'].rolling(5).mean() / df_feat['volume'].rolling(20).mean()
+
+    # 关键反转模式
+    df_feat['CDLENGULFING'] = talib.CDLENGULFING(df_feat['open'], df_feat['high'], df_feat['low'], df_feat['close'])
+    df_feat['CDLHAMMER'] = talib.CDLHAMMER(df_feat['open'], df_feat['high'], df_feat['low'], df_feat['close'])
+
+    # 三只乌鸦
+    df_feat['CDL3BLACKCROWS'] = talib.CDL3BLACKCROWS(df_feat['open'], df_feat['high'], df_feat['low'], df_feat['close'])
+
+    # 多空比率 (基于价格位置)
+    df_feat['Bull_Bear_Ratio'] = (df_feat['close'] - df_feat['low'].rolling(20).min()) / \
+                                (df_feat['high'].rolling(20).max() - df_feat['low'].rolling(20).min())
+
+    # 恐慌贪婪指数 (简化版)
+    rsi = df_feat['RSI_14']
+    bb_width = (bb_df['BBU_20_2.0'] - bb_df['BBL_20_2.0']) / bb_df['BBM_20_2.0']
+    df_feat['Fear_Greed'] = 0.4*rsi/100 + 0.3*(1 - bb_width) + 0.3*df_feat['Volume_Osc']
+
+    # 波动率调整的动量
+    df_feat['Vol_Adj_Momentum'] = df_feat['return_5d'] / (df_feat['ATR_14'] + 1e-5)
+
+    # RSI-波动率背离
+    df_feat['RSI_ATR_Divergence'] = df_feat['RSI_14'].diff(3) - df_feat['ATR_14'].diff(3)
+
+    # 量价相关性 (滚动计算)
+    df_feat['Volume_Price_Corr'] = df_feat['close'].rolling(10).corr(df_feat['volume'])
+
+    # 傅里叶变换频域特征
+    close_fft = np.fft.fft(df_feat['close'].values)
+    df_feat['FFT_Magnitude'] = np.abs(close_fft)[1]
+    df_feat['FFT_Phase'] = np.angle(close_fft)[1]
+
+    # Hampel滤波器的异常值标记
+    def hampel_filter(series, window=5, n_sigmas=3):
+        rolling_median = series.rolling(window).median()
+        diff = np.abs(series - rolling_median)
+        mad = diff.rolling(window).median()
+        return diff > (n_sigmas * 1.4826 * mad)
+
+    df_feat['Price_Outlier'] = hampel_filter(df_feat['close'], window=10).astype(int)
+
+    # 分形维度 (近似)
+    high = df_feat['high'].rolling(5)
+    low = df_feat['low'].rolling(5)
+    df_feat['Fractal_Dim'] = (high.max() - low.min()) / df_feat['ATR_14']
+
+    # 赫斯特指数 (简化计算)
+    def hurst_exponent(series, max_lags=20):
+        lags = range(2, max_lags)
+        tau = [np.std(series.diff(lag)) for lag in lags]
+        poly = np.polyfit(np.log(lags), np.log(tau), 1)
+        return poly[0]
+
+    df_feat['Hurst_20'] = df_feat['close'].rolling(100).apply(hurst_exponent, raw=False)
+
+    # 基于Tick的模拟 (需要tick数据，此处为日线近似)
+    def calculate_order_flow(high, low, close, volume):
+        typical_price = (high + low + close)/3
+        buy_pressure = ((close - low) - (high - close)) / (high - low + 1e-5)
+        return buy_pressure * volume
+
+    df_feat['Order_Flow'] = calculate_order_flow(
+        df_feat['high'], 
+        df_feat['low'], 
+        df_feat['close'], 
+        df_feat['volume']
+    )
+
+    df_feat['Vol_Scaled_RSI'] = df_feat['RSI_14'] / (df_feat['ATR_14'] + 1e-5)
+
+    for lag in [3, 5, 8]:
+        df_feat[f'RSI_MACD_Lag{lag}'] = df_feat['RSI_14'].shift(lag) * df_feat['MACDh_12_26_9'].shift(lag)
+
+    df_feat['High_Vol_Regime'] = (df_feat['ATR_14'] > df_feat['ATR_14'].rolling(50).mean() * 1.5).astype(int)
 
     drop_cols = ['open']
     if not keep_date:

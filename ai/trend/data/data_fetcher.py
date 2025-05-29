@@ -3,6 +3,7 @@
 import pandas as pd
 import akshare as ak
 import numpy as np
+import traceback
 from utils.cache import run_with_cache
 from sklearn.preprocessing import RobustScaler, StandardScaler, LabelEncoder
 from sklearn.linear_model import Lasso, LassoCV
@@ -116,6 +117,12 @@ def get_single_stock_data(code, scaler=None, start_date=None, end_date=None):
             '日期': 'date', '开盘': 'open', '收盘': 'close', '最高': 'high',
             '最低': 'low', '成交量': 'volume', '涨跌幅': 'pct_chg', '换手率': 'turn_over'
         })
+        price_cols = ['open', 'high', 'low', 'close']
+        df[price_cols] = df[price_cols].fillna(method='ffill')
+        
+        # 成交量缺失处理（停牌日）
+        df['volume'] = df['volume'].fillna(0)
+        
         df['date'] = pd.to_datetime(df['date'])
         df['turn_over_chg_1d'] = df['turn_over'].pct_change(1)
         df['turn_over_chg_3d'] = df['turn_over'].pct_change(3)
@@ -146,7 +153,8 @@ def get_single_stock_data(code, scaler=None, start_date=None, end_date=None):
 
         return df, label, scaler
     except Exception as e:
-        print(f"获取股票{code}数据失败: {str(e)}")
+        traceback.print_exc()
+        # print(f"获取股票{code}数据失败: {str(e)}")
         return None, None, None
     
 def sort_by_date(X, y):
