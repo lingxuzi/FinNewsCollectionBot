@@ -209,7 +209,7 @@ def train_whole_market():
         X_train,
         y_train,
         eval_set=[(X_train, y_train), (X_val, y_val)],
-        eval_metric=['auc', 'auc'],
+        eval_metric=['balanced_accuracy', 'balanced_accuracy'],
         eval_name=['train', 'valid'],
         loss_fn=PolyLoss(),
         patience=10,
