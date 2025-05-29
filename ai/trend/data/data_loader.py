@@ -29,9 +29,10 @@ def load_whole_market_train_eval():
     # categorical_dims = [len(label_encoder.classes_), len(industrial_encoder.classes_)]
 
     categorical_features_indices = [
-        X_train.columns.get_loc('symbol')
+        X_train.columns.get_loc('symbol'),
+        X_train.columns.get_loc('industry')
     ]
-    categorical_dims = [len(label_encoder.classes_)]
+    categorical_dims = [len(label_encoder.classes_), len(industrial_encoder.classes_)]
 
     return X_train, y_train, X_valid, y_valid, categorical_features_indices, categorical_dims
 

@@ -46,6 +46,8 @@ def enhance_group_features(df):
     
     # 3. 行业动量特征
     df['Industry_Momentum'] = df.groupby('industry')['close'].transform(lambda x: x.pct_change(5))
+
+
     
     return df
 
@@ -132,14 +134,14 @@ def get_single_stock_data(code, scaler=None, start_date=None, end_date=None):
         else:
             df[cols_to_scale] = scaler.transform(df[cols_to_scale])
 
-        df['year'] = df['date'].dt.year / 3000
-        df['month'] = df['date'].dt.month / 12
-        df['day'] = df['date'].dt.day / 31
-        df['dayofweek'] = df['date'].dt.dayofweek / 7
-        df['dayofyear'] = df['date'].dt.dayofyear / 366
+        df['time_year'] = df['date'].dt.year / 3000
+        df['time_month'] = df['date'].dt.month / 12
+        df['time_day'] = df['date'].dt.day / 31
+        df['time_dayofweek'] = df['date'].dt.dayofweek / 7
+        df['time_dayofyear'] = df['date'].dt.dayofyear / 366
 
 
-        # df['industry'] = info['行业']
+        df['industry'] = info['行业']
         df['symbol'] = code
 
         return df, label, scaler
