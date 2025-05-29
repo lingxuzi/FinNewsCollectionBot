@@ -138,9 +138,15 @@ def calculate_technical_indicators(df, forcast_days=5, keep_date=False, mode='tr
     df_feat.ta.sma(length=48, append=True, col_names='SMA_48')
     df_feat.ta.ema(length=5, append=True, col_names='EMA_5')
     df_feat.ta.ema(length=12, append=True, col_names='EMA_12')
+    df_feat.ta.sma(length=10, append=True, col_names='SMA_10')
+    df_feat.ta.sma(length=20, append=True, col_names='SMA_20')
+    df_feat.ta.sma(length=48, append=True, col_names='SMA_48')
+    df_feat.ta.ema(length=5, append=True, col_names='EMA_5')
+    df_feat.ta.ema(length=12, append=True, col_names='EMA_12')
     df_feat.ta.ema(length=26, append=True, col_names='EMA_26')
     df_feat.ta.ema(length=48, append=True, col_names='EMA_48')
-
+    df_feat.ta.ema(length=26, append=True, col_names='EMA_26')
+    df_feat.ta.ema(length=48, append=True, col_names='EMA_48')
 
     df_feat['MA_5'] =talib.MA(df_feat['close'], timeperiod=5)
     df_feat['MA_10'] =talib.MA(df_feat['close'], timeperiod=10)
@@ -188,11 +194,11 @@ def calculate_technical_indicators(df, forcast_days=5, keep_date=False, mode='tr
     # df_feat = add_zigzag_feature(df_feat, deviation_threshold=0.03)
 
     # # 均线交叉相关
-    # if 'SMA_5' in df_feat.columns and 'SMA_20' in df_feat.columns:
-    #     df_feat['SMA5_minus_SMA20'] = df_feat['SMA_5'] - df_feat['SMA_20']
-    #     df_feat['SMA5_div_SMA20'] = df_feat['SMA_5'] / (df_feat['SMA_20'] + epsilon)
-    # if 'EMA_12' in df_feat.columns and 'EMA_26' in df_feat.columns:
-    #     df_feat['EMA12_minus_EMA26'] = df_feat['EMA_12'] - df_feat['EMA_26']
+    if 'SMA_5' in df_feat.columns and 'SMA_20' in df_feat.columns:
+        df_feat['SMA5_minus_SMA20'] = df_feat['SMA_5'] - df_feat['SMA_20']
+        df_feat['SMA5_div_SMA20'] = df_feat['SMA_5'] / (df_feat['SMA_20'] + epsilon)
+    if 'EMA_12' in df_feat.columns and 'EMA_26' in df_feat.columns:
+        df_feat['EMA12_minus_EMA26'] = df_feat['EMA_12'] - df_feat['EMA_26']
 
     # 新增成交量指标
     df_feat['VWAP'] = (df_feat['volume'] * (df_feat['high'] + df_feat['low'] + df_feat['close']) / 3).cumsum() / df_feat['volume'].cumsum()  # 成交量加权平均价
