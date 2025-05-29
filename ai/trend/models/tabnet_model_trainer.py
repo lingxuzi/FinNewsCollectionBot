@@ -95,7 +95,7 @@ def build_model(cat_dims, cat_idxs, cat_emb_dim=32, lr=1e-2, pretrained=False) -
             cat_emb_dim=[cat_emb_dim] * len(cat_idxs),
             mask_type='entmax',
             optimizer_fn=torch.optim.AdamW,
-            optimizer_params=dict(lr=lr, weight_decay=1e-4),
+            optimizer_params=dict(lr=lr, weight_decay=2e-4),
             scheduler_fn=ReduceLROnPlateau,
             # scheduler_params={"step_size": 10, "gamma": 0.8}
         )
