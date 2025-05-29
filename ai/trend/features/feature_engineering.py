@@ -191,7 +191,7 @@ def calculate_technical_indicators(df, forcast_days=5, keep_date=False, mode='tr
         df_feat[f'volume_lag_{lag}'] = df_feat['volume'].shift(lag)
         df_feat[f'return_1d_lag_{lag}'] = df_feat['return_1d'].shift(lag)
 
-    # df_feat = add_zigzag_feature(df_feat, deviation_threshold=0.03)
+    df_feat = add_zigzag_feature(df_feat, deviation_threshold=0.03)
 
     # # 均线交叉相关
     if 'SMA_5' in df_feat.columns and 'SMA_20' in df_feat.columns:
@@ -256,10 +256,12 @@ def calculate_technical_indicators(df, forcast_days=5, keep_date=False, mode='tr
         # df_feat.dropna(inplace=True)
 
         label = df_feat["label"]
-        label.loc[label > 0.01] = 2
-        label.loc[(-0.01 <= label) & (label <= 0.01)] = 1
-        label.loc[label < -0.01] = 0
-        df_feat = df_feat.drop("label", axis=1)
+        # label.loc[label > 0.01] = 2
+        # label.loc[(-0.01 <= label) & (label <= 0.01)] = 1
+        # label.loc[label < -0.01] = 0
+        # df_feat = df_feat.drop("label", axis=1)
+        label.loc[label <= 0.01] = 0
+        label.loc[label > 0.01] = 1
     else:
         df_feat.replace([np.inf, -np.inf], np.nan, inplace=True)
         df_feat.fillna(0, inplace=True)
