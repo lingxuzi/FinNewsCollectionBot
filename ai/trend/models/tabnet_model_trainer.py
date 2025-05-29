@@ -202,7 +202,7 @@ def train_whole_market():
     X_train, X_val = X.iloc[:split_idx].to_numpy(), X.iloc[split_idx:].to_numpy()
     y_train, y_val = y.iloc[:split_idx].to_numpy(), y.iloc[split_idx:].to_numpy()
 
-    batch_size = int(0.1 * len(X_train))
+    batch_size = 256#int(0.1 * len(X_train))
 
     print(f'batch size: {batch_size}')
 
