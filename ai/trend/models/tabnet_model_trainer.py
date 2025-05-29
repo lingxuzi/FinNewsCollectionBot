@@ -210,7 +210,7 @@ def train_whole_market():
         eval_metric=['balanced_accuracy', 'balanced_accuracy'],
         eval_name=['train', 'valid'],
         loss_fn=PolyLoss(),
-        patience=0,
+        patience=10,
         num_workers=4,
         batch_size=256,
         virtual_batch_size=128,
