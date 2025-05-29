@@ -202,6 +202,8 @@ def train_whole_market():
     X_train, X_val = X.iloc[:split_idx].to_numpy(), X.iloc[split_idx:].to_numpy()
     y_train, y_val = y.iloc[:split_idx].to_numpy(), y.iloc[split_idx:].to_numpy()
 
+    batch_size = int(0.1 * len(X_train))
+
     model = build_model(cat_dims=categorical_dims, cat_idxs=categorical_features_indices, cat_emb_dim=16, lr=5e-3)
     model.fit(
         X_train,
@@ -212,8 +214,8 @@ def train_whole_market():
         loss_fn=PolyLoss(),
         patience=10,
         num_workers=4,
-        batch_size=256,
-        virtual_batch_size=256,
+        batch_size=batch_size,
+        virtual_batch_size=batch_size,
         max_epochs=20
     )
     y_pred = model.predict_proba(X_valid.to_numpy())[:, -1]
