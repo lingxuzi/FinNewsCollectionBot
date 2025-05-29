@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 """主程序入口"""
 import os
-import glob
-import traceback
+import argparse
 from datetime import datetime, date, timedelta
 import pandas as pd
 import akshare as ak
@@ -16,7 +15,7 @@ from utils.cache import run_with_cache
 
 warnings.filterwarnings("ignore")
 
-def prepare():
+def prepare(opts):
     stock_list = run_with_cache(ak.stock_zh_a_spot_em).rename(columns={
         '代码': 'code',
         '名称': 'name',
@@ -25,7 +24,8 @@ def prepare():
     })
     stock_list['code'] = stock_list['code'].apply(lambda x: str(x).zfill(6))
     stock_list = stock_list[~stock_list['name'].str.contains('ST|退')]
-    stock_list = stock_list[:40]
+    if opts.topk > 0:
+        stock_list = stock_list[:opts.topk]
 
     X_train, y_train, symbol_scalers, label_encoder, industrial_scalers, industrial_encoder = get_market_stock_data(stock_list['code'], start_date=None, end_date='20241231')
     X_valid, y_valid, symbol_scalers, label_encoder, industrial_scalers, industrial_encoder = get_market_stock_data(stock_list['code'], label_encoder=label_encoder, scalers=symbol_scalers, industrial_encoder=industrial_encoder, industrial_scalers=industrial_scalers, start_date='20250101', end_date=None, mode='eval')
@@ -53,5 +53,13 @@ def prepare():
     joblib.dump(industrial_scalers, industrial_scaler_path)
     joblib.dump(industrial_encoder, industrial_encoder_path)
 
+def parse_opts():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--topk', type=int, default=40)
+
+    opts = parser.parse_args()
+    return opts
+
 if __name__ == '__main__':
-    prepare()
+    opts = parse_opts()
+    prepare(opts)
