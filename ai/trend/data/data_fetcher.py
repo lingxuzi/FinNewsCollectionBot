@@ -6,7 +6,7 @@ import numpy as np
 from utils.cache import run_with_cache
 from sklearn.preprocessing import RobustScaler, StandardScaler, LabelEncoder
 from sklearn.linear_model import Lasso, LassoCV
-from ai.trend.features.feature_engineering import calculate_technical_indicators
+from ai.trend.features.feature_engineering import calculate_technical_indicators, generate_industrial_indicators
 from ai.trend.config.config import TARGET_DAYS
 from tqdm import tqdm
 
@@ -77,7 +77,7 @@ def get_stock_data(code, start_date=None, end_date=None, scaler=None, mode='trai
 
         # 预处理
         if not scaler:
-            scaler = StandardScaler()
+            scaler = RobustScaler(quantile_range=(5, 95))
         cols_to_scale = ['high', 'low', 'close', 'volume'] + \
                        [col for col in df.columns if 'MA_' in col or 'Momentum_' in col]
         df[cols_to_scale] = scaler.fit_transform(df[cols_to_scale])
@@ -109,43 +109,61 @@ def get_single_stock_data(code, scaler=None, start_date=None, end_date=None):
         if end_date is None:
             end_date = '20500101'
         df = run_with_cache(ak.stock_zh_a_hist, symbol=code, period="daily", adjust="qfq", start_date=start_date, end_date=end_date)
-        # info = run_with_cache(get_stock_industrial_info, code)
+        info = run_with_cache(get_stock_industrial_info, code)
         df = df.rename(columns={
             '日期': 'date', '开盘': 'open', '收盘': 'close', '最高': 'high',
             '最低': 'low', '成交量': 'volume', '涨跌幅': 'pct_chg', '换手率': 'turn_over'
         })
         df['date'] = pd.to_datetime(df['date'])
-        df['pct_chg'] /= 100
-        df['turn_over'] /= 100
         df['turn_over_chg_1d'] = df['turn_over'].pct_change(1)
         df['turn_over_chg_3d'] = df['turn_over'].pct_change(3)
         df['turn_over_chg_5d'] = df['turn_over'].pct_change(5)
 
         # 计算技术指标
         df, label = calculate_technical_indicators(df, forcast_days=TARGET_DAYS, keep_date=True)
-
         # 预处理
-        cols_to_scale = [col for col in df.columns if 'ma' in col.lower() or 'momentum_' in col.lower() or 'zigzag' in col.lower()
-                        or 'high' in col.lower() or 'low' in col.lower() or 'close' in col.lower() or 'volume' in col.lower() or 
-                        'cci' in col.lower() or 'rsi' in col.lower() or 'wr' in col.lower()]
+        non_numeric_cols = [col for col in df.columns if not np.issubdtype(df[col].dtype, np.number)]
+        cols_to_scale = [col for col in df.columns if col not in non_numeric_cols]
+        
+        # 标准化数值列
         if not scaler:
             scaler = StandardScaler()
             df[cols_to_scale] = scaler.fit_transform(df[cols_to_scale])
         else:
             df[cols_to_scale] = scaler.transform(df[cols_to_scale])
+
+        df['year'] = df['date'].dt.year / 3000
+        df['month'] = df['date'].dt.month / 12
+        df['day'] = df['date'].dt.day / 31
+        df['dayofweek'] = df['date'].dt.dayofweek / 7
+        df['dayofyear'] = df['date'].dt.dayofyear / 366
+
+
+        # df['industry'] = info['行业']
         df['symbol'] = code
 
         return df, label, scaler
     except Exception as e:
         print(f"获取股票{code}数据失败: {str(e)}")
         return None, None, None
+    
+def sort_by_date(X, y):
+    X['label'] = y
 
-def get_market_stock_data(codes, label_encoder=None, scalers=None, start_date=None, end_date=None, mode='train'):
+    X.sort_values(by='date', ascending=True, inplace=True)
+
+    y = X['label']
+    X.drop(columns=['label'], axis=1, inplace=True)
+    return X, y
+
+def get_market_stock_data(codes, label_encoder=None, industrial_encoder=None, scalers=None, industrial_scalers=None, start_date=None, end_date=None, mode='train'):
     X, y = [], []
 
     symbol_scalers = {} if not scalers else scalers
+    industrial_scalers = {} if not industrial_scalers else industrial_scalers
 
     label_encoder = LabelEncoder() if not label_encoder else label_encoder
+    industrial_encoder = LabelEncoder() if not industrial_encoder else industrial_encoder
 
     pbar = tqdm(codes, desc='获取股票数据', ncols=150)
 
@@ -155,21 +173,44 @@ def get_market_stock_data(codes, label_encoder=None, scalers=None, start_date=No
             if code not in symbol_scalers:
                 continue
         df, label, scaler = get_single_stock_data(code, symbol_scalers.get(code, None), start_date, end_date)
-        if df is not None:
+        if df is not None and len(df) > (500 if mode == 'train' else 0):
             X.append(df)
             y.append(label)
             if mode == 'train':
                 symbol_scalers[code] = scaler
 
     X = pd.concat(X)
+    
     if not hasattr(label_encoder, 'classes_'):
         X['symbol'] = label_encoder.fit_transform(X['symbol'])
     else:
         X['symbol'] = label_encoder.transform(X['symbol'])
+
+
+    if 'industry' in X.columns:
+        X = generate_industrial_indicators(X)
+
+        industries = np.unique(X['industry'])
+        for industry in industries:
+            industry_df = X[X['industry'] == industry]
+            industry_cols = [col for col in industry_df.columns if 'industry_' in col]
+            if not industrial_scalers.get(industry, None):
+                industrial_scalers[industry] = StandardScaler()
+                industry_df[industry_cols] = industrial_scalers[industry].fit_transform(industry_df[industry_cols])
+            else:
+                industry_df[industry_cols] = industrial_scalers[industry].transform(industry_df[industry_cols])
+            
+            X[X['industry'] == industry] = industry_df
+
+        
+        if not hasattr(industrial_encoder, 'classes_'):
+            X['industry'] = industrial_encoder.fit_transform(X['industry'])
+        else:
+            X['industry'] = industrial_encoder.transform(X['industry'])
+
     y = pd.concat(y)
 
-    sort_indices = X['date'].to_numpy().argsort()
+    X, y = sort_by_date(X, y)
+    X.drop(columns=['date'], axis=1, inplace=True)
 
-    X.drop('date', axis=1, inplace=True)
-
-    return X.to_numpy()[sort_indices], y.to_numpy()[sort_indices], symbol_scalers, label_encoder
+    return X, y, symbol_scalers, label_encoder, industrial_scalers, industrial_encoder

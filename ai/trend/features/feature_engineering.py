@@ -116,12 +116,6 @@ def calculate_technical_indicators(df, forcast_days=5, keep_date=False, mode='tr
 
     df_feat = df[FEATURE_COLS]
 
-    df_feat['year'] = df_feat['date'].dt.year / 3000
-    df_feat['month'] = df_feat['date'].dt.month / 12
-    df_feat['day'] = df_feat['date'].dt.day / 31
-    df_feat['dayofweek'] = df_feat['date'].dt.dayofweek / 7
-    df_feat['dayofyear'] = df_feat['date'].dt.dayofyear / 366
-
     # 2.1 基本价格与成交量衍生的简单特征
     df_feat['price_range_daily'] = df_feat['high'] - df_feat['low']
     df_feat['price_chg_daily'] = df_feat['close'] - df_feat['open']
@@ -172,6 +166,7 @@ def calculate_technical_indicators(df, forcast_days=5, keep_date=False, mode='tr
 
     # ATR (Average True Range) - 波动性
     df_feat.ta.atr(length=14, append=True, col_names='ATR_14')
+    df_feat['TRANGE'] = talib.TRANGE(df_feat['high'], df_feat['low'], df_feat['close'])  # 真实波幅
 
     # 计算OBV
     df['OBV'] = talib.OBV(df['close'], df['volume'])
@@ -190,15 +185,34 @@ def calculate_technical_indicators(df, forcast_days=5, keep_date=False, mode='tr
         df_feat[f'volume_lag_{lag}'] = df_feat['volume'].shift(lag)
         df_feat[f'return_1d_lag_{lag}'] = df_feat['return_1d'].shift(lag)
 
-    df_feat = add_zigzag_feature(df_feat, deviation_threshold=0.03)
+    # df_feat = add_zigzag_feature(df_feat, deviation_threshold=0.03)
 
-    # 均线交叉相关
-    if 'SMA_5' in df_feat.columns and 'SMA_20' in df_feat.columns:
-        df_feat['SMA5_minus_SMA20'] = df_feat['SMA_5'] - df_feat['SMA_20']
-        df_feat['SMA5_div_SMA20'] = df_feat['SMA_5'] / (df_feat['SMA_20'] + epsilon)
-    if 'EMA_12' in df_feat.columns and 'EMA_26' in df_feat.columns:
-        df_feat['EMA12_minus_EMA26'] = df_feat['EMA_12'] - df_feat['EMA_26']
+    # # 均线交叉相关
+    # if 'SMA_5' in df_feat.columns and 'SMA_20' in df_feat.columns:
+    #     df_feat['SMA5_minus_SMA20'] = df_feat['SMA_5'] - df_feat['SMA_20']
+    #     df_feat['SMA5_div_SMA20'] = df_feat['SMA_5'] / (df_feat['SMA_20'] + epsilon)
+    # if 'EMA_12' in df_feat.columns and 'EMA_26' in df_feat.columns:
+    #     df_feat['EMA12_minus_EMA26'] = df_feat['EMA_12'] - df_feat['EMA_26']
 
+    # 新增成交量指标
+    df_feat['VWAP'] = (df_feat['volume'] * (df_feat['high'] + df_feat['low'] + df_feat['close']) / 3).cumsum() / df_feat['volume'].cumsum()  # 成交量加权平均价
+    df_feat['MFI_14'] = talib.MFI(df_feat['high'], df_feat['low'], df_feat['close'], df_feat['volume'], timeperiod=14)  # 资金流量指标
+
+    # 新增趋势指标
+    df_feat['ADXR_14'] = talib.ADXR(df_feat['high'], df_feat['low'], df_feat['close'], timeperiod=14)  # 平均趋向指数评级
+    df_feat['APO'] = talib.APO(df_feat['close'], fastperiod=12, slowperiod=26)  # 绝对价格振荡器
+    
+    # 新增价格形态识别
+    df_feat['CDL2CROWS'] = talib.CDL2CROWS(df_feat['open'], df_feat['high'], df_feat['low'], df_feat['close'])  # 两只乌鸦
+    df_feat['CDL3LINESTRIKE'] = talib.CDL3LINESTRIKE(df_feat['open'], df_feat['high'], df_feat['low'], df_feat['close'])  # 三线打击
+    
+    # 新增统计特征
+    df_feat['STDDEV_20'] = talib.STDDEV(df_feat['close'], timeperiod=20, nbdev=1)  # 20日标准差
+    df_feat['VAR_20'] = talib.VAR(df_feat['close'], timeperiod=20, nbdev=1)  # 20日方差
+    
+    # 新增相关性指标
+    df_feat['BETA_20'] = talib.BETA(df_feat['high'], df_feat['low'], timeperiod=20)  # 20日贝塔系数
+    df_feat['CORREL_20'] = talib.CORREL(df_feat['high'], df_feat['low'], timeperiod=20)  # 20日相关性
 
     # 价格与均线的偏离度 (用ATR标准化)
     if 'SMA_20' in df_feat.columns and 'ATR_14' in df_feat.columns:
@@ -232,6 +246,7 @@ def calculate_technical_indicators(df, forcast_days=5, keep_date=False, mode='tr
     if mode == 'traineval':
         df_feat["label"] = df_feat["close"].pct_change(periods=forcast_days).shift(-forcast_days)
         df_feat.replace([np.inf, -np.inf], np.nan, inplace=True)
+        # df_feat.fillna(0, inplace=True)
         df_feat.dropna(inplace=True)
 
         label = df_feat["label"]
@@ -240,7 +255,54 @@ def calculate_technical_indicators(df, forcast_days=5, keep_date=False, mode='tr
         label.loc[label < -0.01] = 0
         df_feat = df_feat.drop("label", axis=1)
     else:
-        df_feat.fillna(0, inplace=True)
+        # df_feat.fillna(0, inplace=True)
+        df_feat.dropna(inplace=True)
         label = None
 
     return df_feat, label
+
+
+def generate_industrial_indicators(df_feat):
+    epsilon = 1e-9
+    if 'industry' in df_feat.columns:
+        # 行业编码 (使用目标编码避免高基数问题)
+        industry_target_enc = df_feat.groupby('industry')['close'].transform('mean')
+        df_feat['industry_enc'] = industry_target_enc / (industry_target_enc.max() + epsilon)
+        
+        # 行业相对强度指标
+        df_feat['industry_rs'] = df_feat.groupby('industry')['close'].transform(
+            lambda x: x.pct_change(5) / x.pct_change(5).mean())
+        
+        # 行业波动率
+        df_feat['industry_vol'] = df_feat.groupby('industry')['close'].transform(
+            lambda x: x.pct_change().rolling(20).std())
+        
+        # 行业动量排名
+        df_feat['industry_mom_rank'] = df_feat.groupby('industry')['return_5d'].transform(
+            lambda x: x.rolling(20).apply(lambda s: s.rank(pct=True).iloc[-1])
+        )
+        
+        # 行业相关性特征
+        df_feat['industry_corr_20d'] = df_feat.groupby('industry')['close'].transform(
+            lambda x: x.rolling(20).corr(x))
+        
+        # 行业资金流向
+        df_feat['industry_mfi'] = df_feat.groupby('industry')['MFI_14'].transform('mean')
+        
+        # 行业技术指标交互特征
+        if 'RSI_14' in df_feat.columns:
+            df_feat['industry_rsi_diff'] = df_feat['RSI_14'] - df_feat.groupby('industry')['RSI_14'].transform('mean')
+
+        if 'industry' in df_feat.columns and 'MACD_12_26_9' in df_feat.columns:
+            macd_industry_mean = df_feat.groupby('industry')['MACD_12_26_9'].transform('mean')
+            df_feat['macd_industry_dev'] = (df_feat['MACD_12_26_9'] - macd_industry_mean) / (macd_industry_mean + epsilon)
+    
+        # 添加行业时间交互特征
+        if 'industry' in df_feat.columns and 'date' in df_feat.columns:
+            # 各行业月度效应
+            df_feat['month'] = df_feat['date'].dt.month
+            df_feat['industry_month_avg'] = df_feat.groupby(['industry', 'month'])['return_1d'].transform('mean')
+
+        df_feat.fillna(0, inplace=True)
+
+        return df_feat

@@ -14,11 +14,12 @@ from sklearn.utils.class_weight import compute_class_weight
 from ai.trend.config.config import MODEL_DIR, FEATURE_COLS
 from ai.trend.data.data_fetcher import get_stock_data
 from utils.cache import run_with_cache
-from pytorch_tabnet.tab_model import TabNetClassifier
+from ai.trend.models.networks.indicator_fused_tabnet import FactorInteractTabNetClassifier, TabNetClassifier
+from ai.trend.models.losses.polyloss import PolyLoss
 from pytorch_tabnet.callbacks import Callback
 from pytorch_tabnet.metrics import Metric
 from pytorch_tabnet.augmentations import ClassificationSMOTE
-from torch.optim.lr_scheduler import OneCycleLR, CosineAnnealingWarmRestarts
+from torch.optim.lr_scheduler import OneCycleLR, CosineAnnealingWarmRestarts, ReduceLROnPlateau, StepLR
 
 warnings.filterwarnings("ignore")
 
@@ -39,7 +40,6 @@ class FeatureNoiseAugmentation(ClassificationSMOTE):
         self.noise_level = noise_level
 
     def __call__(self, X, y):
-        X, y = super().__call__(X, y)
         # 只对非零特征添加噪声
         mask = (X != 0)
         noise = torch.normal(0, self.noise_level, size=X.shape).to(self.device) * mask
@@ -79,30 +79,25 @@ class FocalLoss(nn.Module):
         else: # 'none'
             return focal_loss
 
-def build_model(cat_dims, cat_idxs, cat_emb_dim=8, lr=2e-2, pretrained=False) -> TabNetClassifier:
+def build_model(cat_dims, cat_idxs, cat_emb_dim=32, lr=1e-2, pretrained=False) -> TabNetClassifier:
     model = TabNetClassifier(
-            n_d=64,  # 更大容量
-            n_a=64,
-            n_steps=6,
+            n_d=8,  # 更大容量
+            n_a=8,
+            n_steps=3,
             gamma=1.3,  # 特征重用系数
             n_independent=2,  # 独立GLU层数
-            n_shared=2,  # 共享GLU层数
+            n_shared=1,  # 共享GLU层数
             lambda_sparse=1e-3,  # 稀疏性损失权重
+            clip_value=2,
             seed=42,
-            momentum=0.02,
-            clip_value=5,
             cat_dims=cat_dims,
             cat_idxs=cat_idxs,
-            cat_emb_dim=cat_emb_dim,
+            cat_emb_dim=[cat_emb_dim] * len(cat_idxs),
             mask_type='entmax',
-            optimizer_fn=torch.optim.Adam,
-            optimizer_params=dict(lr=lr, amsgrad=True),
-            scheduler_fn=CosineAnnealingWarmRestarts,
-            scheduler_params={
-                'T_0': 50,
-                'T_mult': 1,
-                'eta_min': 1e-6
-            }
+            optimizer_fn=torch.optim.AdamW,
+            optimizer_params=dict(lr=lr, weight_decay=1e-4),
+            scheduler_fn=ReduceLROnPlateau,
+            # scheduler_params={"step_size": 10, "gamma": 0.8}
         )
     return model
 
@@ -204,26 +199,28 @@ def train_whole_market():
 
 
     split_idx = int(len(X) * 0.8)
-    X_train, X_val = X[:split_idx], X[split_idx:]
-    y_train, y_val = y[:split_idx], y[split_idx:]
+    X_train, X_val = X.iloc[:split_idx].to_numpy(), X.iloc[split_idx:].to_numpy()
+    y_train, y_val = y.iloc[:split_idx].to_numpy(), y.iloc[split_idx:].to_numpy()
 
-    model = build_model(cat_dims=categorical_dims, cat_idxs=categorical_features_indices, cat_emb_dim=32, lr=2e-2)
+    model = build_model(cat_dims=categorical_dims, cat_idxs=categorical_features_indices, cat_emb_dim=16, lr=5e-3)
     model.fit(
         X_train,
         y_train,
-        loss_fn=FocalLoss(),
-        eval_set=[(X_val, y_val)],
-        eval_metric=['balanced_accuracy'],
-        patience=40,
+        eval_set=[(X_train, y_train), (X_val, y_val)],
+        eval_metric=['balanced_accuracy', 'balanced_accuracy'],
+        eval_name=['train', 'valid'],
+        loss_fn=PolyLoss(),
+        patience=0,
         num_workers=4,
-        batch_size=32,
-        max_epochs=200
+        batch_size=256,
+        virtual_batch_size=128,
+        max_epochs=100
     )
+    y_pred = model.predict_proba(X_valid.to_numpy())[:, -1]
 
-    # 在测试集上评估
-    y_pred = model.predict_proba(X_valid)[:, 1]
+    y_valid = (y_valid == (len(weights) - 1)).astype(int)
 
-    fpr, tpr, thresholds = roc_curve(y_valid, y_pred, pos_label=1)
+    fpr, tpr, thresholds = roc_curve(y_valid.to_numpy(), y_pred, pos_label=1)
     j_scores = tpr - fpr
     j_ordered = sorted(zip(j_scores, thresholds))
     best_j_score, best_threshold = j_ordered[-1]  # 最大值对应的阈值

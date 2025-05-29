@@ -25,25 +25,33 @@ def prepare():
     })
     stock_list['code'] = stock_list['code'].apply(lambda x: str(x).zfill(6))
     stock_list = stock_list[~stock_list['name'].str.contains('ST|退')]
-    # stock_list = stock_list[:4]
+    stock_list = stock_list[:40]
 
-    X_train, y_train, symbol_scalers, label_encoder = get_market_stock_data(stock_list['code'], start_date=None, end_date='20241231')
-    X_valid, y_valid, symbol_scalers, label_encoder = get_market_stock_data(stock_list['code'], label_encoder=label_encoder, scalers=symbol_scalers, start_date='20250101', end_date=None, mode='eval')
+    X_train, y_train, symbol_scalers, label_encoder, industrial_scalers, industrial_encoder = get_market_stock_data(stock_list['code'], start_date=None, end_date='20241231')
+    X_valid, y_valid, symbol_scalers, label_encoder, industrial_scalers, industrial_encoder = get_market_stock_data(stock_list['code'], label_encoder=label_encoder, scalers=symbol_scalers, industrial_encoder=industrial_encoder, industrial_scalers=industrial_scalers, start_date='20250101', end_date=None, mode='eval')
 
-    train_feature_path = os.path.join(DATA_DIR, 'train_features.npy')
-    train_label_path = os.path.join(DATA_DIR, 'train_label.npy')
-    valid_feature_path = os.path.join(DATA_DIR, 'valid_features.npy')
-    valid_label_path = os.path.join(DATA_DIR, 'valid_label.npy')
+    train_feature_path = os.path.join(DATA_DIR, 'train_features.pkl')
+    train_label_path = os.path.join(DATA_DIR, 'train_label.pkl')
+    valid_feature_path = os.path.join(DATA_DIR, 'valid_features.pkl')
+    valid_label_path = os.path.join(DATA_DIR, 'valid_label.pkl')
     scaler_path = os.path.join(DATA_DIR, 'scaler.job')
     label_encoder_path = os.path.join(DATA_DIR, 'label.job')
+    industrial_scaler_path = os.path.join(DATA_DIR, 'indus_scaler.job')
+    industrial_encoder_path = os.path.join(DATA_DIR, 'indus_label.job')
 
     os.makedirs(DATA_DIR, exist_ok=True)
-    np.save(train_feature_path, X_train)
-    np.save(train_label_path, y_train)
-    np.save(valid_feature_path, X_valid)
-    np.save(valid_label_path, y_valid)
+    # np.save(train_feature_path, X_train)
+    # np.save(train_label_path, y_train)
+    # np.save(valid_feature_path, X_valid)
+    # np.save(valid_label_path, y_valid)
+    X_train.to_parquet(train_feature_path)
+    y_train.to_pickle(train_label_path)
+    X_valid.to_parquet(valid_feature_path)
+    y_valid.to_pickle(valid_label_path)
     joblib.dump(symbol_scalers, scaler_path)
     joblib.dump(label_encoder, label_encoder_path)
+    joblib.dump(industrial_scalers, industrial_scaler_path)
+    joblib.dump(industrial_encoder, industrial_encoder_path)
 
 if __name__ == '__main__':
     prepare()

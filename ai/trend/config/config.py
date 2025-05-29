@@ -18,7 +18,7 @@ FEATURE_COLS = [
 ]
 
 # 预测目标天数
-TARGET_DAYS = 5
+TARGET_DAYS = 2
 
 # 模型类型
 MODEL_TYPE = 'tabnet_whole_market'
