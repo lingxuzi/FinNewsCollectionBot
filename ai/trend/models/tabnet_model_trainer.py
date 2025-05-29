@@ -79,8 +79,8 @@ class FocalLoss(nn.Module):
         else: # 'none'
             return focal_loss
 
-def build_model(cat_dims, cat_idxs, cat_emb_dim=32, lr=1e-2, pretrained=False) -> TabNetClassifier:
-    model = TabNetClassifier(
+def build_model(cat_dims, cat_idxs, cat_emb_dim=32, lr=1e-2, pretrained=False) -> FactorInteractTabNetClassifier:
+    model = FactorInteractTabNetClassifier(
             n_d=8,  # 更大容量
             n_a=8,
             n_steps=3,

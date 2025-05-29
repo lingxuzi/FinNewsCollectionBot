@@ -7,6 +7,7 @@ from pytorch_tabnet.utils import (
 )
 import torch.nn as nn
 import torch
+import torch.nn.functional as F
 
 class FactorInteractTabNet(TabNet):
     def __init__(self, *args, **kwargs):
@@ -16,7 +17,13 @@ class FactorInteractTabNet(TabNet):
     def forward(self, x):
         x = self.embedder(x)
         # x = self.factor_interaction(x)
+        x = F.dropout(x, 0.7, self.training)
         return self.tabnet(x)
+
+    def forward_masks(self, x):
+        x = self.embedder(x)
+        x = F.dropout(x, 0.7, self.training)
+        return self.tabnet.forward_masks(x)
 
 class FactorInteractTabNetClassifier(TabNetClassifier):
     def _set_network(self):
