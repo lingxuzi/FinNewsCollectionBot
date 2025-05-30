@@ -254,7 +254,7 @@ def train_whole_market():
         weights=1,
         batch_size=batch_size,
         virtual_batch_size=batch_size,
-        max_epochs=10
+        max_epochs=200
     )
     y_pred_binary = model.predict(X_valid.to_numpy())
 
@@ -263,18 +263,15 @@ def train_whole_market():
     best_threshold = 0.7
 
     y_pred_proba = model.predict_proba(X_valid.to_numpy())
-    y_pred = (y_pred_proba >=0.7).astype(int)
+    y_pred = (y_pred_proba >=best_threshold).astype(int)
     high_thres_balanced_score = balanced_accuracy_score(y_valid.to_numpy(), y_pred)
 
     print("\n模型评估结果:")
     print(
         f"测试集高阈值准确率: {high_thres_balanced_score:.4f}\n"
         f"测试集Balanced准确率: {balanced_score:.4f}\n"
-        f"测试集最佳阈值: {0.7:.4f}"
+        f"测试集最佳阈值: {best_threshold:.4f}"
     )
-
-    print()
-
     # 保存模型
     os.makedirs(MODEL_DIR, exist_ok=True)
     model_path = os.path.join(MODEL_DIR, 'market.model')
