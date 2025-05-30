@@ -228,12 +228,12 @@ def train_whole_market():
         eval_metric=['balanced_accuracy', 'balanced_accuracy'],
         eval_name=['train', 'valid'],
         loss_fn=PolyLoss(),
-        patience=50,
+        patience=100,
         num_workers=4,
         weights=1,
         batch_size=batch_size,
         virtual_batch_size=batch_size,
-        max_epochs=10
+        max_epochs=200
     )
     y_pred_binary = model.predict(X_valid.to_numpy())
 
