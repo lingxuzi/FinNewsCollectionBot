@@ -254,7 +254,7 @@ def train_whole_market():
         weights=1,
         batch_size=batch_size,
         virtual_batch_size=batch_size,
-        max_epochs=1
+        max_epochs=200
     )
     y_pred_binary = model.predict(X_valid.to_numpy())
 
