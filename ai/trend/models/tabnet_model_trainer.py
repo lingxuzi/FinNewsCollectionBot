@@ -223,16 +223,16 @@ def train_whole_market():
     )
     y_pred = model.predict_proba(X_valid.to_numpy())[:, -1]
 
-    # y_valid = (y_valid == y_valid.max()).astype(int)
+    y_valid = (y_valid == y_valid.max()).astype(int)
 
-    # fpr, tpr, thresholds = roc_curve(y_valid.to_numpy(), y_pred, pos_label=y_valid.max())
-    # j_scores = tpr - fpr
-    # j_ordered = sorted(zip(j_scores, thresholds))
-    # best_j_score, best_threshold = j_ordered[-1]  # 最大值对应的阈值
+    fpr, tpr, thresholds = roc_curve(y_valid.to_numpy(), y_pred, pos_label=y_valid.max())
+    j_scores = tpr - fpr
+    j_ordered = sorted(zip(j_scores, thresholds))
+    best_j_score, best_threshold = j_ordered[-1]  # 最大值对应的阈值
 
-    # best_threshold = max(0.5, best_threshold)
+    best_threshold = max(0.5, best_threshold)
 
-    # y_pred_binary = (y_pred >= best_threshold).astype(int)
+    y_pred_binary = (y_pred >= best_threshold).astype(int)
 
     balanced_score = balanced_accuracy_score(y_valid.to_numpy(), y_pred_binary)
 
