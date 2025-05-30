@@ -219,7 +219,7 @@ def train_whole_market():
         weights=1,
         batch_size=batch_size,
         virtual_batch_size=batch_size,
-        max_epochs=20
+        max_epochs=200
     )
     y_pred = model.predict_proba(X_valid.to_numpy())[:, -1]
 
