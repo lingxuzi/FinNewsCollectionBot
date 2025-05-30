@@ -191,16 +191,37 @@ def train_and_save_model(
         traceback.print_exc()
         # print(f"训练{code}模型失败: {str(e)}")
         return None
+    
+def strict_upside_accuracy(y_true, y_proba, thres):
+    """
+    计算严格上涨准确率(SUA)
+    
+    参数:
+    y_true: array-like, 实际是否上涨(1=上涨, 0=不上涨)
+    y_pred: array-like, 模型预测是否上涨(1=上涨, 0=不上涨)
+    return_details: bool, 是否返回详细分类结果
+    
+    返回:
+    SUA值，如果return_details=True则返回(SUA, df_results)
+    """
 
-def custom_cost(y_true, y_proba, threshold, test_lb=1):
-    y_pred = (y_proba >= threshold).astype(int)
-    return balanced_accuracy_score(y_true, y_pred)
+    # 将概率转换为预测(0或1)
+    y_pred = (y_proba >= thres).astype(int)
+    
+    # 计算真正例(TP)和预测正例(P)
+    true_positives = np.sum((y_pred == 1) & (y_true == 1))
+    predicted_positives = np.sum(y_pred == 1)
+    
+    # 计算SUA (避免除以零)
+    sua = true_positives / predicted_positives if predicted_positives > 0 else 0.0
+    
+    return sua
 
 def find_best_thres(y_proba, y_true):
     thresholds = np.linspace(0, 1, 100)
 
-    # 寻找最小化成本的阈值
-    costs = [custom_cost(y_true, y_proba, thresh) for thresh in thresholds]
+    # 寻找最大SUA对应的阈值
+    costs = [strict_upside_accuracy(y_true, y_proba, thresh) for thresh in thresholds]
     best_threshold = thresholds[np.argmax(costs)]
     best_cost = max(costs)
 
@@ -233,20 +254,23 @@ def train_whole_market():
         weights=1,
         batch_size=batch_size,
         virtual_batch_size=batch_size,
-        max_epochs=200
+        max_epochs=10
     )
     y_pred_binary = model.predict(X_valid.to_numpy())
 
     balanced_score = balanced_accuracy_score(y_valid.to_numpy(), y_pred_binary)
 
+    best_threshold = 0.7
+
     y_pred_proba = model.predict_proba(X_valid.to_numpy())
-    best_threshold, best_score = find_best_thres(y_pred_proba[:, -1], y_valid.to_numpy())
+    y_pred = (y_pred_proba >=0.7).astype(int)
+    high_thres_balanced_score = balanced_accuracy_score(y_valid.to_numpy(), y_pred)
 
     print("\n模型评估结果:")
     print(
-        f"测试集F1: {best_score:.4f}\n"
+        f"测试集高阈值准确率: {high_thres_balanced_score:.4f}\n"
         f"测试集Balanced准确率: {balanced_score:.4f}\n"
-        f"测试集最佳阈值: {best_threshold:.4f}"
+        f"测试集最佳阈值: {0.7:.4f}"
     )
 
     print()
@@ -254,7 +278,7 @@ def train_whole_market():
     # 保存模型
     os.makedirs(MODEL_DIR, exist_ok=True)
     model_path = os.path.join(MODEL_DIR, 'market.model')
-    thres_path = os.path.join(MODEL_DIR, 'mabest_thresholdrket.thres')
+    thres_path = os.path.join(MODEL_DIR, 'mabest_threshold.thres')
     model.save_model(model_path)
     save_text(str(best_threshold), thres_path)
 
