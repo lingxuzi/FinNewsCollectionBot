@@ -14,7 +14,7 @@ class FactorInteractTabNet(TabNet):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # self.factor_interaction = LightFactorFusion(self.embedder.post_embed_dim,)
-        self.spatial_dropout = nn.Dropout1d(p=0.2)
+        self.spatial_dropout = nn.Dropout1d(p=0.1)
 
     def forward(self, x):
         x = self.embedder(x)

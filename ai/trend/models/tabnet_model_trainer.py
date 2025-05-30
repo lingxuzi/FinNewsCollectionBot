@@ -95,7 +95,7 @@ def build_model(cat_dims, cat_idxs, cat_emb_dim=32, lr=1e-2, pretrained=False) -
             cat_emb_dim=cat_emb_dim if len(cat_emb_dim) > 0 else [cat_emb_dim] * len(cat_idxs),
             mask_type='entmax',
             optimizer_fn=torch.optim.AdamW,
-            optimizer_params=dict(lr=lr, weight_decay=1e-4),
+            optimizer_params=dict(lr=lr, weight_decay=5e-2),
             scheduler_fn=ReduceLROnPlateau,
             # scheduler_params={"step_size": 10, "gamma": 0.8}
         )
@@ -192,6 +192,20 @@ def train_and_save_model(
         # print(f"训练{code}模型失败: {str(e)}")
         return None
 
+def custom_cost(y_true, y_proba, threshold, test_lb=1):
+    y_pred = (y_proba >= threshold).astype(int)
+    return balanced_accuracy_score(y_true, y_pred)
+
+def find_best_thres(y_proba, y_true):
+    thresholds = np.linspace(0, 1, 100)
+
+    # 寻找最小化成本的阈值
+    costs = [custom_cost(y_true, y_proba, thresh) for thresh in thresholds]
+    best_threshold = thresholds[np.argmax(costs)]
+    best_cost = max(costs)
+
+    return best_threshold, best_cost
+
 from ai.trend.data.data_loader import load_whole_market_train_eval
 def train_whole_market():
     X, y, X_valid, y_valid, categorical_features_indices, categorical_dims = load_whole_market_train_eval()
@@ -219,27 +233,20 @@ def train_whole_market():
         weights=1,
         batch_size=batch_size,
         virtual_batch_size=batch_size,
-        max_epochs=200
+        max_epochs=10
     )
-    y_pred = model.predict_proba(X_valid.to_numpy())[:, -1]
-
-    y_valid = (y_valid == y_valid.max()).astype(int)
-
-    fpr, tpr, thresholds = roc_curve(y_valid.to_numpy(), y_pred, pos_label=y_valid.max())
-    j_scores = tpr - fpr
-    j_ordered = sorted(zip(j_scores, thresholds))
-    best_j_score, best_threshold = j_ordered[-1]  # 最大值对应的阈值
-
-    best_threshold = max(0.5, best_threshold)
-
-    y_pred_binary = (y_pred >= best_threshold).astype(int)
+    y_pred_binary = model.predict(X_valid.to_numpy())
 
     balanced_score = balanced_accuracy_score(y_valid.to_numpy(), y_pred_binary)
 
+    y_pred_proba = model.predict_proba(X_valid.to_numpy())
+    best_threshold, best_score = find_best_thres(y_pred_proba[:, -1], y_valid.to_numpy())
+
     print("\n模型评估结果:")
     print(
-        f"测试集准确率: {f1_score(y_valid, y_pred_binary, average='macro'):.4f} 最佳阈值: {best_threshold}\n"
-        f"测试集Balanced准确率: {balanced_score:.4f} 最佳阈值: {best_threshold}"
+        f"测试集F1: {best_score:.4f}\n"
+        f"测试集Balanced准确率: {balanced_score:.4f}\n"
+        f"测试集最佳阈值: {best_threshold:.4f}"
     )
 
     print()
@@ -247,7 +254,7 @@ def train_whole_market():
     # 保存模型
     os.makedirs(MODEL_DIR, exist_ok=True)
     model_path = os.path.join(MODEL_DIR, 'market.model')
-    thres_path = os.path.join(MODEL_DIR, 'market.thres')
+    thres_path = os.path.join(MODEL_DIR, 'mabest_thresholdrket.thres')
     model.save_model(model_path)
     save_text(str(best_threshold), thres_path)
 
