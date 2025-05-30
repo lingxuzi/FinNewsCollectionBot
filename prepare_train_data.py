@@ -55,7 +55,7 @@ def prepare(opts):
 
 def parse_opts():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--topk', type=int, default=40)
+    parser.add_argument('--topk', type=int, default=5)
 
     opts = parser.parse_args()
     return opts
