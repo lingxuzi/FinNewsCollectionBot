@@ -213,10 +213,10 @@ def get_market_stock_data(codes, label_encoder=None, industrial_encoder=None, sc
     #         X[X['industry'] == industry] = industry_df
 
         
-        if not hasattr(industrial_encoder, 'classes_'):
-            X['industry'] = industrial_encoder.fit_transform(X['industry'])
-        else:
-            X['industry'] = industrial_encoder.transform(X['industry'])
+    if not hasattr(industrial_encoder, 'classes_'):
+        X['industry'] = industrial_encoder.fit_transform(X['industry'])
+    else:
+        X['industry'] = industrial_encoder.transform(X['industry'])
 
     y = pd.concat(y)
 
