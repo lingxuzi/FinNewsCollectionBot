@@ -1,4 +1,5 @@
 from ai.trend.modules.factor_interaction import LightFactorFusion
+from ai.trend.modules.dropout import Spatial_Dropout
 from pytorch_tabnet.tab_model import TabNetClassifier
 from pytorch_tabnet.tab_network import TabNet
 from pytorch_tabnet.utils import (
@@ -13,16 +14,18 @@ class FactorInteractTabNet(TabNet):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # self.factor_interaction = LightFactorFusion(self.embedder.post_embed_dim,)
+        self.spatial_dropout = nn.Dropout1d(p=0.2)
 
     def forward(self, x):
         x = self.embedder(x)
-        # x = self.factor_interaction(x)
-        x = F.dropout(x, 0.1, self.training)
-        return self.tabnet(x)
+        if self.training:
+            x = self.spatial_dropout(x)
+        return self.tabnet.forward(x)
 
     def forward_masks(self, x):
         x = self.embedder(x)
-        x = F.dropout(x, 0.1, self.training)
+        if self.training:
+            x = self.spatial_dropout(x)
         return self.tabnet.forward_masks(x)
 
 class FactorInteractTabNetClassifier(TabNetClassifier):
