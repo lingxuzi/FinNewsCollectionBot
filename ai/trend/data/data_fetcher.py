@@ -197,26 +197,26 @@ def get_market_stock_data(codes, label_encoder=None, industrial_encoder=None, sc
         X['symbol'] = label_encoder.transform(X['symbol'])
 
 
-    if 'industry' in X.columns:
-        X = generate_industrial_indicators(X)
+    # if 'industry' in X.columns:
+    #     X = generate_industrial_indicators(X)
 
-        industries = np.unique(X['industry'])
-        for industry in industries:
-            industry_df = X[X['industry'] == industry]
-            industry_cols = [col for col in industry_df.columns if 'industry_' in col]
-            if not industrial_scalers.get(industry, None):
-                industrial_scalers[industry] = StandardScaler()
-                industry_df[industry_cols] = industrial_scalers[industry].fit_transform(industry_df[industry_cols])
-            else:
-                industry_df[industry_cols] = industrial_scalers[industry].transform(industry_df[industry_cols])
+    #     industries = np.unique(X['industry'])
+    #     for industry in industries:
+    #         industry_df = X[X['industry'] == industry]
+    #         industry_cols = [col for col in industry_df.columns if 'industry_' in col]
+    #         if not industrial_scalers.get(industry, None):
+    #             industrial_scalers[industry] = StandardScaler()
+    #             industry_df[industry_cols] = industrial_scalers[industry].fit_transform(industry_df[industry_cols])
+    #         else:
+    #             industry_df[industry_cols] = industrial_scalers[industry].transform(industry_df[industry_cols])
             
-            X[X['industry'] == industry] = industry_df
+    #         X[X['industry'] == industry] = industry_df
 
         
-        if not hasattr(industrial_encoder, 'classes_'):
-            X['industry'] = industrial_encoder.fit_transform(X['industry'])
-        else:
-            X['industry'] = industrial_encoder.transform(X['industry'])
+    if not hasattr(industrial_encoder, 'classes_'):
+        X['industry'] = industrial_encoder.fit_transform(X['industry'])
+    else:
+        X['industry'] = industrial_encoder.transform(X['industry'])
 
     y = pd.concat(y)
 
