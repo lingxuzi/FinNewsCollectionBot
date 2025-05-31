@@ -351,8 +351,8 @@ def calculate_technical_indicators(df, forcast_days=5, keep_date=False, mode='tr
     if mode == 'traineval':
         df_feat["label"] = df_feat["close"].pct_change(periods=forcast_days).shift(-forcast_days)
         df_feat.replace([np.inf, -np.inf], np.nan, inplace=True)
-        df_feat.fillna(0, inplace=True)
-        # df_feat.dropna(inplace=True)
+        # df_feat.fillna(0, inplace=True)
+        df_feat.dropna(inplace=True)
 
         label = df_feat["label"]
         # label.loc[label > 0.01] = 2
@@ -363,8 +363,8 @@ def calculate_technical_indicators(df, forcast_days=5, keep_date=False, mode='tr
         label.loc[label > 0.01] = 1
     else:
         df_feat.replace([np.inf, -np.inf], np.nan, inplace=True)
-        df_feat.fillna(0, inplace=True)
-        # df_feat.dropna(inplace=True)
+        # df_feat.fillna(0, inplace=True)
+        df_feat.dropna(inplace=True)
         label = None
 
     return df_feat, label
