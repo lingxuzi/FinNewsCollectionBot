@@ -86,6 +86,7 @@ def get_stock_data(code, start_date=None, end_date=None, scaler=None, mode='trai
 
         # 计算技术指标
         df, label = calculate_technical_indicators(df, forcast_days=TARGET_DAYS, keep_date=True)
+        df.drop(columns=['label'], axis=1, inplace=True)
         # 预处理
         non_numeric_cols = [col for col in df.columns if not np.issubdtype(df[col].dtype, np.number)]
         cols_to_scale = [col for col in df.columns if col not in non_numeric_cols]

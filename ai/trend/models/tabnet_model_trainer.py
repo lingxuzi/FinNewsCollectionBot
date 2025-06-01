@@ -140,7 +140,7 @@ def train_and_save_model(
 
     # 获取训练数据
     X_train, y_train, X_test, y_test, scaler = load_symbol_data(code)
-    if X_train and len(X_train) < 500:
+    if X_train is not None and not X_train.empty and len(X_train) < 500:
         return None, None, None
     try:
         X_train = X_train.to_numpy()
@@ -167,7 +167,7 @@ def train_and_save_model(
             weights=1,
             batch_size=batch_size,
             virtual_batch_size=batch_size,
-            max_epochs=20
+            max_epochs=50
         )
 
         y_pred_binary = model.predict(X_test)
@@ -189,8 +189,8 @@ def train_and_save_model(
 
         # 保存模型
         os.makedirs(MODEL_DIR, exist_ok=True)
-        model_path = os.path.join(MODEL_DIR, 'market.model')
-        thres_path = os.path.join(MODEL_DIR, 'mabest_threshold.thres')
+        model_path = os.path.join(MODEL_DIR, f'market_{code}.model')
+        thres_path = os.path.join(MODEL_DIR, f'mabest_threshold_{code}.thres')
         model.save_model(model_path)
         save_text(str(best_threshold), thres_path)
 
