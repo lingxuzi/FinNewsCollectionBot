@@ -18,14 +18,14 @@ class FactorInteractTabNet(TabNet):
 
     def forward(self, x):
         x = self.embedder(x)
-        if self.training:
-            x = self.spatial_dropout(x)
+        # if self.training:
+        #     x = self.spatial_dropout(x)
         return self.tabnet.forward(x)
 
     def forward_masks(self, x):
         x = self.embedder(x)
-        if self.training:
-            x = self.spatial_dropout(x)
+        # if self.training:
+        #     x = self.spatial_dropout(x)
         return self.tabnet.forward_masks(x)
 
 class FactorInteractTabNetClassifier(TabNetClassifier):

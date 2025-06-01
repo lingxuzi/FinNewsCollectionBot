@@ -73,28 +73,40 @@ def get_stock_data(code, start_date=None, end_date=None, scaler=None, mode='trai
             '日期': 'date', '开盘': 'open', '收盘': 'close', '最高': 'high',
             '最低': 'low', '成交量': 'volume', '涨跌幅': 'pct_chg', '换手率': 'turn_over'
         })
+        price_cols = ['open', 'high', 'low', 'close']
+        df[price_cols] = df[price_cols].fillna(method='ffill')
+        
+        # 成交量缺失处理（停牌日）
+        df['volume'] = df['volume'].fillna(0)
+        
         df['date'] = pd.to_datetime(df['date'])
+        df['turn_over_chg_1d'] = df['turn_over'].pct_change(1)
+        df['turn_over_chg_3d'] = df['turn_over'].pct_change(3)
+        df['turn_over_chg_5d'] = df['turn_over'].pct_change(5)
 
         # 计算技术指标
-        df, label = calculate_technical_indicators(df, forcast_days=TARGET_DAYS, mode=mode)
-
+        df, label = calculate_technical_indicators(df, forcast_days=TARGET_DAYS, keep_date=True)
         # 预处理
-        if not scaler:
-            scaler = RobustScaler(quantile_range=(5, 95))
-        cols_to_scale = ['high', 'low', 'close', 'volume'] + \
-                       [col for col in df.columns if 'MA_' in col or 'Momentum_' in col]
-        df[cols_to_scale] = scaler.fit_transform(df[cols_to_scale])
+        non_numeric_cols = [col for col in df.columns if not np.issubdtype(df[col].dtype, np.number)]
+        cols_to_scale = [col for col in df.columns if col not in non_numeric_cols]
         
-        X = df.to_numpy()
-        if label is not None:
-            label = label.to_numpy()
+        # 标准化数值列
+        if not scaler:
+            scaler = StandardScaler()
+            df[cols_to_scale] = scaler.fit_transform(df[cols_to_scale])
+        else:
+            df[cols_to_scale] = scaler.transform(df[cols_to_scale])
 
-        # df = select_features_with_lasso(df, label)
-
-        return df, X, label, scaler
+        df['time_year'] = df['date'].dt.year / 3000
+        df['time_month'] = df['date'].dt.month / 12
+        df['time_day'] = df['date'].dt.day / 31
+        df['time_dayofweek'] = df['date'].dt.dayofweek / 7
+        df['time_dayofyear'] = df['date'].dt.dayofyear / 366
+        df.drop(columns=['date'], axis=1, inplace=True)
+        return df, label, scaler
     except Exception as e:
         print(f"获取股票{code}数据失败: {str(e)}")
-        return None, None, None, None
+        return None, None, None
 
 def get_single_stock_data(code, scaler=None, start_date=None, end_date=None):
     """

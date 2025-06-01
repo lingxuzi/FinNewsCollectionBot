@@ -12,7 +12,7 @@ from sklearn.metrics import roc_auc_score, accuracy_score, f1_score, roc_curve, 
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.utils.class_weight import compute_class_weight
 from ai.trend.config.config import MODEL_DIR, FEATURE_COLS
-from ai.trend.data.data_fetcher import get_stock_data
+from ai.trend.data.data_loader import load_symbol_data
 from utils.cache import run_with_cache
 from ai.trend.models.networks.indicator_fused_tabnet import FactorInteractTabNetClassifier, TabNetClassifier
 from ai.trend.models.losses.polyloss import PolyLoss
@@ -79,23 +79,24 @@ class FocalLoss(nn.Module):
         else: # 'none'
             return focal_loss
 
-def build_model(cat_dims, cat_idxs, cat_emb_dim=32, lr=1e-2, pretrained=False) -> FactorInteractTabNetClassifier:
+
+def build_model(cat_dims=[], cat_idxs=[], cat_emb_dim=32, lr=1e-2, pretrained=False) -> FactorInteractTabNetClassifier:
     model = FactorInteractTabNetClassifier(
             n_d=8,  # 更大容量
             n_a=8,
             n_steps=3,
             gamma=1.3,  # 特征重用系数
-            n_independent=1,  # 独立GLU层数
+            n_independent=2,  # 独立GLU层数
             n_shared=2,  # 共享GLU层数
             lambda_sparse=1e-3,  # 稀疏性损失权重
             clip_value=2,
             seed=42,
             cat_dims=cat_dims,
             cat_idxs=cat_idxs,
-            cat_emb_dim=cat_emb_dim if len(cat_emb_dim) > 0 else [cat_emb_dim] * len(cat_idxs),
+            cat_emb_dim=cat_emb_dim,
             mask_type='entmax',
             optimizer_fn=torch.optim.AdamW,
-            optimizer_params=dict(lr=lr, weight_decay=5e-2),
+            optimizer_params=dict(lr=lr, weight_decay=1e-4),
             scheduler_fn=ReduceLROnPlateau,
             # scheduler_params={"step_size": 10, "gamma": 0.8}
         )
@@ -107,7 +108,7 @@ def get_class_weights(y):
     return class_weights, weights
 
 def train_and_save_model(
-    code, force_retrain=False, start_date="20000101", end_date="20230101"
+    code, force_retrain=False
 ):
     """
     训练并保存模型
@@ -138,53 +139,60 @@ def train_and_save_model(
             print(f"模型{code}加载失败，重新训练... 错误：{str(e)}")
 
     # 获取训练数据
-    _, X, y, scaler = get_stock_data(code, start_date=start_date, end_date=end_date)
-    if X is None or len(X) < 300:
-        return None
-
+    X_train, y_train, X_test, y_test, scaler = load_symbol_data(code)
+    if len(X_train) < 500:
+        return None, None, None
     try:
+        X_train = X_train.to_numpy()
+        y_train = y_train.to_numpy()
+        X_test = X_test.to_numpy()
+        y_test = y_test.to_numpy()
         # 时间序列分割
-        split_idx = int(len(X) * 0.8)
-        X_train, X_valid = X[:split_idx], X[split_idx:]
-        y_train, y_valid = y[:split_idx], y[split_idx:]
+        split_idx = int(len(X_train) * 0.6)
+        X_train, X_val = X_train[:split_idx], X_train[split_idx:]
+        y_train, y_val = y_train[:split_idx], y_train[split_idx:]
 
         # 全量数据训练
-        model = build_model(lr=5e-2)
-        # class_weights, weights = get_class_weights(y_train)
-
+        model = build_model(lr=2e-2)
+        batch_size = int(0.1 * len(X_train))
         model.fit(
             X_train,
             y_train,
-            eval_set=[(X_train, y_train)],
-            eval_metric=['auc'],
-            loss_fn=FocalLoss,
-            patience=10,
-            batch_size=32,
-            augmentations=FeatureNoiseAugmentation(noise_level=0.05)
+            eval_set=[(X_val, y_val)],
+            eval_metric=['balanced_accuracy'],
+            eval_name=['eval'],
+            patience=100,
+            num_workers=4,
+            weights=1,
+            batch_size=batch_size,
+            virtual_batch_size=batch_size,
+            max_epochs=20
         )
 
-        # 在测试集上评估
-        y_pred = model.predict_proba(X_valid)[:, 1]
+        y_pred_binary = model.predict(X_test)
 
-        fpr, tpr, thresholds = roc_curve(y_valid, y_pred, pos_label=1)
-        j_scores = tpr - fpr
-        j_ordered = sorted(zip(j_scores, thresholds))
-        best_j_score, best_threshold = j_ordered[-1]  # 最大值对应的阈值
+        balanced_score = balanced_accuracy_score(y_test, y_pred_binary)
 
-        best_threshold = max(0.5, best_threshold)
+        best_threshold = 0.7
 
-        y_pred_binary = (y_pred >= best_threshold).astype(int)
+        y_pred_proba = model.predict_proba(X_test)
+        y_pred = (y_pred_proba[:, -1] >=best_threshold).astype(int)
+        high_thres_balanced_score = balanced_accuracy_score(y_test, y_pred)
 
         print("\n模型评估结果:")
         print(
-            f"测试集准确率: {f1_score(y_valid, y_pred_binary, average='macro'):.4f} 最佳阈值: {best_threshold}"
+            f"测试集高阈值准确率: {high_thres_balanced_score:.4f}\n"
+            f"测试集Balanced准确率: {balanced_score:.4f}\n"
+            f"测试集最佳阈值: {best_threshold:.4f}"
         )
 
         # 保存模型
         os.makedirs(MODEL_DIR, exist_ok=True)
+        model_path = os.path.join(MODEL_DIR, 'market.model')
+        thres_path = os.path.join(MODEL_DIR, 'mabest_threshold.thres')
         model.save_model(model_path)
-        joblib.dump(scaler, scaler_path)
         save_text(str(best_threshold), thres_path)
+
         return model, scaler, best_threshold
 
     except Exception as e:
@@ -241,20 +249,20 @@ def train_whole_market():
 
     print(f'batch size: {batch_size}')
 
-    model = build_model(cat_dims=categorical_dims, cat_idxs=categorical_features_indices, cat_emb_dim=[min(32, int(x*1.5)) for x in categorical_dims], lr=2e-2)
+    model = build_model(cat_dims=categorical_dims, cat_idxs=categorical_features_indices, cat_emb_dim=[max(8, min(32, int(x*1.5))) for x in categorical_dims], lr=2e-2)
     model.fit(
         X_train,
         y_train,
-        eval_set=[(X_train, y_train), (X_val, y_val)],
-        eval_metric=['balanced_accuracy', 'balanced_accuracy'],
-        eval_name=['train', 'valid'],
-        loss_fn=PolyLoss(),
+        eval_set=[(X_val, y_val)],
+        eval_metric=['balanced_accuracy'],
+        eval_name=['eval'],
+        loss_fn=nn.CrossEntropyLoss(weight=weights.to(model.device)),
         patience=100,
         num_workers=4,
-        weights=1,
+        # weights=1,
         batch_size=batch_size,
         virtual_batch_size=batch_size,
-        max_epochs=200
+        max_epochs=20
     )
     y_pred_binary = model.predict(X_valid.to_numpy())
 

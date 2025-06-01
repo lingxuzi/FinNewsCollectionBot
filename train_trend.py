@@ -48,53 +48,53 @@ def main():
     stock_list['code'] = stock_list['code'].apply(lambda x: str(x).zfill(6))
     stock_list = stock_list[~stock_list['name'].str.contains('ST|退')]
     # stock_list = stock_list[~stock_list['code'].str.startswith(('300', '688', '8'))]
-    stock_list = stock_list[stock_list['code'] == '300233']
-    # stock_list = stock_list[:1]
+    # stock_list = stock_list[stock_list['code'] == '300233']
+    stock_list = stock_list[:10]
 
     results = []
     pbar = tqdm(stock_list['code'], desc="处理股票", ncols=100)
 
     for code in pbar:
         pbar.set_postfix_str(f"正在处理：{code}")
-        try:
-            # 获取并训练模型
-            booster, scaler, best_thres = get_trainer()(code, force_retrain=not load_cache, start_date=None, end_date='20241231')
-            if not booster:
-                continue
+        # try:
+        # 获取并训练模型
+        model, scaler, best_thres = get_trainer()(code, force_retrain=not load_cache)
+        if not model:
+            continue
 
             # 获取最新数据
-            current_date_str = date.today().strftime("%Y%m%d")
-            past_90_days = (date.today() - timedelta(days=120)).strftime("%Y%m%d")
-            df, X, y, scaler = get_stock_data(code, scaler=scaler, start_date=past_90_days, end_date=current_date_str, mode='forcast')
+    #         current_date_str = date.today().strftime("%Y%m%d")
+    #         past_90_days = (date.today() - timedelta(days=120)).strftime("%Y%m%d")
+    #         df, X, y, scaler = get_stock_data(code, scaler=scaler, start_date=past_90_days, end_date=current_date_str, mode='forcast')
 
-            # 生成预测
-            prob = booster.predict_proba(X[:-1])[0, 1]
+    #         # 生成预测
+    #         prob = model.predict_proba(X[:-1])[0, 1]
 
-            # 记录结果
-            latest_pct = df['pct_chg'].iloc[-1]
-            results.append({
-                '代码': code,
-                '名称': stock_list.loc[stock_list['code'] == code, 'name'].values[0],
-                '是否涨停': "是" if latest_pct >= 9.9 else "否",
-                '预测概率': prob,
-                '正收益概率': '超大概率' if prob >= best_thres else '大概率',
-                '收盘价': df['close'].iloc[-1],
-                '更新日期': datetime.today().strftime('%Y-%m-%d')
-            })
+    #         # 记录结果
+    #         latest_pct = df['pct_chg'].iloc[-1]
+    #         results.append({
+    #             '代码': code,
+    #             '名称': stock_list.loc[stock_list['code'] == code, 'name'].values[0],
+    #             '是否涨停': "是" if latest_pct >= 9.9 else "否",
+    #             '预测概率': prob,
+    #             '正收益概率': '超大概率' if prob >= best_thres else '大概率',
+    #             '收盘价': df['close'].iloc[-1],
+    #             '更新日期': datetime.today().strftime('%Y-%m-%d')
+    #         })
 
-        except Exception as e:
-            traceback.print_exc()
-            print(f"\n处理{code}时发生错误: {str(e)}")
-            continue
+    #     except Exception as e:
+    #         traceback.print_exc()
+    #         print(f"\n处理{code}时发生错误: {str(e)}")
+    #         continue
         
-    if results:
-        result_df = pd.DataFrame(results)
-        result_df['推荐评级'] = pd.cut(result_df['预测概率'],
-                                    bins=[0, 0.6, 0.75, 1],
-                                    labels=['C', 'B', 'A'])
-        result_df = result_df[['代码', '名称', '是否涨停', '预测概率', '正收益概率', '推荐评级',  '收盘价', '更新日期']]
-        print(f"\n✅ 分析完成！共处理{len(results)}只股票")
-        print(result_df.head(10))
+    # if results:
+    #     result_df = pd.DataFrame(results)
+    #     result_df['推荐评级'] = pd.cut(result_df['预测概率'],
+    #                                 bins=[0, 0.6, 0.75, 1],
+    #                                 labels=['C', 'B', 'A'])
+    #     result_df = result_df[['代码', '名称', '是否涨停', '预测概率', '正收益概率', '推荐评级',  '收盘价', '更新日期']]
+    #     print(f"\n✅ 分析完成！共处理{len(results)}只股票")
+    #     print(result_df.head(10))
 
 if __name__ == '__main__':
     main()

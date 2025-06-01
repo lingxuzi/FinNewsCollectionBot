@@ -21,7 +21,7 @@ FEATURE_COLS = [
 TARGET_DAYS = 5
 
 # 模型类型
-MODEL_TYPE = 'tabnet_whole_market'
+MODEL_TYPE = 'tabnet'
 
 # 模型存储目录
 MODEL_DIR = os.path.join(BASE_DIR, 'data', 'stock_models', MODEL_TYPE)
