@@ -140,7 +140,7 @@ def train_and_save_model(
 
     # 获取训练数据
     X_train, y_train, X_test, y_test, scaler = load_symbol_data(code)
-    if len(X_train) < 500:
+    if X_train and len(X_train) < 500:
         return None, None, None
     try:
         X_train = X_train.to_numpy()
@@ -161,6 +161,7 @@ def train_and_save_model(
             eval_set=[(X_val, y_val)],
             eval_metric=['balanced_accuracy'],
             eval_name=['eval'],
+            loss_fn=PolyLoss(),
             patience=100,
             num_workers=4,
             weights=1,
