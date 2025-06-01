@@ -140,7 +140,7 @@ def train_and_save_model(
 
     # 获取训练数据
     X_train, y_train, X_test, y_test, scaler = load_symbol_data(code)
-    if X_train is not None and not X_train.empty and len(X_train) < 500:
+    if X_train is not None or not X_train.empty or len(X_train) < 500:
         return None, None, None
     try:
         X_train = X_train.to_numpy()
