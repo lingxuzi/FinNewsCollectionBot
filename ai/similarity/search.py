@@ -105,7 +105,8 @@ class VectorDBKlineSearch:
                             temp_vecs.append(fvec)
                             self.meta_cache.set(f'kline_{process_index}', metadata)
                         # 定期合并到磁盘索引
-                        if len(temp_vecs) > 10000:
+                        if len(temp_vecs) > 1000:
+                            print('同步索引')
                             self.index.add(np.concatenate(temp_vecs))
                             faiss.write_index(self.index, index_file)
                             temp_vecs.clear()
@@ -113,6 +114,10 @@ class VectorDBKlineSearch:
             except Exception as e:
                 traceback.print_exc()
                 print(f"处理股票{code}时出错: {e}")
+        
+        if len(temp_vecs) > 0:
+            self.index.add(np.concatenate(temp_vecs))
+            faiss.write_index(self.index, index_file)
     
     def load_vector_db(self):
         """加载已构建的向量数据库"""
