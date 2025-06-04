@@ -14,6 +14,7 @@ import traceback
 from dtaidistance import dtw
 from utils.cache import run_with_cache
 from sklearn.preprocessing import StandardScaler
+import shutil 
 
 plt.rcParams['font.sans-serif'] = ['SimHei']
 plt.rcParams['axes.unicode_minus'] = False
@@ -28,6 +29,10 @@ class VectorDBKlineSearch:
         
         self.meta_cache = FanoutCache(db_path)
         self.window_size = 50
+
+    def _rebuild(self):
+        shutil.rmtree(self.db_path, ignore_errors=True)
+        os.makedirs(db_path, exist_ok=True)
 
     def get_stock_info(self, code):
         df = run_with_cache(ak.stock_zh_a_hist,symbol=code, period="daily", adjust="qfq")
@@ -57,7 +62,7 @@ class VectorDBKlineSearch:
         
         return True, feature_vec.reshape(1, -1), meta
 
-    def build_vector_db(self, stock_codes=None):
+    def build_vector_db(self, stock_codes=None, rebuild=False):
         """构建增强版向量数据库"""
         if stock_codes is None:
             stock_info = run_with_cache(ak.stock_info_a_code_name)
@@ -68,6 +73,8 @@ class VectorDBKlineSearch:
 
         dim = self._get_feature_dim(self.window_size, self.features)
         index_file = os.path.join(self.db_path, "kline.index")
+        if rebuild:
+            self._rebuild()
         if not os.path.exists(index_file):
             # 先创建空索引
             self.index = faiss.index_factory(dim, "Flat", faiss.METRIC_L2)
@@ -77,7 +84,7 @@ class VectorDBKlineSearch:
         self.index = faiss.read_index(index_file, faiss.IO_FLAG_MMAP | faiss.IO_FLAG_READ_ONLY)
 
          # 构建时使用临时内存索引，然后合并到磁盘索引
-        temp_index = faiss.IndexFlatL2(dim)
+        temp_vecs = []
         # ... 处理数据添加到temp_index ...
         process_index = 0
         for code in tqdm(stock_codes, desc="构建增强数据库"):
@@ -95,13 +102,13 @@ class VectorDBKlineSearch:
                     for result in results:
                         need_build, fvec, metadata = result
                         if need_build:
-                            temp_index.add(fvec)
+                            temp_vecs.append(fvec)
                             self.meta_cache.set(f'kline_{process_index}', metadata)
                         # 定期合并到磁盘索引
-                        if temp_index.ntotal > 10000:
-                            self.index.add(temp_index)
+                        if len(temp_vecs) > 10000:
+                            self.index.add(np.concatenate(temp_vecs))
                             faiss.write_index(self.index, index_file)
-                            temp_index.reset()
+                            temp_vecs.clear()
                         process_index += 1
             except Exception as e:
                 traceback.print_exc()
@@ -261,21 +268,21 @@ def main():
     # 如果数据库不存在，则构建(首次运行需要)
     if not searcher.load_vector_db():
         print("未找到现有数据库，开始构建...")
-        searcher.build_vector_db(stock_codes=None)
+        searcher.build_vector_db(stock_codes=None, rebuild=True)
         print("数据库构建完成!")
     
     # 示例查询数据(使用贵州茅台最近50天)
-    df = searcher.get_stock_info('600519')
-    df = searcher._calculate_technical_indicators(df)
-    query_df = df.iloc[-50:].copy()
+    # df = searcher.get_stock_info('600519')
+    # df = searcher._calculate_technical_indicators(df)
+    # query_df = df.iloc[-50:].copy()
     
-    # 执行查询
-    print("开始增强版相似K线搜索...")
-    distances, matches = searcher.search_similar(query_df, k=3, refine_with_dtw=True)
+    # # 执行查询
+    # print("开始增强版相似K线搜索...")
+    # distances, matches = searcher.search_similar(query_df, k=3, refine_with_dtw=True)
     
-    print("\n最相似K线模式:")
-    for i, (dist, match) in enumerate(zip(distances, matches), 1):
-        print(f"{i}. 股票{match['code']} {match['start_date'].date()} (DTW距离: {dist:.2f})")
+    # print("\n最相似K线模式:")
+    # for i, (dist, match) in enumerate(zip(distances, matches), 1):
+    #     print(f"{i}. 股票{match['code']} {match['start_date'].date()} (DTW距离: {dist:.2f})")
     
-    # 绘制增强版对比图
-    searcher.plot_enhanced_comparison(query_df, matches, distances)
+    # # 绘制增强版对比图
+    # searcher.plot_enhanced_comparison(query_df, matches, distances)
