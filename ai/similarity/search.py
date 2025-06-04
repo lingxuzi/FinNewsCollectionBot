@@ -32,7 +32,7 @@ class VectorDBKlineSearch:
 
     def _rebuild(self):
         shutil.rmtree(self.db_path, ignore_errors=True)
-        os.makedirs(db_path, exist_ok=True)
+        os.makedirs(self.db_path, exist_ok=True)
 
     def get_stock_info(self, code):
         df = run_with_cache(ak.stock_zh_a_hist,symbol=code, period="daily", adjust="qfq")
