@@ -29,5 +29,8 @@ def get_qstock_news():
 
     return '\n\n'.join([cailian_news,cctv_news,js_news])
 
+from ai.similarity.search import main
+
 if __name__ == '__main__':
-    get_qstock_news()
+    # get_qstock_news()
+    main()

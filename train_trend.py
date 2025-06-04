@@ -66,7 +66,11 @@ def main():
             df, label, scaler = get_stock_data(code, scaler=scaler, start_date=past_90_days, end_date=current_date_str, mode='forcast')
 
             # 生成预测
-            prob = model.predict_proba(df.to_numpy()[:-1])[0, 1]
+            if hasattr(model, 'predict_proba'):
+                prob_func = model.predict_proba
+            else:
+                prob_func = model.predict
+            prob = prob_func(np.expand_dims(df.to_numpy()[-1], 0))[0]
 
             # 记录结果
             latest_pct = df['pct_chg'].iloc[-1]

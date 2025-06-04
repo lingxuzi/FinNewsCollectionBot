@@ -343,7 +343,7 @@ def calculate_technical_indicators(df, forcast_days=5, keep_date=False, mode='tr
 
     df_feat['High_Vol_Regime'] = (df_feat['ATR_14'] > df_feat['ATR_14'].rolling(50).mean() * 1.5).astype(int)
 
-    drop_cols = ['open']
+    drop_cols = []
     if not keep_date:
         drop_cols.append('date')
     df_feat.drop(drop_cols, axis=1, inplace=True)

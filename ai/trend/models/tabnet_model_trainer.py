@@ -120,23 +120,6 @@ def train_and_save_model(
     Returns:
         TabNet: 训练好的模型，或None（如果训练失败）
     """
-    model_path = os.path.join(MODEL_DIR, f"{code}_model.txt")
-    scaler_path = os.path.join(MODEL_DIR, f"{code}_model.scaler")
-    thres_path = os.path.join(MODEL_DIR, f"{code}_model.thres")
-
-    # 尝试加载已有模型
-    if (
-        not force_retrain
-        and os.path.exists(model_path)
-        and os.path.exists(scaler_path)
-        and os.path.exists(thres_path)
-    ):
-        try:
-            model = TabNetClassifier()
-            model.load_model(model_file=model_path)
-            return model, joblib.load(scaler_path), float(read_text(thres_path))
-        except Exception as e:
-            print(f"模型{code}加载失败，重新训练... 错误：{str(e)}")
 
     # 获取训练数据
     X_train, y_train, X_test, y_test, scaler = load_symbol_data(code)
@@ -161,7 +144,6 @@ def train_and_save_model(
             eval_set=[(X_val, y_val)],
             eval_metric=['balanced_accuracy'],
             eval_name=['eval'],
-            loss_fn=PolyLoss(),
             patience=100,
             num_workers=4,
             weights=1,
@@ -190,8 +172,10 @@ def train_and_save_model(
         # 保存模型
         os.makedirs(MODEL_DIR, exist_ok=True)
         model_path = os.path.join(MODEL_DIR, f'market_{code}.model')
+        scaler_path = os.path.join(MODEL_DIR, f'scaler_{code}.model')
         thres_path = os.path.join(MODEL_DIR, f'mabest_threshold_{code}.thres')
         model.save_model(model_path)
+        joblib.dump(scaler, scaler_path)
         save_text(str(best_threshold), thres_path)
 
         return model, scaler, best_threshold

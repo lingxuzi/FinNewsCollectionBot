@@ -18,10 +18,10 @@ FEATURE_COLS = [
 ]
 
 # 预测目标天数
-TARGET_DAYS = 5
+TARGET_DAYS = 2
 
 # 模型类型
-MODEL_TYPE = 'tabnet'
+MODEL_TYPE = 'lightgbm'
 
 # 模型存储目录
 MODEL_DIR = os.path.join(BASE_DIR, 'data', 'stock_models', MODEL_TYPE)

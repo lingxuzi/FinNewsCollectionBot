@@ -9,7 +9,7 @@ from sklearn.metrics import roc_auc_score, accuracy_score, f1_score, roc_curve
 from sklearn.model_selection import TimeSeriesSplit
 import logging
 from ai.trend.config.config import MODEL_DIR, FEATURE_COLS
-from ai.trend.data.data_fetcher import get_stock_data
+from ai.trend.data.data_loader import load_symbol_data
 from utils.cache import run_with_cache
 import warnings
 import joblib
@@ -125,7 +125,7 @@ def save_text(text, path):
         return f.write(text)
 
 def train_and_save_model(
-    code, force_retrain=False, start_date="20000101", end_date="20230101"
+    code, force_retrain=True
 ):
     """
     训练并保存模型
@@ -137,46 +137,41 @@ def train_and_save_model(
     Returns:
         lgb.Booster: 训练好的模型，或None（如果训练失败）
     """
-    model_path = os.path.join(MODEL_DIR, f"{code}_model.txt")
-    scaler_path = os.path.join(MODEL_DIR, f"{code}_model.scaler")
-    thres_path = os.path.join(MODEL_DIR, f"{code}_model.thres")
-
-    # 尝试加载已有模型
-    if not force_retrain and os.path.exists(model_path) and os.path.exists(scaler_path) and os.path.exists(thres_path):
-        try:
-            return lgb.Booster(model_file=model_path), joblib.load(scaler_path), float(read_text(thres_path))
-        except Exception as e:
-            print(f"模型{code}加载失败，重新训练... 错误：{str(e)}")
 
     # 获取训练数据
-    _, X, y, scaler = get_stock_data(code, start_date=start_date, end_date=end_date)
-    if X is None or len(X) < 300:
-        return None
+    X_train, y_train, X_test, y_test, scaler = load_symbol_data(code)
+    if X_train is None or X_train.empty or len(X_train) < 500:
+        return None, None, None
 
     try:
+        X_train = X_train.to_numpy()
+        y_train = y_train.to_numpy()
+        X_test = X_test.to_numpy()
+        y_test = y_test.to_numpy()
         # 时间序列分割
-        split_idx = int(len(X) * 0.8)
-        X_train, X_valid = X[:split_idx], X[split_idx:]
-        y_train, y_valid = y[:split_idx], y[split_idx:]
+        split_idx = int(len(X_train) * 0.6)
+        _X_train, X_val = X_train[:split_idx], X_train[split_idx:]
+        _y_train, y_val =  y_train[:split_idx], y_train[split_idx:]
+
 
         # 超参数优化
-        best_params = optimize_hyperparameters(X_train, y_train)
+        best_params = optimize_hyperparameters(_X_train, _y_train)
 
         # 全量数据训练
         model = lgb.LGBMClassifier(**best_params)
         model.fit(
-            X_train,
-            y_train,
-            eval_metric="f1",
-            eval_set=[(X_valid, y_valid)],
+            _X_train,
+            _y_train,
+            eval_metric="balanced_accuracy",
+            eval_set=[(X_val, y_val)],
             callbacks=[],
         )
 
         # 在测试集上评估
         model = model.booster_
-        y_pred = model.predict(X_valid)
+        y_pred = model.predict(X_test)
 
-        fpr, tpr, thresholds = roc_curve(y_valid, y_pred, pos_label=1)
+        fpr, tpr, thresholds = roc_curve(y_test, y_pred, pos_label=1)
         j_scores = tpr - fpr
         j_ordered = sorted(zip(j_scores, thresholds))
         best_j_score, best_threshold = j_ordered[-1]  # 最大值对应的阈值
@@ -186,10 +181,13 @@ def train_and_save_model(
         y_pred_binary = (y_pred >= best_threshold).astype(int)
 
         print("\n模型评估结果:")
-        print(f"测试集准确率: {f1_score(y_valid, y_pred_binary, average='macro'):.4f} 最佳阈值: {best_threshold}")
+        print(f"测试集准确率: {f1_score(y_test, y_pred_binary, average='macro'):.4f} 最佳阈值: {best_threshold}")
 
         # 保存模型
         os.makedirs(MODEL_DIR, exist_ok=True)
+        model_path = os.path.join(MODEL_DIR, f'market_{code}.model')
+        scaler_path = os.path.join(MODEL_DIR, f'scaler_{code}.model')
+        thres_path = os.path.join(MODEL_DIR, f'mabest_threshold_{code}.thres')
         model.save_model(model_path)
         joblib.dump(scaler, scaler_path)
         save_text(str(best_threshold), thres_path)

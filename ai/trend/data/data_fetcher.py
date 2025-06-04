@@ -9,6 +9,7 @@ from sklearn.preprocessing import RobustScaler, StandardScaler, LabelEncoder
 from sklearn.linear_model import Lasso, LassoCV
 from ai.trend.features.feature_engineering import calculate_technical_indicators, generate_industrial_indicators
 from ai.trend.config.config import TARGET_DAYS
+from ai.trend.data.data_clean import *
 from tqdm import tqdm
 
 
@@ -48,9 +49,8 @@ def enhance_group_features(df):
     # 3. 行业动量特征
     df['Industry_Momentum'] = df.groupby('industry')['close'].transform(lambda x: x.pct_change(5))
 
-
-    
     return df
+
 
 def get_stock_data(code, start_date=None, end_date=None, scaler=None, mode='traineval'):
     """
@@ -68,16 +68,19 @@ def get_stock_data(code, start_date=None, end_date=None, scaler=None, mode='trai
         if end_date is None:
             end_date = '20500101'
         df = run_with_cache(ak.stock_zh_a_hist, symbol=code, period="daily", adjust="qfq", start_date=start_date, end_date=end_date)
-        info = run_with_cache(get_stock_industrial_info, code)
+        # info = run_with_cache(get_stock_industrial_info, code)
         df = df.rename(columns={
             '日期': 'date', '开盘': 'open', '收盘': 'close', '最高': 'high',
             '最低': 'low', '成交量': 'volume', '涨跌幅': 'pct_chg', '换手率': 'turn_over'
         })
-        price_cols = ['open', 'high', 'low', 'close']
-        df[price_cols] = df[price_cols].fillna(method='ffill')
-        
+        # price_cols = ['open', 'high', 'low', 'close']
+        # df[price_cols] = df[price_cols].fillna(method='ffill')
+        # df.set_index('date', inplace=True)
+        # df = pnumpy_ma(df)
+        # df.reset_index(inplace=True)
+
         # 成交量缺失处理（停牌日）
-        df['volume'] = df['volume'].fillna(0)
+        # df['volume'] = df['volume'].fillna(0)
         
         df['date'] = pd.to_datetime(df['date'])
         df['turn_over_chg_1d'] = df['turn_over'].pct_change(1)
