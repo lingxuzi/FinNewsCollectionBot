@@ -59,6 +59,10 @@ class VectorDBKlineSearch:
             return False, None, None
 
         feature_vec = self._create_feature_vector(window, self.features)
+
+        meta.update({
+            'close_prices': window['close'].values
+        })
         
         return True, feature_vec.reshape(1, -1), meta
 
@@ -103,7 +107,7 @@ class VectorDBKlineSearch:
                         need_build, fvec, metadata = result
                         if need_build:
                             temp_vecs.append(fvec)
-                            self.meta_cache.set(f'kline_{process_index}', metadata)
+                            self.meta_cache.set(f'kline_{process_index}', metadata, retry=True)
                         # 定期合并到磁盘索引
                         if len(temp_vecs) > 1000:
                             print('同步索引')
@@ -122,12 +126,9 @@ class VectorDBKlineSearch:
     def load_vector_db(self):
         """加载已构建的向量数据库"""
         index_file = os.path.join(self.db_path, "kline.index")
-        meta_file = os.path.join(self.db_path, "metadata.pkl")
         
-        if os.path.exists(index_file) and os.path.exists(meta_file):
+        if os.path.exists(index_file):
             self.index = faiss.read_index(index_file)
-            with open(meta_file, 'rb') as f:
-                self.metadata = pickle.load(f)
             return True
         return False
     
@@ -191,9 +192,9 @@ class VectorDBKlineSearch:
         query_vec = self._create_feature_vector(query_kline, self.features)
         distances, indices = self.index.search(query_vec.reshape(1, -1), k*10 if refine_with_dtw else k)
         
-        # 第二步: DTW精筛
+        # 第二步: DTW精筛process_index
         if refine_with_dtw:
-            candidates = [(distances[0][i], self.metadata[indices[0][i]]) for i in range(len(indices[0]))]
+            candidates = [(distances[0][i], self.meta_cache.get(f'kline_{indices[0][i]}')) for i in range(len(indices[0]))]
             candidates.sort(key=lambda x: x[0])
             
             # 取前100名进行DTW计算
@@ -273,21 +274,21 @@ def main():
     # 如果数据库不存在，则构建(首次运行需要)
     if not searcher.load_vector_db():
         print("未找到现有数据库，开始构建...")
-        searcher.build_vector_db(stock_codes=None, rebuild=True)
+        searcher.build_vector_db(stock_codes=None, rebuild=False)
         print("数据库构建完成!")
     
     # 示例查询数据(使用贵州茅台最近50天)
-    # df = searcher.get_stock_info('600519')
-    # df = searcher._calculate_technical_indicators(df)
-    # query_df = df.iloc[-50:].copy()
+    df = searcher.get_stock_info('600519')
+    df = searcher._calculate_technical_indicators(df)
+    query_df = df.iloc[-50:].copy()
     
     # # 执行查询
-    # print("开始增强版相似K线搜索...")
-    # distances, matches = searcher.search_similar(query_df, k=3, refine_with_dtw=True)
+    print("开始增强版相似K线搜索...")
+    distances, matches = searcher.search_similar(query_df, k=3, refine_with_dtw=True)
     
-    # print("\n最相似K线模式:")
-    # for i, (dist, match) in enumerate(zip(distances, matches), 1):
-    #     print(f"{i}. 股票{match['code']} {match['start_date'].date()} (DTW距离: {dist:.2f})")
+    print("\n最相似K线模式:")
+    for i, (dist, match) in enumerate(zip(distances, matches), 1):
+        print(f"{i}. 股票{match['code']} {match['start_date'].date()} (DTW距离: {dist:.2f})")
     
-    # # 绘制增强版对比图
-    # searcher.plot_enhanced_comparison(query_df, matches, distances)
+    # 绘制增强版对比图
+    searcher.plot_enhanced_comparison(query_df, matches, distances)
