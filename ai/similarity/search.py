@@ -33,6 +33,7 @@ class VectorDBKlineSearch:
         
         self.meta_cache = Cache(directory=db_path)
         self.window_size = 50
+        self.extra_size = 20
 
     def _rebuild(self):
         shutil.rmtree(self.db_path, ignore_errors=True)
@@ -49,12 +50,16 @@ class VectorDBKlineSearch:
     
     def _process_batch(self, data):
         process_index, code, dim, window, window_index = data
-        if len(window) < self.window_size:
+
+        match_window = window[:self.window_size]
+        extra_window = window[self.window_size:]
+        if len(window) < self.window_size + self.extra_size:
             return False, None, None
         meta = {
             'code': code,
-            'start_date': str(window.index[0]),
-            'end_date': str(window.index[-1]),
+            'start_date': str(match_window.index[0]),
+            'end_date': str(match_window.index[-1]),
+            'extra_date': str(window.index[-1]),
             'window_index': window_index
         }
         # 'close_prices': window['close'].values
@@ -66,7 +71,8 @@ class VectorDBKlineSearch:
         feature_vec = self._create_feature_vector(window, self.features)
 
         meta.update({
-            'close_prices': window['close'].values
+            'close_prices': match_window['close'].values,
+            'extra_prices': extra_window['close'].values
         })
         
         return True, feature_vec.reshape(1, -1), meta
@@ -105,7 +111,7 @@ class VectorDBKlineSearch:
                 # 计算技术指标
                 df = self._calculate_technical_indicators(df)
                 # 滑动窗口处理
-                window_batches = [df.iloc[i:i+self.window_size] for i in range(0, len(df), self.window_size)]
+                window_batches = [df.iloc[i:i+self.window_size + self.extra_size] for i in range(0, len(df)-self.window_size-self.extra_size, 1)]
                 with ThreadPoolExecutor(4) as pool:
                     results = pool.map(self._process_batch, [(process_index, code, dim, window, window_index) for window_index, window in enumerate(window_batches)])
                     for result in results:
@@ -154,7 +160,7 @@ class VectorDBKlineSearch:
         feature_components = []
         
         if 'close' in features:
-            closes = (window['close'] - window['close'].mean()) / (window['close'].std() + 1e-6)
+            closes = (window['close'] - window['close'].min()) / (window['close'].max() - window['close'].min())
             feature_components.append(closes)
             
         if 'multi_price' in features:
@@ -241,7 +247,7 @@ class VectorDBKlineSearch:
             
             # K线图
             ax = plt.subplot2grid((n+1, 4), (i, 0), colspan=3)
-            title = f"{match['code']} {match['start_date'].date()} (Dist: {dist:.2f})"
+            title = f"{match['code']} {match['start_date']} (Dist: {dist:.2f})"
             self._plot_kline_with_indicators(df, ax, title)
             
             # # 特征分布
