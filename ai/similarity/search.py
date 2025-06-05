@@ -6,7 +6,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
-from diskcache import FanoutCache
+from diskcache import Cache
 import os
 import talib
 import pickle
@@ -19,6 +19,10 @@ import shutil
 plt.rcParams['font.sans-serif'] = ['SimHei']
 plt.rcParams['axes.unicode_minus'] = False
 
+def save_text(text, path):
+    with open(path, 'w') as f:
+        return f.write(text)
+    
 class VectorDBKlineSearch:
     def __init__(self, db_path='../kline_vector_db'):
         self.db_path = db_path
@@ -27,12 +31,13 @@ class VectorDBKlineSearch:
         self.features = ['close', 'volume', 'indicators']
         os.makedirs(db_path, exist_ok=True)
         
-        self.meta_cache = FanoutCache(db_path)
+        self.meta_cache = Cache(directory=db_path)
         self.window_size = 50
 
     def _rebuild(self):
         shutil.rmtree(self.db_path, ignore_errors=True)
         os.makedirs(self.db_path, exist_ok=True)
+        self.meta_cache = Cache(directory=self.db_path)
 
     def get_stock_info(self, code):
         df = run_with_cache(ak.stock_zh_a_hist,symbol=code, period="daily", adjust="qfq")
@@ -122,12 +127,15 @@ class VectorDBKlineSearch:
         if len(temp_vecs) > 0:
             self.index.add(np.concatenate(temp_vecs))
             faiss.write_index(self.index, index_file)
+
+        save_text('', os.path.join(self.db_path, 'done.txt'))
     
     def load_vector_db(self):
         """加载已构建的向量数据库"""
         index_file = os.path.join(self.db_path, "kline.index")
+        done_file = os.path.join(self.db_path, "done.txt")
         
-        if os.path.exists(index_file):
+        if os.path.exists(index_file) and os.path.exists(done_file):
             self.index = faiss.read_index(index_file)
             return True
         return False
@@ -274,7 +282,7 @@ def main():
     # 如果数据库不存在，则构建(首次运行需要)
     if not searcher.load_vector_db():
         print("未找到现有数据库，开始构建...")
-        searcher.build_vector_db(stock_codes=None, rebuild=False)
+        searcher.build_vector_db(stock_codes=None, rebuild=True)
         print("数据库构建完成!")
     
     # 示例查询数据(使用贵州茅台最近50天)
@@ -288,7 +296,7 @@ def main():
     
     print("\n最相似K线模式:")
     for i, (dist, match) in enumerate(zip(distances, matches), 1):
-        print(f"{i}. 股票{match['code']} {match['start_date'].date()} (DTW距离: {dist:.2f})")
+        print(f"{i}. 股票{match['code']} {match['start_date']} (DTW距离: {dist:.2f})")
     
     # 绘制增强版对比图
     searcher.plot_enhanced_comparison(query_df, matches, distances)
