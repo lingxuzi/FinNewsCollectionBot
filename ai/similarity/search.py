@@ -68,7 +68,7 @@ class VectorDBKlineSearch:
         if cached_meta and cached_meta['code'] == meta['code'] and cached_meta['start_date'] == meta['start_date'] and cached_meta['end_date'] == meta['end_date']:
             return False, None, None
 
-        feature_vec = self._create_feature_vector(window, self.features)
+        feature_vec = self._create_feature_vector(match_window, self.features)
 
         meta.update({
             'close_prices': match_window['close'].values,
