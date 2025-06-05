@@ -256,6 +256,7 @@ class VectorDBKlineSearch:
             #     self._create_feature_vector(df, ['close', 'volume', 'indicators']), ax)
         
         plt.tight_layout()
+        plt.savefig('./similarity.png')
         plt.show(block=True)
     
     def _plot_kline_with_indicators(self, df, ax, title):
