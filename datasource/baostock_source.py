@@ -28,7 +28,7 @@ class BaoSource(StockSource):
     def get_stock_list(self):
         return super().get_stock_list()
         
-    # @cache_decorate
+    @cache_decorate
     def get_Kline_basic(self, code, start_date, end_date):
         # if self.max_rolling_days > 0:
         #     retrived_start_date = start_date - timedelta(days=self.max_rolling_days)
