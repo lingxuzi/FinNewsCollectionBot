@@ -1,0 +1,39 @@
+# config.yaml
+# --- 数据参数 ---
+data:
+  db_path: "/mnt/224b14d4-80b3-4979-b63d-856a0d8f270e/Fin/hamuna_stock_data/train_data/hist/"
+  train:
+    stock_list_file: "train_stocks.txt"
+    hist_data_file: 'fundamental_train.pkl'
+  eval:
+    stock_list_file: "eval_stocks.txt"
+    hist_data_file: 'fundamental_eval.pkl'
+  test:
+    stock_list_file: "test_stocks.txt"
+    hist_data_file: 'fundamental_test.pkl'
+    #, 'ATR', 'OBV', 'CCI', 'ADX'
+  features: ['open', 'high', 'low', 'close', 'volume', 'turn_over', 'MA5', 'MA10', 'MA20', 'RSI', 'MACD']
+  numerical: ['pe_ttm', 'pb', 'ps_ttm', 'pcf_ncf_ttm', 'log_return', 'ATR', 'OBV', 'CCI', 'ADX']
+  categorical: ['industry']
+
+# --- 训练参数 ---
+training:
+  sequence_length: 50       # K线序列长度
+  ts_embedding_dim: 128         # 向量维度
+  ctx_embedding_dim: 64         # 向量维度
+  hidden_dim: 64           # LSTM隐藏层维度
+  num_layers: 2             # LSTM层数
+  predict_dim: 1            # 预测分支
+  attention_dim: 64            # 预测分支
+  learning_rate: 0.005
+  min_learning_rate: 0.00001
+  batch_size: 1024
+  num_epochs: 100
+  validation_split: 0.2     # 验证集比例
+  model_save_path: "../fin_models/kline_encoder.pth"
+  pretrained_path: "../fin_models/kline_pretrained.pth"
+  processed_data_cache_path: "../fin_train_cache/"
+  load_pretrained: false
+
+# --- 设备配置 ---
+device: "cuda"              # 如果有GPU则使用cuda，否则使用cpu

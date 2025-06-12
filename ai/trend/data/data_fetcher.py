@@ -4,6 +4,12 @@ import pandas as pd
 import akshare as ak
 import numpy as np
 import traceback
+import time
+import talib
+import requests
+import random
+from io import StringIO
+from bs4 import BeautifulSoup
 from utils.cache import run_with_cache
 from sklearn.preprocessing import RobustScaler, StandardScaler, LabelEncoder
 from sklearn.linear_model import Lasso, LassoCV
@@ -111,6 +117,187 @@ def get_stock_data(code, start_date=None, end_date=None, scaler=None, mode='trai
     except Exception as e:
         print(f"获取股票{code}数据失败: {str(e)}")
         return None, None, None
+    
+def get_daily_pe_pb(stock_code: str) -> pd.DataFrame:
+    """
+    获取每日更新的PE和PB指标。
+    Akshare的'stock_a_lg_indicator'已经根据每日收盘价计算好了这些值。
+    """
+    try:
+        daily_df = run_with_cache(ak.stock_a_indicator_lg, symbol=stock_code)
+        
+        # 数据清洗和重命名
+        daily_df_selected = daily_df[['trade_date', 'pe', 'pb']]
+        daily_df_selected.rename(columns={'pe': 'pe_ttm'}, inplace=True)
+        
+        # 转换日期格式为datetime对象，这是合并的关键
+        daily_df_selected['trade_date'] = pd.to_datetime(daily_df_selected['trade_date'])
+        
+        print(f"✅ [PE/PB] 成功获取 {stock_code} 的 {len(daily_df_selected)} 条每日指标。")
+        return daily_df_selected.sort_values('trade_date').reset_index(drop=True)
+        
+    except Exception as e:
+        print(f"❌ [PE/PB] 获取 {stock_code} 数据失败: {e}")
+        return pd.DataFrame()
+
+
+def stock_financial_analysis_indicator(
+    symbol: str = "600004", start_year: str = "1900"
+) -> pd.DataFrame:
+    """
+    新浪财经-财务分析-财务指标
+    https://money.finance.sina.com.cn/corp/go.php/vFD_FinancialGuideLine/stockid/600004/ctrl/2019/displaytype/4.phtml
+    :param symbol: 股票代码
+    :type symbol: str
+    :param start_year: 开始年份
+    :type start_year: str
+    :return: 新浪财经-财务分析-财务指标
+    :rtype: pandas.DataFrame
+    """
+    url = (
+        f"https://money.finance.sina.com.cn/corp/go.php/vFD_FinancialGuideLine/"
+        f"stockid/{symbol}/ctrl/2020/displaytype/4.phtml"
+    )
+    r = requests.get(url)
+    soup = BeautifulSoup(r.text, features="lxml")
+    year_context = soup.find(attrs={"id": "con02-1"}).find("table").find_all("a")
+    year_list = [item.text for item in year_context]
+    if start_year not in year_list:
+        start_year = year_list[-1]
+    year_list = year_list[: year_list.index(start_year) + 1]
+    out_df = pd.DataFrame()
+    for year_item in tqdm(year_list, leave=False):
+        url = (
+            f"https://money.finance.sina.com.cn/corp/go.php/vFD_FinancialGuideLine/"
+            f"stockid/{symbol}/ctrl/{year_item}/displaytype/4.phtml"
+        )
+        r = requests.get(url)
+        temp_df = pd.read_html(StringIO(r.text))[12].iloc[:, :-1]
+        temp_df.columns = temp_df.iloc[0, :]
+        temp_df = temp_df.iloc[1:, :]
+        big_df = pd.DataFrame()
+        indicator_list = [
+            "每股指标",
+            "盈利能力",
+            "成长能力",
+            "营运能力",
+            "偿债及资本结构",
+            "现金流量",
+            "其他指标",
+        ]
+        for i in range(len(indicator_list)):
+            if i == 6:
+                inner_df = temp_df[
+                    temp_df.loc[
+                        temp_df.iloc[:, 0].str.find(indicator_list[i]) == 0, :
+                    ].index[0] :
+                ].T
+            else:
+                inner_df = temp_df[
+                    temp_df.loc[
+                        temp_df.iloc[:, 0].str.find(indicator_list[i]) == 0, :
+                    ].index[0] : temp_df.loc[
+                        temp_df.iloc[:, 0].str.find(indicator_list[i + 1]) == 0, :
+                    ].index[0]
+                    - 1
+                ].T
+            inner_df = inner_df.reset_index(drop=True)
+            big_df = pd.concat(objs=[big_df, inner_df], axis=1)
+        big_df.columns = big_df.iloc[0, :].tolist()
+        big_df = big_df.iloc[1:, :]
+        big_df.index = temp_df.columns.tolist()[1:]
+        out_df = pd.concat(objs=[out_df, big_df])
+
+        time.sleep(random.random() + 0.1)
+
+    out_df.dropna(inplace=True)
+    out_df.reset_index(inplace=True)
+    out_df.rename(columns={"index": "日期"}, inplace=True)
+    out_df.sort_values(by=["日期"], ignore_index=True, inplace=True)
+    out_df["日期"] = pd.to_datetime(out_df["日期"], errors="coerce").dt.date
+    for item in out_df.columns[1:]:
+        out_df[item] = pd.to_numeric(out_df[item], errors="coerce")
+    return out_df
+
+
+def get_quarterly_roe(stock_code: str) -> pd.DataFrame:
+    """
+    获取按季度发布的ROE指标。
+    """
+    try:
+        # 这个接口返回的是按“报告日”为准的数据
+        quarterly_df = run_with_cache(stock_financial_analysis_indicator,symbol=stock_code)
+        
+        # 选择我们需要的列，注意列名可能因akshare版本而异
+        # '净资产收益率-加权' (roe_weighted) 通常是更常用的ROE指标
+        quarterly_df_selected = quarterly_df[['日期', '加权净资产收益率(%)']]
+        quarterly_df_selected.rename(columns={
+            '日期': 'trade_date', 
+            '加权净资产收益率(%)': 'roe'
+        }, inplace=True)
+        
+        # 转换日期格式
+        quarterly_df_selected['trade_date'] = pd.to_datetime(quarterly_df_selected['trade_date'])
+        
+        # 去重并排序
+        quarterly_df_selected = quarterly_df_selected.drop_duplicates(subset=['trade_date']).sort_values('trade_date').reset_index(drop=True)
+        
+        print(f"✅ [ROE] 成功获取 {stock_code} 的 {len(quarterly_df_selected)} 条季度指标。")
+        return quarterly_df_selected
+
+    except Exception as e:
+        print(f"❌ [ROE] 获取 {stock_code} 数据失败: {e}")
+        return pd.DataFrame()
+
+def get_fundamental_stock_data(code, start_date=None, end_date=None):
+    if start_date is None:
+        start_date = '20180101'
+    if end_date is None:
+        end_date = '20500101'
+    for _ in range(3):
+        try:
+            daily_pe_pb_df = get_daily_pe_pb(code)
+            # quarterly_roe_df = get_quarterly_roe(code)
+            df = run_with_cache(ak.stock_zh_a_hist, symbol=code, period="daily", adjust="qfq", start_date=start_date, end_date=end_date)
+            info = run_with_cache(get_stock_industrial_info, code)
+            if df is not None:
+                df = df.rename(columns={
+                    '日期': 'trade_date', '开盘': 'open', '收盘': 'close', '最高': 'high',
+                    '最低': 'low', '成交量': 'volume', '涨跌幅': 'pct_chg', '换手率': 'turn_over',
+                    '成交额': 'turn_volume', '振幅': 'amplitude', '股票代码': 'symbol', '涨跌额': 'price_change'
+                })
+                price_cols = ['open', 'high', 'low', 'close']
+                df[price_cols] = df[price_cols].fillna(method='ffill')
+
+
+                df['MA5'] = df['close'].rolling(5).mean()
+                df['MA10'] = df['close'].rolling(10).mean()
+                df['RSI'] = talib.RSI(df['close'], timeperiod=14)
+                df['MACD'], _, _ = talib.MACD(df['close'])
+                df['ATR'] = talib.ATR(df['high'], df['low'], df['close'], timeperiod=14)
+                df['trade_date'] = pd.to_datetime(df['trade_date'])
+                df['industry'] = info['行业']
+
+                # financial_df = pd.merge_asof(
+                #     left=daily_pe_pb_df,
+                #     right=quarterly_roe_df,
+                #     on='trade_date',
+                #     direction='backward'
+                # )
+                
+                # merge_asof后，最早的一些日期可能没有匹配的ROE，需要填充
+                # financial_df['roe'].fillna(method='bfill', inplace=True) # 用未来的第一个有效值填充开头的NaN
+                df = pd.merge(left=df, right=daily_pe_pb_df, on='trade_date', how='left')
+                df['pe_ttm'].fillna(method='ffill', inplace=True)
+                df['pb'].fillna(method='ffill', inplace=True)
+                # df['roe'].fillna(method='ffill', inplace=True)
+                df.fillna(method='bfill', inplace=True)
+                df.dropna(inplace=True) # 删除仍然无法填充的行
+            return df
+        except Exception as e:
+            print(f'发生错误:{str(e)}， 等待重试')
+            time.sleep(2)
+    return None
 
 def get_single_stock_data(code, scaler=None, start_date=None, end_date=None):
     """
