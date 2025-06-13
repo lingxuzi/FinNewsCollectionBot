@@ -34,6 +34,7 @@ def build_historical_stock_db(task, opts):
     codes = []
     
     stock_list = source.get_stock_list()
+    stock_list = stock_list[:100]
     with ProcessPoolExecutor(max_workers=opts.workers) as executor:
         futures = {executor.submit(source.get_kline_daily, code, task_map[task]['start_date'], task_map[task]['end_date'], True, True): code for code in stock_list['code']}
         for future in tqdm(as_completed(futures), desc='获取股票数据', ncols=120):
@@ -71,11 +72,11 @@ def build_historical_stock_db(task, opts):
 def parse_args():
     import argparse
     parser = argparse.ArgumentParser(description='Prepare historical stock data for training, evaluation, and testing.')
-    parser.add_argument('--workers', type=int, default=4, help='Number of worker threads to use for data processing.')
+    parser.add_argument('--workers', type=int, default=16, help='Number of worker threads to use for data processing.')
     return parser.parse_args()
 
 if __name__ == '__main__':
     opts = parse_args()
-    # build_historical_stock_db('train', opts)
-    # build_historical_stock_db('eval', opts)
+    build_historical_stock_db('train', opts)
+    build_historical_stock_db('eval', opts)
     build_historical_stock_db('test', opts)

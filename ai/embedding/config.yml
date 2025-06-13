@@ -12,8 +12,8 @@ data:
     stock_list_file: "test_stocks.txt"
     hist_data_file: 'fundamental_test.pkl'
     #, 'ATR', 'OBV', 'CCI', 'ADX'
-  features: ['open', 'high', 'low', 'close', 'volume', 'turn_over', 'MA5', 'MA10', 'MA20', 'RSI', 'MACD', 'vwap']
-  numerical: ['pe_ttm', 'pb', 'ps_ttm', 'pcf_ncf_ttm', 'ATR', 'OBV', 'CCI', 'ADX']
+  features: ['open', 'high', 'low', 'close', 'volume', 'turn_over', 'MA5', 'MA10', 'MA20', 'RSI', 'MACD']
+  numerical: ['pe_ttm', 'pb', 'ps_ttm', 'pcf_ncf_ttm', 'ATR', 'OBV', 'CCI', 'ADX', 'vwap']
   categorical: ['industry']
 
 # --- 训练参数 ---
@@ -25,9 +25,9 @@ training:
   num_layers: 2             # LSTM层数
   predict_dim: 1            # 预测分支
   attention_dim: 64            # 预测分支
-  learning_rate: 0.005
+  learning_rate: 0.01
   min_learning_rate: 0.00001
-  batch_size: 1024
+  batch_size: 2048
   num_epochs: 100
   validation_split: 0.2     # 验证集比例
   model_save_path: "../fin_models/kline_encoder.pth"

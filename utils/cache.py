@@ -14,7 +14,7 @@ def run_with_cache(func, *args, **kwargs):
     result = cache.get(cache_key, None)
     if result is not None:
         return result
-    time.sleep(random.random() / 2 + 0.5)
+    time.sleep(random.random() / 2)
     
     expired = kwargs.get('expired', None)
     result = func(*args, **kwargs)
@@ -24,8 +24,9 @@ def run_with_cache(func, *args, **kwargs):
     else:
         if not result:
             return None
+    t = time.time()
     if cache.set(cache_key, result, expired):
-        print(f'{cache_key} cached')
+        print(f'{cache_key} cached -> {time.time() - t:.2f}s')
     else:
         print(f'{cache_key} cached failed')
     return result

@@ -57,7 +57,7 @@ class MultiModalAutoencoder(nn.Module):
         self.total_embedding_dim = ts_embedding_dim + ctx_embedding_dim
 
         # --- 分支1: 时序编码器 (LSTM) ---
-        self.ts_encoder = nn.LSTM(ts_input_dim, hidden_dim, num_layers, batch_first=True)
+        self.ts_encoder = nn.LSTM(ts_input_dim, hidden_dim, num_layers, batch_first=True)    
         self.ts_encoder_fc = nn.Linear(hidden_dim, ts_embedding_dim)
         self.ts_encoder_dropout = nn.Dropout(self.dropout_rate)
 
@@ -107,22 +107,8 @@ class MultiModalAutoencoder(nn.Module):
 
         # 初始化预测头
         self.initialize_prediction_head(self.ts_output_layer)
-        if isinstance(self.ctx_decoder, nn.Sequential) and len(self.ctx_decoder) > 0:
-            last_ctx_layer = None
-            for layer in reversed(self.ctx_decoder):
-                if isinstance(layer, nn.Linear):
-                    last_ctx_layer = layer
-                    break
-            if last_ctx_layer:
-                self.initialize_prediction_head(last_ctx_layer)
-        if isinstance(self.predictor, nn.Sequential) and len(self.predictor) > 0:
-            last_predictor_layer = None
-            for layer in reversed(self.predictor):
-                if isinstance(layer, nn.Linear):
-                    last_predictor_layer = layer
-                    break
-            if last_predictor_layer:
-                self.initialize_prediction_head(last_predictor_layer)
+        self.initialize_prediction_head(self.ctx_decoder.p[-1])
+        self.initialize_prediction_head(self.predictor.p[-1])
 
 
     def initialize_prediction_head(self, module):

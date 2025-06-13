@@ -16,13 +16,13 @@ def generate_scaler_and_encoder(db_path, hist_data_files, features, numerical, c
     
     df = pd.concat(hist_data)
     
-    scaler = StandardScaler()
-    scaler.fit_transform(df[features + numerical])
+    # scaler = StandardScaler()
+    # scaler.fit_transform(df[features + numerical])
     
     encoder = LabelEncoder()
     encoder.fit_transform(df[categorical])
 
-    return scaler, encoder
+    return encoder
     
 
 class KlineDataset(Dataset):
@@ -43,17 +43,16 @@ class KlineDataset(Dataset):
         all_data_df = pd.read_parquet(os.path.join(db_path, hist_data_file))
         stock_list = read_text(os.path.join(db_path, stock_list_file)).split(',')
 
-        cols = features + numerical
-        for col in cols:
-            all_data_df[col] = [0 if x == "" else float(x) for x in all_data_df[col]]
+        # cols = features + numerical
+        # for col in cols:
+        #     all_data_df[col] = [0 if x == "" else float(x) for x in all_data_df[col]]
 
         # 2. 数据归一化 (对所有股票数据一起归一化以保证尺度一致)
-        self.scaler = scaler
-        all_data_df[self.features + self.numerical] = self.scaler.transform(all_data_df[self.features + self.numerical])
-        scaled_features = all_data_df[self.features + self.numerical]
+
+        all_data_df, self.scaler = self.normalize(all_data_df, scaler)
 
         self.encoder = encoder
-        encoded_categorical = self.encoder.transform(all_data_df[self.categorical])
+        encoded_categorical = self.encoder.transform(all_data_df[self.categorical]) 
         
         # 3. 按股票代码分割并创建序列
         # self.sequences = []
@@ -69,8 +68,8 @@ class KlineDataset(Dataset):
         self.labels = []
 
         for code in stock_list[:100]:
-            stock_data = scaled_features[all_data_df['code'] == code]
-            stock_labels = all_data_df[all_data_df['code'] == code]['label'].to_numpy()
+            stock_data = all_data_df[all_data_df['code'] == code]
+            stock_labels = stock_data['label'].to_numpy()
             featured_stock_data = stock_data[features].to_numpy()
             numerical_stock_data = stock_data[numerical].to_numpy()
             if len(stock_data) < self.seq_length:
@@ -86,6 +85,30 @@ class KlineDataset(Dataset):
                 # self.ctx_sequences.append(context_numerical)
 
                 self.labels.append(stock_labels[i + seq_length - 1])
+
+    def normalize(self, df, scaler=None):
+        df['prev_close'] = df.groupby('code')['close'].shift(1)
+        if 'MBRevenue' in df.columns:
+            df.drop(columns=['MBRevenue'], axis=1, inplace=True)
+        df.dropna(inplace=True)
+        
+        price_cols = ['open', 'high', 'low', 'close']
+        for col in price_cols:
+            df[col] = (df[col] / df['prev_close']) - 1
+            
+        print("   -> 步骤2: 对成交量进行对数变换...")
+        df['volume'] = np.log1p(df['volume'])
+        df.drop(columns=['prev_close'], inplace=True)
+
+        if scaler is None:
+            scaler = StandardScaler()
+            # 注意：在真实流程中，scaler应该在训练集上fit，然后用于转换所有数据
+            # 为演示方便，这里直接fit_transform
+            df[self.features + self.numerical] = scaler.fit_transform(df[self.features + self.numerical])
+        else:
+            df[self.features + self.numerical] = scaler.transform(df[self.features + self.numerical])
+
+        return df, scaler
 
     def parallel_process(self, func, num_workers=4):
         """

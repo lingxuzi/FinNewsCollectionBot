@@ -21,7 +21,7 @@ def run_training(config):
 
     os.makedirs(os.path.split(config['training']['model_save_path'])[0], exist_ok=True)
     config['data']['db_path'] = os.path.join(BASE_DIR, config['data']['db_path'])
-    scaler, encoder = generate_scaler_and_encoder(
+    encoder = generate_scaler_and_encoder(
         config['data']['db_path'],
         [
         config['data']['train']['hist_data_file'],
@@ -38,7 +38,7 @@ def run_training(config):
         features=config['data']['features'],
         numerical=config['data']['numerical'],
         categorical=config['data']['categorical'],
-        scaler=scaler,
+        scaler=None,
         encoder=encoder
     )
 
@@ -50,7 +50,7 @@ def run_training(config):
         features=config['data']['features'],
         numerical=config['data']['numerical'],
         categorical=config['data']['categorical'],
-        scaler=scaler,
+        scaler=train_dataset.scaler,
         encoder=encoder,
         is_train=False
     )
@@ -63,7 +63,7 @@ def run_training(config):
         features=config['data']['features'],
         numerical=config['data']['numerical'],
         categorical=config['data']['categorical'],
-        scaler=scaler,
+        scaler=train_dataset.scaler,
         encoder=encoder,
         is_train=False
     )
@@ -92,12 +92,12 @@ def run_training(config):
     
     model = model.to(device)
 
-    criterion_ts = nn.HuberLoss(delta=0.1) # 均方误差损失
-    criterion_ctx = nn.HuberLoss(delta=0.1) # 均方误差损失
-    criterion_predict = nn.HuberLoss(delta=0.1) # 均方误差损失
+    criterion_ts = nn.HuberLoss(delta=1) # 均方误差损失
+    criterion_ctx = nn.HuberLoss(delta=1) # 均方误差损失
+    criterion_predict = nn.HuberLoss(delta=1) # 均方误差损失
     alpha = 0.2
     beta = 0.2
-    optimizer = torch.optim.Adam(model.parameters(), lr=config['training']['min_learning_rate'], weight_decay=1e-5)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=config['training']['min_learning_rate'], weight_decay=1e-5)
     early_stopper = EarlyStopping(patience=10, direction='up')
     
     scheduler = CosineWarmupLR(
@@ -121,7 +121,7 @@ def run_training(config):
             loss_ts = criterion_ts(ts_reconstructed, ts_sequences)
             loss_ctx = criterion_ctx(ctx_reconstructed, ctx_sequences)
             loss_pred = criterion_predict(pred, y)
-            total_loss = loss_ts + alpha * loss_ctx + beta * loss_pred
+            total_loss = loss_ts + alpha * loss_ctx #+ beta * loss_pred
             total_loss.backward()
             optimizer.step()
 
@@ -150,7 +150,7 @@ def run_training(config):
                 loss_ts = criterion_ts(ts_reconstructed, ts_sequences)
                 loss_ctx = criterion_ctx(ctx_reconstructed, ctx_sequences)
                 loss_pred = criterion_predict(pred, y)
-                total_loss = loss_ts + alpha * loss_ctx + beta * loss_pred
+                total_loss = loss_ts + alpha * loss_ctx #+ beta * loss_pred
                 val_loss_meter.update(total_loss.item())
 
                 truth.append(y.cpu().numpy())
