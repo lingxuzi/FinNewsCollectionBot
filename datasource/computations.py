@@ -52,3 +52,8 @@ def hurst_exponent(ts, lags):
     # 使用log-log回归计算赫斯特指数
     poly = np.polyfit(np.log(valid_lags), np.log(valid_tau), 1)
     return poly[0]
+
+def vwap(df):
+    v = df['volume'].values
+    tp = (df['low'] + df['close'] + df['high']).div(3).values
+    return df.assign(vwap=(tp * v).cumsum() / v.cumsum())
