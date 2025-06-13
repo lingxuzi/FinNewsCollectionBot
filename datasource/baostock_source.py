@@ -39,7 +39,7 @@ class BaoSource(StockSource):
         rs = bs.query_history_k_data_plus(self._format_code(code),
             "date,code,open,high,low,close,volume,amount,turn,tradestatus,peTTM,psTTM,pcfNcfTTM,pbMRQ",
             start_date=self._format_date(start_date), end_date=self._format_date(end_date),
-            frequency="d", adjustflag="2")
+            frequency="d", adjustflag="1")
         
         if rs.error_code != '0':
             raise Exception(rs.error_msg)

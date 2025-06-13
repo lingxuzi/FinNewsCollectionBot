@@ -3,6 +3,7 @@ import torch
 import pandas as pd
 import numpy as np
 import os
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from torch.utils.data import Dataset
 from sklearn.preprocessing import LabelEncoder, StandardScaler, MinMaxScaler
 from utils.common import read_text
@@ -67,7 +68,7 @@ class KlineDataset(Dataset):
         self.ctx_sequences = [] # 上下文部分
         self.labels = []
 
-        for code in stock_list:
+        for code in stock_list[:100]:
             stock_data = scaled_features[all_data_df['code'] == code]
             stock_labels = all_data_df[all_data_df['code'] == code]['label'].to_numpy()
             featured_stock_data = stock_data[features].to_numpy()
@@ -85,6 +86,17 @@ class KlineDataset(Dataset):
                 # self.ctx_sequences.append(context_numerical)
 
                 self.labels.append(stock_labels[i + seq_length - 1])
+
+    def parallel_process(self, func, num_workers=4):
+        """
+        使用多进程并行处理数据。
+        """
+        with ProcessPoolExecutor(max_workers=num_workers) as executor:
+            futures = {executor.submit(func, idx): idx for idx in range(len(self))}
+            results = []
+            for future in as_completed(futures):
+                results.append(future.result())
+        return results
                 
     def __len__(self):
         return len(self.ts_sequences)
