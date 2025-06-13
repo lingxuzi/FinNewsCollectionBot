@@ -10,7 +10,6 @@ from utils.cache import run_with_cache, cache_decorate
 class BaoSource(StockSource):
     def __init__(self):
         super().__init__()
-        self._login_baostock()
     
     def _login_baostock(self) -> None:
         with open(os.devnull, "w") as devnull:
@@ -67,6 +66,7 @@ class BaoSource(StockSource):
 
     def get_kline_daily(self, code, start_date, end_date, include_industry=False, include_profit=False):
         try:
+            self._login_baostock()
             result = self.get_Kline_basic(code, start_date, end_date)
             if result is not None:
                 result = self.kline_post_process(result)
