@@ -95,9 +95,9 @@ def run_training(config):
     criterion_ts = nn.HuberLoss(delta=1) # 均方误差损失
     criterion_ctx = nn.HuberLoss(delta=1) # 均方误差损失
     criterion_predict = nn.HuberLoss(delta=1) # 均方误差损失
-    alpha = 0.2
-    beta = 0.2
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config['training']['min_learning_rate'], weight_decay=1e-5)
+    alpha = 1
+    beta = 0.1
+    optimizer = torch.optim.Adam(model.parameters(), lr=config['training']['min_learning_rate'], weight_decay=1e-5)
     early_stopper = EarlyStopping(patience=10, direction='up')
     
     scheduler = CosineWarmupLR(
