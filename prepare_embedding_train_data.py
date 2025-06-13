@@ -76,6 +76,6 @@ def parse_args():
 
 if __name__ == '__main__':
     opts = parse_args()
-    build_historical_stock_db('train', opts)
-    build_historical_stock_db('eval', opts)
+    # build_historical_stock_db('train', opts)
+    # build_historical_stock_db('eval', opts)
     build_historical_stock_db('test', opts)

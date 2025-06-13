@@ -94,7 +94,7 @@ def run_training(config):
 
     criterion_ts = nn.HuberLoss(delta=0.1) # 均方误差损失
     criterion_ctx = nn.HuberLoss(delta=0.1) # 均方误差损失
-    criterion_predict = nn.MSELoss() # 均方误差损失
+    criterion_predict = nn.HuberLoss(delta=0.1) # 均方误差损失
     alpha = 0.2
     beta = 0.2
     optimizer = torch.optim.Adam(model.parameters(), lr=config['training']['min_learning_rate'], weight_decay=1e-5)
@@ -173,6 +173,7 @@ def run_training(config):
 
         ctx_recon = np.concatenate(ctx_reconstructed_list)
         ctx_recon = ctx_recon.reshape(-1, ctx_recon.shape[-1])
+        ctx_recon[:, -1] = np.round(ctx_recon[:, -1], 2)
         r2_ctx_recon = r2_score(ctx_true, ctx_recon)
         
         print(f"Epoch {epoch+1}: Train Loss = {train_loss_meter.avg:.6f}, Val Loss = {val_loss_meter.avg:.6f}, R2 Score = {r2} R2 Recon Score = {r2_recon}, R2 CTX Recon Score = {r2_ctx_recon}")
