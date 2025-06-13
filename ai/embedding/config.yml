@@ -27,8 +27,8 @@ training:
   attention_dim: 64            # 预测分支
   learning_rate: 0.01
   min_learning_rate: 0.00001
-  batch_size: 2048
-  num_epochs: 100
+  batch_size: 1024
+  num_epochs: 200
   validation_split: 0.2     # 验证集比例
   model_save_path: "../fin_models/kline_encoder.pth"
   pretrained_path: "../fin_models/kline_pretrained.pth"
