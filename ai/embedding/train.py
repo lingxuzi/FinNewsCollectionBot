@@ -178,7 +178,7 @@ def run_training(config):
         
         print(f"Epoch {epoch+1}: Train Loss = {train_loss_meter.avg:.6f}, Val Loss = {val_loss_meter.avg:.6f}, R2 Score = {r2} R2 Recon Score = {r2_recon}, R2 CTX Recon Score = {r2_ctx_recon}")
         
-        mean_r2 = (r2_ctx_recon + r2_recon + r2_score) / 3
+        mean_r2 = (r2_ctx_recon + r2_recon + r2) / 3
         # --- 6. 保存最佳模型 ---
         # 只保存性能最好的模型，避免存储过多文件
         if mean_r2 > best_val_loss:
