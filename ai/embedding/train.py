@@ -121,7 +121,7 @@ def run_training(config):
             loss_ts = criterion_ts(ts_reconstructed, ts_sequences)
             loss_ctx = criterion_ctx(ctx_reconstructed, ctx_sequences)
             loss_pred = criterion_predict(pred, y)
-            total_loss = loss_ts + alpha * loss_ctx #+ beta * loss_pred
+            total_loss = loss_ts + alpha * loss_ctx + beta * loss_pred
             total_loss.backward()
             optimizer.step()
 
@@ -150,7 +150,7 @@ def run_training(config):
                 loss_ts = criterion_ts(ts_reconstructed, ts_sequences)
                 loss_ctx = criterion_ctx(ctx_reconstructed, ctx_sequences)
                 loss_pred = criterion_predict(pred, y)
-                total_loss = loss_ts + alpha * loss_ctx #+ beta * loss_pred
+                total_loss = loss_ts + alpha * loss_ctx + beta * loss_pred
                 val_loss_meter.update(total_loss.item())
 
                 truth.append(y.cpu().numpy())
