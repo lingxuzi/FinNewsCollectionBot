@@ -7,6 +7,7 @@ from sklearn.metrics import r2_score
 from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm # 提供优雅的进度条
 from utils.common import AverageMeter
+from config.base import *
 from ai.embedding.dataset import KlineDataset, generate_scaler_and_encoder
 from ai.embedding.model import MultiModalAutoencoder
 from ai.modules.earlystop import EarlyStopping
@@ -19,7 +20,7 @@ def run_training(config):
     print(f"Using device: {device}")
 
     os.makedirs(os.path.split(config['training']['model_save_path'])[0], exist_ok=True)
-
+    config['data']['db_path'] = os.path.join(BASE_DIR, config['data']['db_path'])
     scaler, encoder = generate_scaler_and_encoder(
         config['data']['db_path'],
         [

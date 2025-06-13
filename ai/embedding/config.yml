@@ -1,7 +1,7 @@
 # config.yaml
 # --- 数据参数 ---
 data:
-  db_path: "/mnt/224b14d4-80b3-4979-b63d-856a0d8f270e/Fin/hamuna_stock_data/train_data/hist/"
+  db_path: "train_data/hist/"
   train:
     stock_list_file: "train_stocks.txt"
     hist_data_file: 'fundamental_train.pkl'
