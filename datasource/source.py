@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 from utils.cache import run_with_cache
-from datasource.computations import calculate_hurst
+from datasource.computations import calculate_hurst, vwap
 
 class StockSource:
     def __init__(self, max_rolling_days=100):
@@ -138,12 +138,12 @@ class StockSource:
 
         df['hurst'] = calculate_hurst(df['close'], 20, range(2, 20))
 
-        df['vwap'] = (df['low'] + df['close'] + df['high']) / 3 * df['volume']
+        df['vwap'] = ((df['high'] + df['low'] + df['close']) / 3 * df['volume']).cumsum() / df['volume'].cumsum()
 
         return df
     
     def generate_predict_labels(self, df):
-        df['label'] = np.log(df['vwap'].shift(-5))
+        df['label'] = df['vwap'].shift(-5)
         return df
     
     def post_process(self, df):
