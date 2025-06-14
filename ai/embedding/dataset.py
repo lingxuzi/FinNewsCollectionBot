@@ -105,6 +105,8 @@ class KlineDataset(Dataset):
 
                 self.labels.append(stock_labels[i + seq_length - 1])
 
+        del all_data_df  # 释放内存
+
         joblib.dump(self.ts_sequences, os.path.join(db_path, 'cached_ts_sequences.pkl'))
         joblib.dump(self.ctx_sequences, os.path.join(db_path, 'cached_ctx_sequences.pkl'))
         joblib.dump(self.labels, os.path.join(db_path, 'cached_labels.pkl'))
