@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import os
 import joblib
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from torch.utils.data import Dataset
 from sklearn.preprocessing import LabelEncoder, StandardScaler, MinMaxScaler
 from utils.common import read_text
@@ -86,31 +86,50 @@ class KlineDataset(Dataset):
         self.ctx_sequences = [] # 上下文部分
         self.labels = []
 
-        for code in tqdm(stock_list, desc="Processing stocks"):
-            stock_data = all_data_df[all_data_df['code'] == code]
-            stock_labels = stock_data['label'].to_numpy()
-            featured_stock_data = stock_data[features].to_numpy()
-            numerical_stock_data = stock_data[numerical].to_numpy()
-            if len(stock_data) < self.seq_length:
-                continue
-            for i in range(len(stock_data) - self.seq_length + 1):
-                # 时间序列部分 (例如: OHLCV, RSI, MACD)
-                self.ts_sequences.append(featured_stock_data[i:i + seq_length])
-                # 上下文部分 (例如: PE, PB, 行业One-Hot向量)
-                # 我们取序列最后一天的上下文特征作为代表
-                context_numerical = numerical_stock_data[i + seq_length - 1]
-                context_categorical = encoded_categorical[i + seq_length - 1]
-                self.ctx_sequences.append(np.concatenate([context_numerical, np.asarray([context_categorical])]))
-                # self.ctx_sequences.append(context_numerical)
-
-                self.labels.append(stock_labels[i + seq_length - 1])
-
+        # for code in tqdm(stock_list, desc="Processing stocks"):
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {executor.submit(self.generate_sequences, code, all_data_df, encoded_categorical): code for code in stock_list}
+            for future in tqdm(as_completed(futures), total=len(futures), desc="Generating sequences"):
+                code = futures[future]
+                try:
+                    ts_seq, ctx_seq, labels = future.result()
+                    if ts_seq is not None:
+                        self.ts_sequences.extend(ts_seq)
+                        self.ctx_sequences.extend(ctx_seq)
+                        self.labels.extend(labels)
+                except Exception as e:
+                    print(f"Error processing stock {code}: {e}")
+        # 3. 清理内存
         del all_data_df  # 释放内存
 
         joblib.dump(self.ts_sequences, os.path.join(db_path, 'cached_ts_sequences.pkl'))
         joblib.dump(self.ctx_sequences, os.path.join(db_path, 'cached_ctx_sequences.pkl'))
         joblib.dump(self.labels, os.path.join(db_path, 'cached_labels.pkl'))
         print(f"数据加载完成，共生成 {len(self.ts_sequences)} 个样本。")
+
+    def generate_sequences(self, code, all_data_df, encoded_categorical):
+        ts_sequences = [] # 时间序列部分
+        ctx_sequences = [] # 上下文部分
+        labels = []
+
+        stock_data = all_data_df[all_data_df['code'] == code]
+        stock_labels = stock_data['label'].to_numpy()
+        featured_stock_data = stock_data[self.features].to_numpy()
+        numerical_stock_data = stock_data[self.numerical].to_numpy()
+        if len(stock_data) < self.seq_length:
+            return None, None, None
+        for i in range(len(stock_data) - self.seq_length + 1):
+            # 时间序列部分 (例如: OHLCV, RSI, MACD)
+            ts_sequences.append(featured_stock_data[i:i + self.seq_length])
+            # 上下文部分 (例如: PE, PB, 行业One-Hot向量)
+            # 我们取序列最后一天的上下文特征作为代表
+            context_numerical = numerical_stock_data[i + self.seq_length - 1]
+            context_categorical = encoded_categorical[i + self.seq_length - 1]
+            ctx_sequences.append(np.concatenate([context_numerical, np.asarray([context_categorical])]))
+            # self.ctx_sequences.append(context_numerical)
+
+            labels.append(stock_labels[i + self.seq_length - 1])
+        return ts_sequences, ctx_sequences, labels
 
     def parallel_process(self, func, num_workers=4):
         """
