@@ -122,7 +122,7 @@ def run_training(config):
             loss_ctx = criterion_ctx(ctx_reconstructed, ctx_sequences)
             loss_pred = criterion_predict(pred, y)
             total_loss = loss_ts + alpha * loss_ctx + beta * loss_pred
-            total_loss.backward()ragflow-es-01
+            total_loss.backward()
             optimizer.step()
 
             train_loss_meter.update(total_loss.item())
