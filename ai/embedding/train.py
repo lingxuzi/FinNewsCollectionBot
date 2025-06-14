@@ -3,6 +3,7 @@ import yaml
 import torch
 import torch.nn as nn
 import os
+import joblib
 from sklearn.metrics import r2_score
 from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm # 提供优雅的进度条
@@ -21,13 +22,21 @@ def run_training(config):
 
     os.makedirs(os.path.split(config['training']['model_save_path'])[0], exist_ok=True)
     config['data']['db_path'] = os.path.join(BASE_DIR, config['data']['db_path'])
-    encoder = generate_scaler_and_encoder(
-        config['data']['db_path'],
-        [
-        config['data']['train']['hist_data_file'],
-        config['data']['eval']['hist_data_file'],
-        config['data']['test']['hist_data_file']
-    ], config['data']['features'], config['data']['numerical'], config['data']['categorical'])
+    scaler_path = os.path.join(config['training']['processed_data_cache_path'], 'scaler.joblib')
+    encoder_path = os.path.join(config['training']['processed_data_cache_path'], 'encoder.joblib')
+    os.makedirs(config['training']['processed_data_cache_path'], exist_ok=True)
+    if os.path.exists(scaler_path) and os.path.exists(encoder_path):
+        print("Loading precomputed scaler and encoder...")
+        scaler = joblib.load(scaler_path)
+        encoder = joblib.load(encoder_path)
+    else:
+        encoder, scaler = generate_scaler_and_encoder(
+            config['data']['db_path'],
+            [
+            config['data']['train']['hist_data_file'],
+            config['data']['eval']['hist_data_file'],
+            config['data']['test']['hist_data_file']
+        ], config['data']['features'], config['data']['numerical'], config['data']['categorical'])
 
     # --- 2. 准备数据 ---
     train_dataset = KlineDataset(
@@ -38,7 +47,7 @@ def run_training(config):
         features=config['data']['features'],
         numerical=config['data']['numerical'],
         categorical=config['data']['categorical'],
-        scaler=None,
+        scaler=scaler,
         encoder=encoder
     )
 
@@ -50,7 +59,7 @@ def run_training(config):
         features=config['data']['features'],
         numerical=config['data']['numerical'],
         categorical=config['data']['categorical'],
-        scaler=train_dataset.scaler,
+        scaler=scaler,
         encoder=encoder,
         is_train=False
     )
@@ -63,7 +72,7 @@ def run_training(config):
         features=config['data']['features'],
         numerical=config['data']['numerical'],
         categorical=config['data']['categorical'],
-        scaler=train_dataset.scaler,
+        scaler=scaler,
         encoder=encoder,
         is_train=False
     )

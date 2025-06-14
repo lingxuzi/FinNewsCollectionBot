@@ -3,26 +3,44 @@ import torch
 import pandas as pd
 import numpy as np
 import os
+import joblib
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from torch.utils.data import Dataset
 from sklearn.preprocessing import LabelEncoder, StandardScaler, MinMaxScaler
 from utils.common import read_text
 
+def normalize(df, features, numerical):
+    df['prev_close'] = df.groupby('code')['close'].shift(1)
+    if 'MBRevenue' in df.columns:
+        df.drop(columns=['MBRevenue'], axis=1, inplace=True)
+    df.dropna(inplace=True)
+    
+    price_cols = ['open', 'high', 'low', 'close']
+    for col in price_cols:
+        df[col] = (df[col] / df['prev_close']) - 1
+        
+    print("   -> 步骤2: 对成交量进行对数变换...")
+    df['volume'] = np.log1p(df['volume'])
+    df.drop(columns=['prev_close'], inplace=True)
+
+    return df
+
 def generate_scaler_and_encoder(db_path, hist_data_files, features, numerical, categorical):
     hist_data = []
     for hist_data_file in hist_data_files:
         df = pd.read_parquet(os.path.join(db_path, hist_data_file))
+        df = normalize(df, features, numerical)
         hist_data.append(df)
     
     df = pd.concat(hist_data)
-    
-    # scaler = StandardScaler()
-    # scaler.fit_transform(df[features + numerical])
+
+    scaler = StandardScaler()
+    scaler.fit_transform(df[features + numerical])
     
     encoder = LabelEncoder()
     encoder.fit_transform(df[categorical])
 
-    return encoder
+    return encoder, scaler
     
 
 class KlineDataset(Dataset):
@@ -39,6 +57,16 @@ class KlineDataset(Dataset):
         self.is_train = is_train
         self.noise_level = 1e-3
 
+        if os.path.exists(os.path.join(db_path, 'cached_ts_sequences.pkl')) and \
+           os.path.exists(os.path.join(db_path, 'cached_ctx_sequences.pkl')) and \
+           os.path.exists(os.path.join(db_path, 'cached_labels.pkl')):
+            print("使用缓存数据...")
+            self.ts_sequences = joblib.load(os.path.join(db_path, 'cached_ts_sequences.pkl'))
+            self.ctx_sequences = joblib.load(os.path.join(db_path, 'cached_ctx_sequences.pkl'))
+            self.labels = joblib.load(os.path.join(db_path, 'cached_labels.pkl'))
+            print(f"数据加载完成，共生成 {len(self.ts_sequences)} 个样本。")
+            return
+
         # 1. 从数据库加载数据
         all_data_df = pd.read_parquet(os.path.join(db_path, hist_data_file))
         stock_list = read_text(os.path.join(db_path, stock_list_file)).split(',')
@@ -53,16 +81,6 @@ class KlineDataset(Dataset):
 
         self.encoder = encoder
         encoded_categorical = self.encoder.transform(all_data_df[self.categorical]) 
-        
-        # 3. 按股票代码分割并创建序列
-        # self.sequences = []
-        # for code in stock_list:
-        #     stock_data = scaled_features[all_data_df['symbol'] == code]
-        #     if len(stock_data) < self.seq_length:
-        #         continue
-            
-        #     for i in range(len(stock_data) - self.seq_length + 1):
-        #         self.sequences.append(stock_data[i:i + self.seq_length])
         self.ts_sequences = [] # 时间序列部分
         self.ctx_sequences = [] # 上下文部分
         self.labels = []
@@ -86,29 +104,10 @@ class KlineDataset(Dataset):
 
                 self.labels.append(stock_labels[i + seq_length - 1])
 
-    def normalize(self, df, scaler=None):
-        df['prev_close'] = df.groupby('code')['close'].shift(1)
-        if 'MBRevenue' in df.columns:
-            df.drop(columns=['MBRevenue'], axis=1, inplace=True)
-        df.dropna(inplace=True)
-        
-        price_cols = ['open', 'high', 'low', 'close']
-        for col in price_cols:
-            df[col] = (df[col] / df['prev_close']) - 1
-            
-        print("   -> 步骤2: 对成交量进行对数变换...")
-        df['volume'] = np.log1p(df['volume'])
-        df.drop(columns=['prev_close'], inplace=True)
-
-        if scaler is None:
-            scaler = StandardScaler()
-            # 注意：在真实流程中，scaler应该在训练集上fit，然后用于转换所有数据
-            # 为演示方便，这里直接fit_transform
-            df[self.features + self.numerical] = scaler.fit_transform(df[self.features + self.numerical])
-        else:
-            df[self.features + self.numerical] = scaler.transform(df[self.features + self.numerical])
-
-        return df, scaler
+        joblib.dump(self.ts_sequences, os.path.join(db_path, 'cached_ts_sequences.pkl'))
+        joblib.dump(self.ctx_sequences, os.path.join(db_path, 'cached_ctx_sequences.pkl'))
+        joblib.dump(self.labels, os.path.join(db_path, 'cached_labels.pkl'))
+        print(f"数据加载完成，共生成 {len(self.ts_sequences)} 个样本。")
 
     def parallel_process(self, func, num_workers=4):
         """
