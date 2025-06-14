@@ -9,6 +9,7 @@ from torch.utils.data import Dataset
 from sklearn.preprocessing import LabelEncoder, StandardScaler, MinMaxScaler
 from utils.common import read_text
 from tqdm import tqdm
+from diskcache import Cache
 
 def normalize(df, features, numerical):
     df['prev_close'] = df.groupby('code')['close'].shift(1)
@@ -58,55 +59,47 @@ class KlineDataset(Dataset):
         self.is_train = is_train
         self.noise_level = 1e-3
         self.tag = tag
+        os.makedirs(os.path.join(db_path, f'{tag}'), exist_ok=True)
+        self.cache = Cache(os.path.join(db_path, f'{tag}'), size_limit=3e11, eviction_policy='none')
 
-        if os.path.exists(os.path.join(db_path, f'cached_{tag}_ts_sequences.pkl')) and \
-           os.path.exists(os.path.join(db_path, f'cached_{tag}_ctx_sequences.pkl')) and \
-           os.path.exists(os.path.join(db_path, f'cached_{tag}_labels.pkl')):
-            print("使用缓存数据...")
-            self.ts_sequences = joblib.load(os.path.join(db_path, f'cached_{tag}_ts_sequences.pkl'))
-            self.ctx_sequences = joblib.load(os.path.join(db_path, f'cached_{tag}_ctx_sequences.pkl'))
-            self.labels = joblib.load(os.path.join(db_path, f'cached_{tag}_labels.pkl'))
-            print(f"数据加载完成，共生成 {len(self.ts_sequences)} 个样本。")
-            return
+        if self.cache.get('total_count') is None:
+            # 1. 从数据库加载数据
+            all_data_df = pd.read_parquet(os.path.join(db_path, hist_data_file))
+            stock_list = read_text(os.path.join(db_path, stock_list_file)).split(',')
 
-        # 1. 从数据库加载数据
-        all_data_df = pd.read_parquet(os.path.join(db_path, hist_data_file))
-        stock_list = read_text(os.path.join(db_path, stock_list_file)).split(',')
+            # cols = features + numerical
+            # for col in cols:
+            #     all_data_df[col] = [0 if x == "" else float(x) for x in all_data_df[col]]
 
-        # cols = features + numerical
-        # for col in cols:
-        #     all_data_df[col] = [0 if x == "" else float(x) for x in all_data_df[col]]
+            # 2. 数据归一化 (对所有股票数据一起归一化以保证尺度一致)
 
-        # 2. 数据归一化 (对所有股票数据一起归一化以保证尺度一致)
+            all_data_df = normalize(all_data_df, self.features, self.numerical)
+            all_data_df[self.features + self.numerical] = scaler.transform(all_data_df[self.features + self.numerical])
 
-        all_data_df = normalize(all_data_df, self.features, self.numerical)
-        all_data_df[self.features + self.numerical] = scaler.transform(all_data_df[self.features + self.numerical])
+            encoded_categorical = encoder.transform(all_data_df[self.categorical]) 
+            self.ts_sequences = [] # 时间序列部分
+            self.ctx_sequences = [] # 上下文部分
+            self.labels = []
 
-        encoded_categorical = encoder.transform(all_data_df[self.categorical]) 
-        self.ts_sequences = [] # 时间序列部分
-        self.ctx_sequences = [] # 上下文部分
-        self.labels = []
-
-        # for code in tqdm(stock_list, desc="Processing stocks"):
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = {executor.submit(self.generate_sequences, code, all_data_df, encoded_categorical): code for code in stock_list}
-            for future in tqdm(as_completed(futures), total=len(futures), desc="Generating sequences"):
-                code = futures[future]
-                try:
-                    ts_seq, ctx_seq, labels = future.result()
-                    if ts_seq is not None:
-                        self.ts_sequences.extend(ts_seq)
-                        self.ctx_sequences.extend(ctx_seq)
-                        self.labels.extend(labels)
-                except Exception as e:
-                    print(f"Error processing stock {code}: {e}")
-        # 3. 清理内存
-        del all_data_df  # 释放内存
-
-        joblib.dump(self.ts_sequences, os.path.join(db_path, f'cached_{tag}_ts_sequences.pkl'))
-        joblib.dump(self.ctx_sequences, os.path.join(db_path, f'cached_{tag}_ctx_sequences.pkl'))
-        joblib.dump(self.labels, os.path.join(db_path, f'cached_{tag}_labels.pkl'))
-        print(f"数据加载完成，共生成 {len(self.ts_sequences)} 个样本。")
+            # for code in tqdm(stock_list, desc="Processing stocks"):
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                futures = {executor.submit(self.generate_sequences, code, all_data_df, encoded_categorical): code for code in stock_list}
+                for future in tqdm(as_completed(futures), total=len(futures), desc="Generating sequences"):
+                    code = futures[future]
+                    try:
+                        ts_seq, ctx_seq, labels = future.result()
+                        if ts_seq is not None:
+                            self.ts_sequences.extend(ts_seq)
+                            self.ctx_sequences.extend(ctx_seq)
+                            self.labels.extend(labels)
+                    except Exception as e:
+                        print(f"Error processing stock {code}: {e}")
+            # 3. 清理内存
+            del all_data_df  # 释放内存
+            for i, (ts_seq, ctx_seq, label) in tqdm(enumerate(zip(self.ts_sequences, self.ctx_sequences, self.labels)), desc="Caching sequences"):
+                self.cache.set(f'seq_{i}', (ts_seq, ctx_seq, label))
+            self.cache.set('total_count', len(self.ts_sequences))
+            print(f"Total sequences cached: {len(self.ts_sequences)}")
 
     def generate_sequences(self, code, all_data_df, encoded_categorical):
         ts_sequences = [] # 时间序列部分
