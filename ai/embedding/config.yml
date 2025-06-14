@@ -25,7 +25,7 @@ training:
   num_layers: 2             # LSTM层数
   predict_dim: 1            # 预测分支
   attention_dim: 64            # 预测分支
-  learning_rate: 0.01
+  learning_rate: 0.005
   min_learning_rate: 0.00001
   batch_size: 1024
   num_epochs: 200

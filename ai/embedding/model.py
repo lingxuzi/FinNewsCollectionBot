@@ -106,9 +106,9 @@ class MultiModalAutoencoder(nn.Module):
         self.predictor = ResidualMLPBlock(self.predictor_input_dim, int(hidden_dim), predict_dim, dropout_rate=0.2)
 
         # 初始化预测头
-        self.initialize_prediction_head(self.ts_output_layer)
-        self.initialize_prediction_head(self.ctx_decoder.p[-1])
-        self.initialize_prediction_head(self.predictor.p[-1])
+        # self.initialize_prediction_head(self.ts_output_layer)
+        # self.initialize_prediction_head(self.ctx_decoder.p[-1])
+        # self.initialize_prediction_head(self.predictor.p[-1])
 
 
     def initialize_prediction_head(self, module):
