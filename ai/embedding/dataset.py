@@ -129,7 +129,7 @@ class KlineDataset(Dataset):
         """
         使用多进程并行处理数据。
         """
-        with ProcessPoolExecutor(max_workers=num_workers) as executor:
+        with ThreadPoolExecutor(max_workers=num_workers) as executor:
             futures = {executor.submit(func, idx): idx for idx in range(len(self))}
             results = []
             for future in as_completed(futures):
@@ -137,11 +137,12 @@ class KlineDataset(Dataset):
         return results
                 
     def __len__(self):
-        return len(self.ts_sequences)
+        return self.cache.get('total_count', 0)
     
     def __getitem__(self, idx):
-        ts_seq = self.ts_sequences[idx]
-        ctx_seq = self.ctx_sequences[idx]
+        ts_seq, ctx_seq, label = self.cache.get(f'seq_{idx}', (None, None, None))
+        if ts_seq is None or ctx_seq is None or label is None:
+            raise IndexError("Index out of range or data not found in cache.")
         if self.is_train:
             if np.random.rand() < 0.3:
                 noise = np.random.normal(0, self.noise_level, ts_seq.shape)
@@ -152,8 +153,6 @@ class KlineDataset(Dataset):
                 ctx_seq += noise
         else:
             pass
-
-        label = self.labels[idx]
         return (
             torch.FloatTensor(ts_seq),
             torch.FloatTensor(ctx_seq),
