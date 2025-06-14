@@ -22,8 +22,8 @@ def run_training(config):
 
     os.makedirs(os.path.split(config['training']['model_save_path'])[0], exist_ok=True)
     config['data']['db_path'] = os.path.join(BASE_DIR, config['data']['db_path'])
-    scaler_path = os.path.join(config['training']['processed_data_cache_path'], 'scaler.joblib')
-    encoder_path = os.path.join(config['training']['processed_data_cache_path'], 'encoder.joblib')
+    scaler_path = os.path.join(config['data']['db_path'], 'scaler.joblib')
+    encoder_path = os.path.join(config['data']['db_path'], 'encoder.joblib')
     os.makedirs(config['training']['processed_data_cache_path'], exist_ok=True)
     if os.path.exists(scaler_path) and os.path.exists(encoder_path):
         print("Loading precomputed scaler and encoder...")
@@ -37,6 +37,9 @@ def run_training(config):
             config['data']['eval']['hist_data_file'],
             config['data']['test']['hist_data_file']
         ], config['data']['features'], config['data']['numerical'], config['data']['categorical'])
+        joblib.dump(scaler, scaler_path)
+        joblib.dump(encoder, encoder_path)
+        print(f"Scaler and encoder saved to {scaler_path} and {encoder_path}")
 
     # --- 2. 准备数据 ---
     train_dataset = KlineDataset(
