@@ -77,10 +77,10 @@ class KlineDataset(Dataset):
 
         # 2. 数据归一化 (对所有股票数据一起归一化以保证尺度一致)
 
-        all_data_df, self.scaler = self.normalize(all_data_df, scaler)
+        all_data_df = normalize(all_data_df, self.features, self.numerical)
+        all_data_df[self.features + self.numerical] = scaler.transform(all_data_df[self.features + self.numerical])
 
-        self.encoder = encoder
-        encoded_categorical = self.encoder.transform(all_data_df[self.categorical]) 
+        encoded_categorical = encoder.transform(all_data_df[self.categorical]) 
         self.ts_sequences = [] # 时间序列部分
         self.ctx_sequences = [] # 上下文部分
         self.labels = []
