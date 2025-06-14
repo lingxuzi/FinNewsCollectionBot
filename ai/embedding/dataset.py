@@ -37,7 +37,7 @@ class KlineDataset(Dataset):
         self.numerical = numerical
         self.categorical = categorical
         self.is_train = is_train
-        self.noise_level = 1e-2
+        self.noise_level = 1e-3
 
         # 1. 从数据库加载数据
         all_data_df = pd.read_parquet(os.path.join(db_path, hist_data_file))
