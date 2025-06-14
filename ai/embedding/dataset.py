@@ -62,9 +62,9 @@ class KlineDataset(Dataset):
            os.path.exists(os.path.join(db_path, f'cached_{tag}_ctx_sequences.pkl')) and \
            os.path.exists(os.path.join(db_path, f'cached_{tag}_labels.pkl')):
             print("使用缓存数据...")
-            self.ts_sequences = joblib.load(os.path.join(db_path, 'cached_{tag}_ts_sequences.pkl'))
-            self.ctx_sequences = joblib.load(os.path.join(db_path, 'cached_{tag}_ctx_sequences.pkl'))
-            self.labels = joblib.load(os.path.join(db_path, 'cached_{tag}_labels.pkl'))
+            self.ts_sequences = joblib.load(os.path.join(db_path, f'cached_{tag}_ts_sequences.pkl'))
+            self.ctx_sequences = joblib.load(os.path.join(db_path, f'cached_{tag}_ctx_sequences.pkl'))
+            self.labels = joblib.load(os.path.join(db_path, f'cached_{tag}_labels.pkl'))
             print(f"数据加载完成，共生成 {len(self.ts_sequences)} 个样本。")
             return
 
@@ -102,9 +102,9 @@ class KlineDataset(Dataset):
         # 3. 清理内存
         del all_data_df  # 释放内存
 
-        joblib.dump(self.ts_sequences, os.path.join(db_path, 'cached_{tag}_ts_sequences.pkl'))
-        joblib.dump(self.ctx_sequences, os.path.join(db_path, 'cached_{tag}_ctx_sequences.pkl'))
-        joblib.dump(self.labels, os.path.join(db_path, 'cached_{tag}_labels.pkl'))
+        joblib.dump(self.ts_sequences, os.path.join(db_path, f'cached_{tag}_ts_sequences.pkl'))
+        joblib.dump(self.ctx_sequences, os.path.join(db_path, f'cached_{tag}_ctx_sequences.pkl'))
+        joblib.dump(self.labels, os.path.join(db_path, f'cached_{tag}_labels.pkl'))
         print(f"数据加载完成，共生成 {len(self.ts_sequences)} 个样本。")
 
     def generate_sequences(self, code, all_data_df, encoded_categorical):
