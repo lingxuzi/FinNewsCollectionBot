@@ -193,7 +193,7 @@ def run_training(config):
             print(f"Model improved and saved to {config['training']['model_save_path']}")
 
         
-        early_stopper(r2_recon)
+        early_stopper(mean_r2)
         if early_stopper.early_stop:
             break
 
