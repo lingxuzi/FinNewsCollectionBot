@@ -8,6 +8,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from torch.utils.data import Dataset
 from sklearn.preprocessing import LabelEncoder, StandardScaler, MinMaxScaler
 from utils.common import read_text
+from tqdm import tqdm
 
 def normalize(df, features, numerical):
     df['prev_close'] = df.groupby('code')['close'].shift(1)
@@ -85,7 +86,7 @@ class KlineDataset(Dataset):
         self.ctx_sequences = [] # 上下文部分
         self.labels = []
 
-        for code in stock_list:
+        for code in tqdm(stock_list, desc="Processing stocks"):
             stock_data = all_data_df[all_data_df['code'] == code]
             stock_labels = stock_data['label'].to_numpy()
             featured_stock_data = stock_data[features].to_numpy()
