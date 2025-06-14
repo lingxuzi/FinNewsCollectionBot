@@ -57,6 +57,7 @@ class KlineDataset(Dataset):
         self.categorical = categorical
         self.is_train = is_train
         self.noise_level = 1e-3
+        self.tag = tag
 
         if os.path.exists(os.path.join(db_path, f'cached_{tag}_ts_sequences.pkl')) and \
            os.path.exists(os.path.join(db_path, f'cached_{tag}_ctx_sequences.pkl')) and \
