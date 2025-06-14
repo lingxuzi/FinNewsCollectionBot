@@ -96,19 +96,17 @@ class MultiModalAutoencoder(nn.Module):
         # )
         self.ctx_decoder = ResidualMLPBlock(self.total_embedding_dim, hidden_dim, ctx_input_dim, dropout_rate=0)
 
-        # --- 预测器 ---
-        self.predictor_input_dim = self.total_embedding_dim + hidden_dim 
         # self.predictor = nn.Sequential(
         #     nn.Linear(self.predictor_input_dim, hidden_dim),
         #     nn.ReLU(),
         #     nn.Linear(hidden_dim, predict_dim)
         # )
-        self.predictor = ResidualMLPBlock(self.predictor_input_dim, int(hidden_dim), predict_dim, dropout_rate=0.2)
+        self.predictor = ResidualMLPBlock(self.total_embedding_dim, int(hidden_dim), predict_dim, dropout_rate=0.)
 
         # 初始化预测头
-        # self.initialize_prediction_head(self.ts_output_layer)
-        # self.initialize_prediction_head(self.ctx_decoder.p[-1])
-        # self.initialize_prediction_head(self.predictor.p[-1])
+        self.initialize_prediction_head(self.ts_output_layer)
+        self.initialize_prediction_head(self.ctx_decoder.p[-1])
+        self.initialize_prediction_head(self.predictor.p[-1])
 
 
     def initialize_prediction_head(self, module):
@@ -156,8 +154,7 @@ class MultiModalAutoencoder(nn.Module):
         ctx_output = self.ctx_decoder(final_embedding)
 
         # --- 3. 预测分支 ---
-        predictor_input = torch.cat([final_embedding, ts_last_hidden_state], dim=1)
-        predict_output = self.predictor(predictor_input)
+        predict_output = self.predictor(final_embedding.detach())
         
         return ts_output, ctx_output, predict_output, final_embedding
 

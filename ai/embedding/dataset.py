@@ -127,16 +127,16 @@ class KlineDataset(Dataset):
     def __getitem__(self, idx):
         ts_seq = self.ts_sequences[idx]
         ctx_seq = self.ctx_sequences[idx]
-        if self.is_train:
-            if np.random.rand() < 0.3:
-                noise = np.random.normal(0, self.noise_level, ts_seq.shape)
-                ts_seq += noise
+        # if self.is_train:
+        #     if np.random.rand() < 0.3:
+        #         noise = np.random.normal(0, self.noise_level, ts_seq.shape)
+        #         ts_seq += noise
 
-            if np.random.rand() < 0.3:
-                noise = np.random.normal(0, self.noise_level, ctx_seq.shape)
-                ctx_seq += noise
-        else:
-            pass
+        #     if np.random.rand() < 0.3:
+        #         noise = np.random.normal(0, self.noise_level, ctx_seq.shape)
+        #         ctx_seq += noise
+        # else:
+        #     pass
 
         label = self.labels[idx]
         return (
