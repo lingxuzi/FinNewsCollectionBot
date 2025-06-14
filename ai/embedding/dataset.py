@@ -67,7 +67,7 @@ class KlineDataset(Dataset):
         self.ctx_sequences = [] # 上下文部分
         self.labels = []
 
-        for code in stock_list[:100]:
+        for code in stock_list:
             stock_data = all_data_df[all_data_df['code'] == code]
             stock_labels = stock_data['label'].to_numpy()
             featured_stock_data = stock_data[features].to_numpy()
