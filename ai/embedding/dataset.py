@@ -49,7 +49,7 @@ class KlineDataset(Dataset):
     自定义K线数据Dataset。
     负责从数据库加载数据、归一化处理，并生成时间序列样本。
     """
-    def __init__(self, db_path, stock_list_file, hist_data_file, seq_length, features, numerical, categorical, scaler, encoder, is_train=True):
+    def __init__(self, db_path, stock_list_file, hist_data_file, seq_length, features, numerical, categorical, scaler, encoder, tag, is_train=True):
         super().__init__()  
         self.seq_length = seq_length
         self.features = features
@@ -58,13 +58,13 @@ class KlineDataset(Dataset):
         self.is_train = is_train
         self.noise_level = 1e-3
 
-        if os.path.exists(os.path.join(db_path, 'cached_ts_sequences.pkl')) and \
-           os.path.exists(os.path.join(db_path, 'cached_ctx_sequences.pkl')) and \
-           os.path.exists(os.path.join(db_path, 'cached_labels.pkl')):
+        if os.path.exists(os.path.join(db_path, f'cached_{tag}_ts_sequences.pkl')) and \
+           os.path.exists(os.path.join(db_path, f'cached_{tag}_ctx_sequences.pkl')) and \
+           os.path.exists(os.path.join(db_path, f'cached_{tag}_labels.pkl')):
             print("使用缓存数据...")
-            self.ts_sequences = joblib.load(os.path.join(db_path, 'cached_ts_sequences.pkl'))
-            self.ctx_sequences = joblib.load(os.path.join(db_path, 'cached_ctx_sequences.pkl'))
-            self.labels = joblib.load(os.path.join(db_path, 'cached_labels.pkl'))
+            self.ts_sequences = joblib.load(os.path.join(db_path, 'cached_{tag}_ts_sequences.pkl'))
+            self.ctx_sequences = joblib.load(os.path.join(db_path, 'cached_{tag}_ctx_sequences.pkl'))
+            self.labels = joblib.load(os.path.join(db_path, 'cached_{tag}_labels.pkl'))
             print(f"数据加载完成，共生成 {len(self.ts_sequences)} 个样本。")
             return
 
@@ -102,9 +102,9 @@ class KlineDataset(Dataset):
         # 3. 清理内存
         del all_data_df  # 释放内存
 
-        joblib.dump(self.ts_sequences, os.path.join(db_path, 'cached_ts_sequences.pkl'))
-        joblib.dump(self.ctx_sequences, os.path.join(db_path, 'cached_ctx_sequences.pkl'))
-        joblib.dump(self.labels, os.path.join(db_path, 'cached_labels.pkl'))
+        joblib.dump(self.ts_sequences, os.path.join(db_path, 'cached_{tag}_ts_sequences.pkl'))
+        joblib.dump(self.ctx_sequences, os.path.join(db_path, 'cached_{tag}_ctx_sequences.pkl'))
+        joblib.dump(self.labels, os.path.join(db_path, 'cached_{tag}_labels.pkl'))
         print(f"数据加载完成，共生成 {len(self.ts_sequences)} 个样本。")
 
     def generate_sequences(self, code, all_data_df, encoded_categorical):

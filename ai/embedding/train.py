@@ -51,7 +51,8 @@ def run_training(config):
         numerical=config['data']['numerical'],
         categorical=config['data']['categorical'],
         scaler=scaler,
-        encoder=encoder
+        encoder=encoder,
+        tag='train'
     )
 
     eval_dataset = KlineDataset(
@@ -64,7 +65,8 @@ def run_training(config):
         categorical=config['data']['categorical'],
         scaler=scaler,
         encoder=encoder,
-        is_train=False
+        is_train=False,
+        tag='eval'
     )
 
     test_dataset = KlineDataset(
@@ -77,7 +79,8 @@ def run_training(config):
         categorical=config['data']['categorical'],
         scaler=scaler,
         encoder=encoder,
-        is_train=False
+        is_train=False,
+        tag='test'
     )
     train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], shuffle=True)
     val_loader = DataLoader(eval_dataset, batch_size=config['training']['batch_size'], shuffle=False)
