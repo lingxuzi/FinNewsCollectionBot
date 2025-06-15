@@ -27,7 +27,7 @@ class LMDBEngine:
         self.txn = None
         self.txn = self.env.begin(write=True)
     
-    def put(self, key, val):
+    def set(self, key, val):
         self.txn.put(key.encode(), pickle.dumps(val))
 
     def get(self, key):

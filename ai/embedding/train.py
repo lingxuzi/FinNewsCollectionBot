@@ -48,6 +48,7 @@ def run_training(config):
 
     # --- 2. 准备数据 ---
     train_dataset = KlineDataset(
+        cache=config['data']['cache'],
         db_path=config['data']['db_path'],
         stock_list_file=config['data']['train']['stock_list_file'],
         hist_data_file=config['data']['train']['hist_data_file'],
@@ -61,6 +62,7 @@ def run_training(config):
     )
 
     eval_dataset = KlineDataset(
+        cache=config['data']['cache'],
         db_path=config['data']['db_path'],
         stock_list_file=config['data']['eval']['stock_list_file'],
         hist_data_file=config['data']['eval']['hist_data_file'],
@@ -75,6 +77,7 @@ def run_training(config):
     )
 
     test_dataset = KlineDataset(
+        cache=config['data']['cache'],
         db_path=config['data']['db_path'],
         stock_list_file=config['data']['test']['stock_list_file'],
         hist_data_file=config['data']['test']['hist_data_file'],
