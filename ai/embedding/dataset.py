@@ -146,9 +146,9 @@ class KlineDataset(Dataset):
         return self.cache.get('total_count', 0)
     
     def __getitem__(self, idx):
-        # t = time.time()
+        t = time.time()
         ts_seq, ctx_seq, label = self.cache.get(f'seq_{idx}', (None, None, None))
-        # print(f"Cache access time: {time.time() - t:.4f} seconds")
+        print(f"Cache access time: {time.time() - t:.4f} seconds")
         if ts_seq is None or ctx_seq is None or label is None:
             raise IndexError("Index out of range or data not found in cache.")
         if self.is_train:
