@@ -94,7 +94,7 @@ class KlineDataset(Dataset):
                         ts_seq, ctx_seq, labels = future.result()
                         if ts_seq is not None:
                             self.ts_sequences.extend(ts_seq)
-                            self.ctx_sequences.exten, (None, None, None)d(ctx_seq)
+                            self.ctx_sequences.extend(ctx_seq)
                             self.labels.extend(labels)
                     except Exception as e:
                         print(f"Error processing stock {code}: {e}")
