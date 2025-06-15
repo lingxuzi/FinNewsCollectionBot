@@ -82,9 +82,9 @@ def run_training(config):
         is_train=False,
         tag='test'
     )
-    train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=True, shuffle=True)
-    val_loader = DataLoader(eval_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=True, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=True, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], num_workers=8, pin_memory=True, shuffle=True)
+    val_loader = DataLoader(eval_dataset, batch_size=config['training']['batch_size'], num_workers=8, pin_memory=True, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=config['training']['batch_size'], num_workers=8, pin_memory=True, shuffle=False)
     
     print(f"Training data size: {len(train_dataset)}, Validation data size: {len(eval_dataset)}, Teset data size: {len(test_dataset)}")
 
