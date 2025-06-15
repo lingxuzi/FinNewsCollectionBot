@@ -17,7 +17,7 @@ from utils.prefetcher import DataPrefetcher
 
 
 def num_iters_per_epoch(loader, batch_size):
-    return len(loader) // batch_size if (len(loader) / batch_size) == 0 else len(loader) // batch_size + 1
+    return len(loader) // batch_size if (len(loader) % batch_size) == 0 else len(loader) // batch_size + 1
 
 def run_training(config):
     """主训练函数"""
@@ -94,9 +94,6 @@ def run_training(config):
     val_loader = DataLoader(eval_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=False)
 
-    train_iter = DataPrefetcher(train_loader, config['device'], enable_queue=False, num_threads=1)
-    val_iter = DataPrefetcher(val_loader, config['device'], enable_queue=False, num_threads=1)
-    test_iter = DataPrefetcher(test_loader, config['device'], enable_queue=False, num_threads=1)
     
     print(f"Training data size: {len(train_dataset)}, Validation data size: {len(eval_dataset)}, Teset data size: {len(test_dataset)}")
 
@@ -136,6 +133,7 @@ def run_training(config):
         model.train()
         train_loss_meter = AverageMeter()
         pred_loss_meter = AverageMeter()
+        train_iter = DataPrefetcher(train_loader, config['device'], enable_queue=False, num_threads=1)
         
         # 使用tqdm显示进度条
         pbar = tqdm(range(num_iters_per_epoch(train_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training]")
@@ -164,13 +162,14 @@ def run_training(config):
         model.eval()
         val_loss_meter = AverageMeter()
         with torch.no_grad():
+            val_iter = DataPrefetcher(val_loader, config['device'], enable_queue=False, num_threads=1)
             truth = []
             preds = []
             ts_reconstructed_list = []
             ctx_reconstructed_list = []
             ts_sequence_list = []
             ctx_sequence_list = []
-            for ts_sequences, ctx_sequences, y in tqdm(range(num_iters_per_epoch(eval_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Validation]"):
+            for _ in tqdm(range(num_iters_per_epoch(eval_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Validation]"):
                 # ts_sequences = ts_sequences.to(device)
                 # ctx_sequences = ctx_sequences.to(device)
                 # y = y.to(device)
@@ -236,7 +235,8 @@ def run_training(config):
     ts_sequence_list = []
     ctx_sequence_list = []
     with torch.no_grad():
-        for ts_sequences, ctx_sequences, y in tqdm(range(num_iters_per_epoch(test_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Testing]"):
+        test_iter = DataPrefetcher(test_loader, config['device'], enable_queue=False, num_threads=1)
+        for _ in tqdm(range(num_iters_per_epoch(test_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Testing]"):
             # ts_sequences = ts_sequences.to(device)
             # ctx_sequences = ctx_sequences.to(device)
             # y = y.to(device)

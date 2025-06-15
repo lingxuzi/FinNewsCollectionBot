@@ -101,9 +101,9 @@ class MultiModalAutoencoder(nn.Module):
         #     nn.ReLU(),
         #     nn.Linear(hidden_dim, predict_dim)
         # )
-        self.predictor = ResidualMLPBlock(self.total_embedding_dim, int(hidden_dim), predict_dim, dropout_rate=0.)
+        self.predictor = ResidualMLPBlock(self.total_embedding_dim, int(hidden_dim), predict_dim, dropout_rate=0.2)
 
-        self.embedding_norm = nn.LayerNorm(self.total_embedding_dim)
+        # self.embedding_norm = nn.LayerNorm(self.total_embedding_dim)
 
         # 初始化预测头
         self.initialize_prediction_head(self.ts_output_layer)
@@ -139,7 +139,7 @@ class MultiModalAutoencoder(nn.Module):
 
         # # 3. 融合Embedding
         final_embedding = torch.cat([ts_embedding, ctx_embedding], dim=1)
-        final_embedding = self.embedding_norm(final_embedding)
+        # final_embedding = self.embedding_norm(final_embedding)
 
         # --- 解码过程 ---
         # 1. 时序重构
