@@ -123,7 +123,7 @@ class KlineDataset(Dataset):
         numerical_stock_data = stock_data[self.numerical].to_numpy()
         if len(stock_data) < self.seq_length:
             return None, None, None
-        for i in range(len(stock_data) - self.seq_length + 1):
+        for i in range(len(stock_data) - self.seq_length - 5 + 1, 5):
             # 时间序列部分 (例如: OHLCV, RSI, MACD)
             ts_sequences.append(featured_stock_data[i:i + self.seq_length])
             # 上下文部分 (例如: PE, PB, 行业One-Hot向量)
