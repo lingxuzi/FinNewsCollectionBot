@@ -13,6 +13,11 @@ from ai.embedding.dataset import KlineDataset, generate_scaler_and_encoder
 from ai.embedding.model import MultiModalAutoencoder
 from ai.modules.earlystop import EarlyStopping
 from ai.scheduler.sched import *
+from utils.prefetcher import DataPrefetcher
+
+
+def num_iters_per_epoch(loader, batch_size):
+    return len(loader) // batch_size if (len(loader) / batch_size) == 0 else len(loader) // batch_size + 1
 
 def run_training(config):
     """主训练函数"""
@@ -85,6 +90,10 @@ def run_training(config):
     train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=True)
     val_loader = DataLoader(eval_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=False)
+
+    train_iter = DataPrefetcher(train_loader, config['device'], enable_queue=False, num_threads=1)
+    val_iter = DataPrefetcher(val_loader, config['device'], enable_queue=False, num_threads=1)
+    test_iter = DataPrefetcher(test_loader, config['device'], enable_queue=False, num_threads=1)
     
     print(f"Training data size: {len(train_dataset)}, Validation data size: {len(eval_dataset)}, Teset data size: {len(test_dataset)}")
 
@@ -126,11 +135,12 @@ def run_training(config):
         pred_loss_meter = AverageMeter()
         
         # 使用tqdm显示进度条
-        pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training]")
-        for ts_sequences, ctx_sequences, y in pbar:
-            ts_sequences = ts_sequences.to(device)
-            ctx_sequences = ctx_sequences.to(device)
-            y = y.to(device)
+        pbar = tqdm(range(num_iters_per_epoch(train_loader, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training]")
+        for _ in pbar:
+            ts_sequences, ctx_sequences, y = train_iter.next()
+            # ts_sequences = ts_sequences.to(device)
+            # ctx_sequences = ctx_sequences.to(device)
+            # y = y.to(device)
             optimizer.zero_grad()
             ts_reconstructed, ctx_reconstructed, pred, _ = model(ts_sequences, ctx_sequences)
             loss_ts = criterion_ts(ts_reconstructed, ts_sequences)
@@ -157,10 +167,11 @@ def run_training(config):
             ctx_reconstructed_list = []
             ts_sequence_list = []
             ctx_sequence_list = []
-            for ts_sequences, ctx_sequences, y in tqdm(val_loader, desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Validation]"):
-                ts_sequences = ts_sequences.to(device)
-                ctx_sequences = ctx_sequences.to(device)
-                y = y.to(device)
+            for ts_sequences, ctx_sequences, y in tqdm(range(num_iters_per_epoch(val_loader, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Validation]"):
+                # ts_sequences = ts_sequences.to(device)
+                # ctx_sequences = ctx_sequences.to(device)
+                # y = y.to(device)
+                ts_sequences, ctx_sequences, y = val_iter.next()
                 ts_reconstructed, ctx_reconstructed, pred, _ = model(ts_sequences, ctx_sequences)
                 loss_ts = criterion_ts(ts_reconstructed, ts_sequences)
                 loss_ctx = criterion_ctx(ctx_reconstructed, ctx_sequences)
@@ -222,10 +233,12 @@ def run_training(config):
     ts_sequence_list = []
     ctx_sequence_list = []
     with torch.no_grad():
-        for ts_sequences, ctx_sequences, y in tqdm(test_loader, desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Testing]"):
-            ts_sequences = ts_sequences.to(device)
-            ctx_sequences = ctx_sequences.to(device)
-            y = y.to(device)
+        for ts_sequences, ctx_sequences, y in tqdm(range(num_iters_per_epoch(test_loader, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Testing]"):
+            # ts_sequences = ts_sequences.to(device)
+            # ctx_sequences = ctx_sequences.to(device)
+            # y = y.to(device)
+
+            ts_sequences, ctx_sequences, y = test_iter.next()
             ts_reconstructed, ctx_reconstructed, pred, _ = model(ts_sequences, ctx_sequences)
             truth.append(y.cpu().numpy())
             preds.append(pred.cpu().numpy())
