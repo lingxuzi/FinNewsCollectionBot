@@ -67,6 +67,7 @@ class KlineDataset(Dataset):
             # 1. 从数据库加载数据
             all_data_df = pd.read_parquet(os.path.join(db_path, hist_data_file))
             stock_list = read_text(os.path.join(db_path, stock_list_file)).split(',')
+            stock_list = stock_list[:10]
 
             # cols = features + numerical
             # for col in cols:
