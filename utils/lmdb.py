@@ -11,7 +11,7 @@ class LMDBEngine:
         if not readonly:
             self.env = lmdb.open(lmdb_path, map_size=MAX_SIZE, map_async=True, writemap=True, meminit=False)
         else:
-            self.env = lmdb.open(lmdb_path, readonly=True, max_readers=10, lock=False, readahead=False, meminit=False)
+            self.env = lmdb.open(lmdb_path, readonly=True, max_readers=10, lock=False, readahead=True, meminit=False)
         
         if readonly:
             self.txn = self.env.begin()
