@@ -67,7 +67,6 @@ class KlineDataset(Dataset):
             # 1. 从数据库加载数据
             all_data_df = pd.read_parquet(os.path.join(db_path, hist_data_file))
             stock_list = read_text(os.path.join(db_path, stock_list_file)).split(',')
-            stock_list = stock_list[:10]
 
             # cols = features + numerical
             # for col in cols:
@@ -84,24 +83,28 @@ class KlineDataset(Dataset):
             self.labels = []
 
             # for code in tqdm(stock_list, desc="Processing stocks"):
+            i = 0
             with ThreadPoolExecutor(max_workers=10) as executor:
                 futures = {executor.submit(self.generate_sequences, code, all_data_df, encoded_categorical): code for code in stock_list}
-                for future in tqdm(as_completed(futures), total=len(futures), desc="Generating sequences"):
+                for future in tqdm(as_completed(futures), total=len(futures), desc="Generating sequences and caching"):
                     code = futures[future]
                     try:
                         ts_seq, ctx_seq, labels = future.result()
                         if ts_seq is not None:
-                            self.ts_sequences.extend(ts_seq)
-                            self.ctx_sequences.extend(ctx_seq)
-                            self.labels.extend(labels)
+                            # self.ts_sequences.extend(ts_seq)
+                            # self.ctx_sequences.extend(ctx_seq)
+                            # self.labels.extend(labels)
+                            for ts, ctx, label in zip(ts_seq, ctx_seq, labels):
+                                self.cache.set(f'seq_{i}', (ts, ctx, label))
+                                i += 1
                     except Exception as e:
                         print(f"Error processing stock {code}: {e}")
             # 3. 清理内存
             del all_data_df  # 释放内存
-            for i, (ts_seq, ctx_seq, label) in tqdm(enumerate(zip(self.ts_sequences, self.ctx_sequences, self.labels)), desc="Caching sequences"):
-                self.cache.set(f'seq_{i}', (ts_seq, ctx_seq, label))
-            self.cache.set('total_count', len(self.ts_sequences))
-            print(f"Total sequences cached: {len(self.ts_sequences)}")
+            # for i, (ts_seq, ctx_seq, label) in tqdm(enumerate(zip(self.ts_sequences, self.ctx_sequences, self.labels)), desc="Caching sequences"):
+            #     self.cache.set(f'seq_{i}', (ts_seq, ctx_seq, label))
+            # self.cache.set('total_count', len(self.ts_sequences))
+            # print(f"Total sequences cached: {len(self.ts_sequences)}")
 
     def generate_sequences(self, code, all_data_df, encoded_categorical):
         ts_sequences = [] # 时间序列部分
