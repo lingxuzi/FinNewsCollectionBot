@@ -69,7 +69,6 @@ class KlineDataset(Dataset):
             # 1. 从数据库加载数据
             all_data_df = pd.read_parquet(os.path.join(db_path, hist_data_file))
             stock_list = read_text(os.path.join(db_path, stock_list_file)).split(',')
-            stock_list = stock_list[:10]
 
             # cols = features + numerical
             # for col in cols:
@@ -95,7 +94,7 @@ class KlineDataset(Dataset):
                         ts_seq, ctx_seq, labels = future.result()
                         if ts_seq is not None:
                             self.ts_sequences.extend(ts_seq)
-                            self.ctx_sequences.extend(ctx_seq)
+                            self.ctx_sequences.exten, (None, None, None)d(ctx_seq)
                             self.labels.extend(labels)
                     except Exception as e:
                         print(f"Error processing stock {code}: {e}")
