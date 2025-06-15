@@ -92,20 +92,20 @@ class KlineDataset(Dataset):
                     try:
                         ts_seq, ctx_seq, labels = future.result()
                         if ts_seq is not None:
-                            # self.ts_sequences.extend(ts_seq)
-                            # self.ctx_sequences.extend(ctx_seq)
-                            # self.labels.extend(labels)
-                            for ts, ctx, label in zip(ts_seq, ctx_seq, labels):
-                                self.cache.set(f'seq_{i}', (ts, ctx, label))
-                                i += 1
+                            self.ts_sequences.extend(ts_seq)
+                            self.ctx_sequences.extend(ctx_seq)
+                            self.labels.extend(labels)
                     except Exception as e:
                         print(f"Error processing stock {code}: {e}")
             # 3. 清理内存
+            for i, (ts_seq, ctx_seq, label) in tqdm(enumerate(zip(self.ts_sequences, self.ctx_sequences, self.labels)), desc="Caching sequences"):
+                self.cache.set(f'seq_{i}', (ts_seq, ctx_seq, label))
+            self.cache.set('total_count', len(self.ts_sequences))
+            print(f"Total sequences cached: {self.cache.get('total_count')}")
             del all_data_df  # 释放内存
-            # for i, (ts_seq, ctx_seq, label) in tqdm(enumerate(zip(self.ts_sequences, self.ctx_sequences, self.labels)), desc="Caching sequences"):
-            #     self.cache.set(f'seq_{i}', (ts_seq, ctx_seq, label))
-            self.cache.set('total_count', i)
-            print(f"Total sequences cached: {i}")
+            del self.ts_sequences
+            del self.ctx_sequences
+            del self.labels
 
     def generate_sequences(self, code, all_data_df, encoded_categorical):
         ts_sequences = [] # 时间序列部分
