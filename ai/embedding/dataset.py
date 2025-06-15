@@ -69,7 +69,7 @@ class KlineDataset(Dataset):
             # 1. 从数据库加载数据
             all_data_df = pd.read_parquet(os.path.join(db_path, hist_data_file))
             stock_list = read_text(os.path.join(db_path, stock_list_file)).split(',')
-
+            stock_list = stock_list[:10]
             # cols = features + numerical
             # for col in cols:
             #     all_data_df[col] = [0 if x == "" else float(x) for x in all_data_df[col]]
@@ -123,7 +123,7 @@ class KlineDataset(Dataset):
         numerical_stock_data = stock_data[self.numerical].to_numpy()
         if len(stock_data) < self.seq_length:
             return None, None, None
-        for i in range(len(stock_data) - self.seq_length - 5 + 1, 5):
+        for i in range(0, len(stock_data) - self.seq_length + 1):
             # 时间序列部分 (例如: OHLCV, RSI, MACD)
             ts_sequences.append(featured_stock_data[i:i + self.seq_length])
             # 上下文部分 (例如: PE, PB, 行业One-Hot向量)
