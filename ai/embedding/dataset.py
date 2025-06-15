@@ -103,8 +103,8 @@ class KlineDataset(Dataset):
             del all_data_df  # 释放内存
             # for i, (ts_seq, ctx_seq, label) in tqdm(enumerate(zip(self.ts_sequences, self.ctx_sequences, self.labels)), desc="Caching sequences"):
             #     self.cache.set(f'seq_{i}', (ts_seq, ctx_seq, label))
-            # self.cache.set('total_count', len(self.ts_sequences))
-            # print(f"Total sequences cached: {len(self.ts_sequences)}")
+            self.cache.set('total_count', len(self.ts_sequences))
+            print(f"Total sequences cached: {len(self.ts_sequences)}")
 
     def generate_sequences(self, code, all_data_df, encoded_categorical):
         ts_sequences = [] # 时间序列部分
