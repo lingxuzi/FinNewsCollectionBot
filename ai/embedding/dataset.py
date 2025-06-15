@@ -79,9 +79,9 @@ class KlineDataset(Dataset):
             all_data_df[self.features + self.numerical] = scaler.transform(all_data_df[self.features + self.numerical])
 
             encoded_categorical = encoder.transform(all_data_df[self.categorical]) 
-            # self.ts_sequences = [] # 时间序列部分
-            # self.ctx_sequences = [] # 上下文部分
-            # self.labels = []
+            self.ts_sequences = [] # 时间序列部分
+            self.ctx_sequences = [] # 上下文部分
+            self.labels = []
 
             # for code in tqdm(stock_list, desc="Processing stocks"):
             i = 0
