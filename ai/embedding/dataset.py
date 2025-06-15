@@ -67,6 +67,7 @@ class KlineDataset(Dataset):
             # 1. 从数据库加载数据
             all_data_df = pd.read_parquet(os.path.join(db_path, hist_data_file))
             stock_list = read_text(os.path.join(db_path, stock_list_file)).split(',')
+            stock_list = stock_list[:10]
 
             # cols = features + numerical
             # for col in cols:
@@ -78,9 +79,9 @@ class KlineDataset(Dataset):
             all_data_df[self.features + self.numerical] = scaler.transform(all_data_df[self.features + self.numerical])
 
             encoded_categorical = encoder.transform(all_data_df[self.categorical]) 
-            self.ts_sequences = [] # 时间序列部分
-            self.ctx_sequences = [] # 上下文部分
-            self.labels = []
+            # self.ts_sequences = [] # 时间序列部分
+            # self.ctx_sequences = [] # 上下文部分
+            # self.labels = []
 
             # for code in tqdm(stock_list, desc="Processing stocks"):
             i = 0
@@ -103,8 +104,8 @@ class KlineDataset(Dataset):
             del all_data_df  # 释放内存
             # for i, (ts_seq, ctx_seq, label) in tqdm(enumerate(zip(self.ts_sequences, self.ctx_sequences, self.labels)), desc="Caching sequences"):
             #     self.cache.set(f'seq_{i}', (ts_seq, ctx_seq, label))
-            self.cache.set('total_count', len(self.ts_sequences))
-            print(f"Total sequences cached: {len(self.ts_sequences)}")
+            self.cache.set('total_count', i)
+            print(f"Total sequences cached: {i}")
 
     def generate_sequences(self, code, all_data_df, encoded_categorical):
         ts_sequences = [] # 时间序列部分
