@@ -1,7 +1,7 @@
 # config.yaml
 # --- 数据参数 ---
 data:
-  cache: 'lmdb'
+  cache: 'diskcache'
   db_path: "train_data/hist/"
   train:
     stock_list_file: "train_stocks.txt"

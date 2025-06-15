@@ -67,6 +67,8 @@ class KlineDataset(Dataset):
         else:
             self.cache = LMDBEngine(os.path.join(db_path, f'{tag}'))
 
+        self.cache_method = cache
+
         if self.cache.get('total_count') is None:
             # 1. 从数据库加载数据
             all_data_df = pd.read_parquet(os.path.join(db_path, hist_data_file))
@@ -109,10 +111,12 @@ class KlineDataset(Dataset):
             del self.ts_sequences
             del self.ctx_sequences
             del self.labels
+            if self.cache_method == 'lmdb':
+                self.cache.commit()  # 确保所有数据都已写入LMDB
         
-            self.cache.commit()  # 确保所有数据都已写入LMDB
-        self.cache.close()
-        self.cache = LMDBEngine(os.path.join(db_path, f'{tag}'), readonly=True)
+        if self.cache_method == 'lmdb':
+            self.cache.close()
+            self.cache = LMDBEngine(os.path.join(db_path, f'{tag}'), readonly=True)
 
     def generate_sequences(self, code, all_data_df, encoded_categorical):
         ts_sequences = [] # 时间序列部分
