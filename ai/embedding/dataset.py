@@ -62,8 +62,8 @@ class KlineDataset(Dataset):
         self.noise_level = 1e-3
         self.tag = tag
         os.makedirs(os.path.join(db_path, f'{tag}'), exist_ok=True)
-        # self.cache = FanoutCache(os.path.join(db_path, f'{tag}'), shards=16, timeout=5, size_limit=3e11, eviction_policy='none')
-        self.cache = LMDBEngine(os.path.join(db_path, f'{tag}'))
+        self.cache = FanoutCache(os.path.join(db_path, f'{tag}'), shards=32, timeout=5, size_limit=3e11, eviction_policy='none')
+        # self.cache = LMDBEngine(os.path.join(db_path, f'{tag}'))
 
         if self.cache.get('total_count') is None:
             # 1. 从数据库加载数据
@@ -100,8 +100,8 @@ class KlineDataset(Dataset):
                         print(f"Error processing stock {code}: {e}")
             # 3. 清理内存
             for i, (ts_seq, ctx_seq, label) in tqdm(enumerate(zip(self.ts_sequences, self.ctx_sequences, self.labels)), desc="Caching sequences"):
-                self.cache.put(f'seq_{i}', (ts_seq, ctx_seq, label))
-            self.cache.put('total_count', len(self.ts_sequences))
+                self.cache.set(f'seq_{i}', (ts_seq, ctx_seq, label))
+            self.cache.set('total_count', len(self.ts_sequences))
             print(f"Total sequences cached: {self.cache.get('total_count')}")
             del all_data_df  # 释放内存
             del self.ts_sequences

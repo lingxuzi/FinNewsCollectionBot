@@ -135,7 +135,7 @@ def run_training(config):
         pred_loss_meter = AverageMeter()
         
         # 使用tqdm显示进度条
-        pbar = tqdm(range(num_iters_per_epoch(train_loader, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training]")
+        pbar = tqdm(range(num_iters_per_epoch(train_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training]")
         for _ in pbar:
             ts_sequences, ctx_sequences, y = train_iter.next()
             # ts_sequences = ts_sequences.to(device)
@@ -167,7 +167,7 @@ def run_training(config):
             ctx_reconstructed_list = []
             ts_sequence_list = []
             ctx_sequence_list = []
-            for ts_sequences, ctx_sequences, y in tqdm(range(num_iters_per_epoch(val_loader, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Validation]"):
+            for ts_sequences, ctx_sequences, y in tqdm(range(num_iters_per_epoch(eval_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Validation]"):
                 # ts_sequences = ts_sequences.to(device)
                 # ctx_sequences = ctx_sequences.to(device)
                 # y = y.to(device)
@@ -233,7 +233,7 @@ def run_training(config):
     ts_sequence_list = []
     ctx_sequence_list = []
     with torch.no_grad():
-        for ts_sequences, ctx_sequences, y in tqdm(range(num_iters_per_epoch(test_loader, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Testing]"):
+        for ts_sequences, ctx_sequences, y in tqdm(range(num_iters_per_epoch(test_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Testing]"):
             # ts_sequences = ts_sequences.to(device)
             # ctx_sequences = ctx_sequences.to(device)
             # y = y.to(device)
