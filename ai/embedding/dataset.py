@@ -10,7 +10,7 @@ from torch.utils.data import Dataset
 from sklearn.preprocessing import LabelEncoder, StandardScaler, MinMaxScaler
 from utils.common import read_text
 from tqdm import tqdm
-from diskcache import Cache
+from diskcache import FanoutCache
 
 def normalize(df, features, numerical):
     df['prev_close'] = df.groupby('code')['close'].shift(1)
@@ -61,7 +61,7 @@ class KlineDataset(Dataset):
         self.noise_level = 1e-3
         self.tag = tag
         os.makedirs(os.path.join(db_path, f'{tag}'), exist_ok=True)
-        self.cache = Cache(os.path.join(db_path, f'{tag}'), size_limit=3e11, eviction_policy='none')
+        self.cache = FanoutCache(os.path.join(db_path, f'{tag}'), shards=16, timeout=5, size_limit=3e11, eviction_policy='none')
 
         if self.cache.get('total_count') is None:
             # 1. 从数据库加载数据
