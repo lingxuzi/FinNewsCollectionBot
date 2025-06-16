@@ -52,14 +52,15 @@ class KlineDataset(Dataset):
     自定义K线数据Dataset。
     负责从数据库加载数据、归一化处理，并生成时间序列样本。
     """
-    def __init__(self, cache, db_path, stock_list_file, hist_data_file, seq_length, features, numerical, categorical, scaler, encoder, tag, is_train=True):
+    def __init__(self, cache, db_path, stock_list_file, hist_data_file, seq_length, features, numerical, categorical, scaler, encoder, tag, noise_level, noise_prob, is_train=True):
         super().__init__()  
         self.seq_length = seq_length
         self.features = features
         self.numerical = numerical
         self.categorical = categorical
         self.is_train = is_train
-        self.noise_level = 1e-3
+        self.noise_level = noise_level
+        self.noise_prob = noise_prob
         self.tag = tag
         os.makedirs(os.path.join(db_path, f'{tag}'), exist_ok=True)
         if cache == 'diskcache':
@@ -163,11 +164,11 @@ class KlineDataset(Dataset):
         if ts_seq is None or ctx_seq is None or label is None:
             raise IndexError("Index out of range or data not found in cache.")
         if self.is_train:
-            if np.random.rand() < 0.5:
+            if np.random.rand() < self.noise_prob:
                 noise = np.random.normal(0, self.noise_level, ts_seq.shape)
                 ts_seq += noise
 
-            if np.random.rand() < 0.5:
+            if np.random.rand() < self.noise_prob:
                 noise = np.random.normal(0, self.noise_level, ctx_seq.shape)
                 ctx_seq += noise
         else:

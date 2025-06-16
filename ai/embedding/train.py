@@ -59,6 +59,8 @@ def run_training(config):
         categorical=config['data']['categorical'],
         scaler=scaler,
         encoder=encoder,
+        noise_prob=config['data']['noise_prob'],
+        noise_level=config['data']['noise_level'],
         tag='train'
     )
 

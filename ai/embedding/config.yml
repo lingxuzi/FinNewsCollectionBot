@@ -3,6 +3,8 @@
 data:
   cache: 'diskcache'
   db_path: "train_data/hist/"
+  noise_level: 0.001
+  noise_prob: 0.5
   train:
     stock_list_file: "train_stocks.txt"
     hist_data_file: 'fundamental_train.pkl'
