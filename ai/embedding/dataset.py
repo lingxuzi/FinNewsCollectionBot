@@ -162,16 +162,16 @@ class KlineDataset(Dataset):
         # print(f"Cache access time: {time.time() - t:.4f} seconds")
         if ts_seq is None or ctx_seq is None or label is None:
             raise IndexError("Index out of range or data not found in cache.")
-        # if self.is_train:
-        #     if np.random.rand() < 0.3:
-        #         noise = np.random.normal(0, self.noise_level, ts_seq.shape)
-        #         ts_seq += noise
+        if self.is_train:
+            if np.random.rand() < 0.5:
+                noise = np.random.normal(0, self.noise_level, ts_seq.shape)
+                ts_seq += noise
 
-        #     if np.random.rand() < 0.3:
-        #         noise = np.random.normal(0, self.noise_level, ctx_seq.shape)
-        #         ctx_seq += noise
-        # else:
-        #     pass
+            if np.random.rand() < 0.5:
+                noise = np.random.normal(0, self.noise_level, ctx_seq.shape)
+                ctx_seq += noise
+        else:
+            pass
         return (
             torch.FloatTensor(ts_seq),
             torch.FloatTensor(ctx_seq),

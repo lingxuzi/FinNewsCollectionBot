@@ -11,6 +11,7 @@ from utils.common import AverageMeter
 from config.base import *
 from ai.embedding.dataset import KlineDataset, generate_scaler_and_encoder
 from ai.embedding.model import MultiModalAutoencoder
+from ai.embedding.stock_tcn import StockMultiModalAutoencoder
 from ai.modules.earlystop import EarlyStopping
 from ai.scheduler.sched import *
 from utils.prefetcher import DataPrefetcher
@@ -98,12 +99,13 @@ def run_training(config):
     print(f"Training data size: {len(train_dataset)}, Validation data size: {len(eval_dataset)}, Teset data size: {len(test_dataset)}")
 
     # --- 3. 初始化模型、损失函数和优化器 ---
-    model = MultiModalAutoencoder(
+    model = StockMultiModalAutoencoder(
         ts_input_dim=len(config['data']['features']),
         ctx_input_dim=len(config['data']['numerical'] + config['data']['categorical']),# + len(train_dataset.encoder.categories_[0])
         ts_embedding_dim=config['training']['ts_embedding_dim'],
         ctx_embedding_dim=config['training']['ctx_embedding_dim'],
         hidden_dim=config['training']['hidden_dim'],
+        seq_len=config['training']['sequence_length'],
         num_layers=config['training']['num_layers'],
         predict_dim=config['training']['predict_dim'],
         attention_dim=config['training']['attention_dim']
