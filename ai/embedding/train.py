@@ -81,26 +81,11 @@ def run_training(config):
         tag='eval'
     )
 
-    test_dataset = KlineDataset(
-        cache=config['data']['cache'],
-        db_path=config['data']['db_path'],
-        stock_list_file=config['data']['test']['stock_list_file'],
-        hist_data_file=config['data']['test']['hist_data_file'],
-        seq_length=config['training']['sequence_length'],
-        features=config['data']['features'],
-        numerical=config['data']['numerical'],
-        categorical=config['data']['categorical'],
-        scaler=scaler,
-        encoder=encoder,
-        is_train=False,
-        tag='test'
-    )
     train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=True)
     val_loader = DataLoader(eval_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=False)
 
     
-    print(f"Training data size: {len(train_dataset)}, Validation data size: {len(eval_dataset)}, Teset data size: {len(test_dataset)}")
+    print(f"Training data size: {len(train_dataset)}, Validation data size: {len(eval_dataset)}")
 
     # --- 3. 初始化模型、损失函数和优化器 ---
     model = MultiModalAutoencoder(
@@ -235,7 +220,60 @@ def run_training(config):
         early_stopper(mean_r2)
         if early_stopper.early_stop:
             break
+    
+    run_eval(config)
 
+def run_eval(config):
+    config['data']['db_path'] = os.path.join(BASE_DIR, config['data']['db_path'])
+    scaler_path = os.path.join(config['data']['db_path'], 'scaler.joblib')
+    encoder_path = os.path.join(config['data']['db_path'], 'encoder.joblib')
+    if os.path.exists(scaler_path) and os.path.exists(encoder_path):
+        print("Loading precomputed scaler and encoder...")
+        scaler = joblib.load(scaler_path)
+        encoder = joblib.load(encoder_path)
+    else:
+        encoder, scaler = generate_scaler_and_encoder(
+            config['data']['db_path'],
+            [
+            config['data']['train']['hist_data_file'],
+            config['data']['eval']['hist_data_file'],
+            config['data']['test']['hist_data_file']
+        ], config['data']['features'], config['data']['numerical'], config['data']['categorical'])
+        joblib.dump(scaler, scaler_path)
+        joblib.dump(encoder, encoder_path)
+        print(f"Scaler and encoder saved to {scaler_path} and {encoder_path}")
+
+    test_dataset = KlineDataset(
+        cache=config['data']['cache'],
+        db_path=config['data']['db_path'],
+        stock_list_file=config['data']['test']['stock_list_file'],
+        hist_data_file=config['data']['test']['hist_data_file'],
+        seq_length=config['training']['sequence_length'],
+        features=config['data']['features'],
+        numerical=config['data']['numerical'],
+        categorical=config['data']['categorical'],
+        scaler=scaler,
+        encoder=encoder,
+        is_train=False,
+        tag='test'
+    )
+    test_loader = DataLoader(test_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=False)
+
+    model = MultiModalAutoencoder(
+        ts_input_dim=len(config['data']['features']),
+        ctx_input_dim=len(config['data']['numerical'] + config['data']['categorical']),# + len(train_dataset.encoder.categories_[0])
+        ts_embedding_dim=config['training']['ts_embedding_dim'],
+        ctx_embedding_dim=config['training']['ctx_embedding_dim'],
+        hidden_dim=config['training']['hidden_dim'],
+        seq_len=config['training']['sequence_length'],
+        num_layers=config['training']['num_layers'],
+        predict_dim=config['training']['predict_dim'],
+        attention_dim=config['training']['attention_dim']
+    )
+    
+    model = model.to(device)
+
+    device = torch.device(config['device'] if torch.cuda.is_available() else "cpu")
     state_dict = torch.load(config['training']['model_save_path'], map_location=device)
     model.load_state_dict(state_dict)
     model.eval()
@@ -247,7 +285,7 @@ def run_training(config):
     ctx_sequence_list = []
     with torch.no_grad():
         test_iter = DataPrefetcher(test_loader, config['device'], enable_queue=False, num_threads=1)
-        for _ in tqdm(range(num_iters_per_epoch(test_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Testing]"):
+        for _ in tqdm(range(num_iters_per_epoch(test_dataset, config['training']['batch_size'])), desc=f"[Testing]"):
             # ts_sequences = ts_sequences.to(device)
             # ctx_sequences = ctx_sequences.to(device)
             # y = y.to(device)
