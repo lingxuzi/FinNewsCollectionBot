@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import os
 import joblib
+import copy
 from sklearn.metrics import r2_score
 from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm # 提供优雅的进度条
@@ -15,6 +16,7 @@ from ai.embedding.stock_tcn import StockMultiModalAutoencoder
 from ai.modules.earlystop import EarlyStopping
 from ai.scheduler.sched import *
 from utils.prefetcher import DataPrefetcher
+from utils.common import ModelEmaV2
 
 
 def num_iters_per_epoch(loader, batch_size):
@@ -113,6 +115,8 @@ def run_training(config):
         attention_dim=config['training']['attention_dim']
     )
 
+    ema = ModelEmaV2(model, decay=0.9999, device=device)
+
     if config['training']['load_pretrained']:
         state_dict = torch.load(config['training']['pretrained_path'], map_location='cpu')
         model.load_state_dict(state_dict)
@@ -155,6 +159,8 @@ def run_training(config):
             total_loss.backward()
             optimizer.step()
 
+            ema.update(model)
+
             train_loss_meter.update(total_loss.item())
             pred_loss_meter.update(loss_pred.item())
             #| Pred Loss: {pred_loss_meter.avg}
@@ -163,7 +169,8 @@ def run_training(config):
         scheduler.step()
 
         # --- 5. 验证循环 ---
-        model.eval()
+        _model = copy.deepcopy(ema.module)
+        _model.eval()
         val_loss_meter = AverageMeter()
         with torch.no_grad():
             val_iter = DataPrefetcher(val_loader, config['device'], enable_queue=False, num_threads=1)
@@ -178,7 +185,7 @@ def run_training(config):
                 # ctx_sequences = ctx_sequences.to(device)
                 # y = y.to(device)
                 ts_sequences, ctx_sequences, y = val_iter.next()
-                ts_reconstructed, ctx_reconstructed, pred, _ = model(ts_sequences, ctx_sequences)
+                ts_reconstructed, ctx_reconstructed, pred, _ = _model(ts_sequences, ctx_sequences)
                 loss_ts = criterion_ts(ts_reconstructed, ts_sequences)
                 loss_ctx = criterion_ctx(ctx_reconstructed, ctx_sequences)
                 loss_pred = criterion_predict(pred, y)
@@ -216,7 +223,7 @@ def run_training(config):
         if mean_r2 > best_val_loss:
             best_val_loss = mean_r2
             # 我们只关心编码器的权重，也可以保存整个模型
-            torch.save(model.state_dict(), config['training']['model_save_path'])
+            torch.save(_model.state_dict(), config['training']['model_save_path'])
             # torch.save({
             #     'encoder_state_dict': model.encoder.state_dict(),
             #     'encoder_fc_state_dict': model.encoder_fc.state_dict(),
