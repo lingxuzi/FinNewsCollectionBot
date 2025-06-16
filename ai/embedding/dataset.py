@@ -52,7 +52,7 @@ class KlineDataset(Dataset):
     自定义K线数据Dataset。
     负责从数据库加载数据、归一化处理，并生成时间序列样本。
     """
-    def __init__(self, cache, db_path, stock_list_file, hist_data_file, seq_length, features, numerical, categorical, scaler, encoder, tag, noise_level, noise_prob, is_train=True):
+    def __init__(self, cache, db_path, stock_list_file, hist_data_file, seq_length, features, numerical, categorical, scaler, encoder, tag, noise_level=0.001, noise_prob=0.5, is_train=True):
         super().__init__()  
         self.seq_length = seq_length
         self.features = features
