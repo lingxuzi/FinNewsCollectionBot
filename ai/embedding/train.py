@@ -99,7 +99,7 @@ def run_training(config):
     print(f"Training data size: {len(train_dataset)}, Validation data size: {len(eval_dataset)}, Teset data size: {len(test_dataset)}")
 
     # --- 3. 初始化模型、损失函数和优化器 ---
-    model = StockMultiModalAutoencoder(
+    model = MultiModalAutoencoder(
         ts_input_dim=len(config['data']['features']),
         ctx_input_dim=len(config['data']['numerical'] + config['data']['categorical']),# + len(train_dataset.encoder.categories_[0])
         ts_embedding_dim=config['training']['ts_embedding_dim'],

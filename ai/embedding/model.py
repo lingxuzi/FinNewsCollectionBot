@@ -44,7 +44,7 @@ class ResidualMLPBlock(nn.Module):
 # --- 2. MultiModalAutoencoder (带注意力 & 强化预测 & Batch Norm) ---
 class MultiModalAutoencoder(nn.Module):
     def __init__(self, ts_input_dim, ctx_input_dim, ts_embedding_dim, ctx_embedding_dim, 
-                 hidden_dim, num_layers, predict_dim, attention_dim=64, 
+                 hidden_dim, num_layers, predict_dim, attention_dim=64, seq_len=30,
                  dropout_rate=0.1):
         super().__init__()
 
@@ -57,17 +57,12 @@ class MultiModalAutoencoder(nn.Module):
         self.total_embedding_dim = ts_embedding_dim + ctx_embedding_dim
 
         # --- 分支1: 时序编码器 (LSTM) ---
-        self.ts_encoder = nn.LSTM(ts_input_dim, hidden_dim, num_layers, batch_first=True)    
+        self.ts_encoder = nn.LSTM(ts_input_dim, hidden_dim, num_layers, batch_first=True)
         self.ts_encoder_fc = nn.Linear(hidden_dim, ts_embedding_dim)
         self.ts_encoder_dropout = nn.Dropout(self.dropout_rate)
 
         # --- 分支2: 上下文编码器 (MLP) ---
         # 增加 Batch Normalization
-        self.ctx_encoder = nn.Sequential(
-            nn.Linear(ctx_input_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, ctx_embedding_dim)
-        )
         self.ctx_encoder = ResidualMLPBlock(ctx_input_dim, hidden_dim, ctx_embedding_dim, dropout_rate=0, use_batchnorm=True)
 
         # --- 注意力机制 ---

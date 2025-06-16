@@ -4,42 +4,42 @@ import torch.nn.functional as F
 
 # --- 1. 多尺度时序特征提取器 ---
 class MultiScaleTemporalExtractor(nn.Module):
-    def __init__(self, input_dim, hidden_dim, num_layers=2, dropout=0.2):
+    def __init__(self, input_dim, hidden_dim):
         super().__init__()
         
         # 不同时间尺度的特征提取
         self.short_term = nn.Sequential(
             nn.Conv1d(input_dim, hidden_dim//2, kernel_size=3, padding=1),
             nn.BatchNorm1d(hidden_dim//2),
-            nn.GELU(),
+            nn.ReLU(),
             nn.Conv1d(hidden_dim//2, hidden_dim, kernel_size=3, padding=1),
             nn.BatchNorm1d(hidden_dim),
-            nn.GELU()
+            nn.ReLU()
         )
         
         self.medium_term = nn.Sequential(
             nn.Conv1d(input_dim, hidden_dim//2, kernel_size=7, padding=3),
             nn.BatchNorm1d(hidden_dim//2),
-            nn.GELU(),
+            nn.ReLU(),
             nn.Conv1d(hidden_dim//2, hidden_dim, kernel_size=7, padding=3),
             nn.BatchNorm1d(hidden_dim),
-            nn.GELU()
+            nn.ReLU()
         )
         
         self.long_term = nn.Sequential(
             nn.Conv1d(input_dim, hidden_dim//2, kernel_size=15, padding=7),
             nn.BatchNorm1d(hidden_dim//2),
-            nn.GELU(),
+            nn.ReLU(),
             nn.Conv1d(hidden_dim//2, hidden_dim, kernel_size=15, padding=7),
             nn.BatchNorm1d(hidden_dim),
-            nn.GELU()
+            nn.ReLU()
         )
         
         # 特征融合
         self.fusion = nn.Conv1d(hidden_dim*3, hidden_dim, kernel_size=1)
         self.attention = nn.Sequential(
             nn.Conv1d(hidden_dim, hidden_dim//4, kernel_size=1),
-            nn.GELU(),
+            nn.ReLU(),
             nn.Conv1d(hidden_dim//4, hidden_dim, kernel_size=1),
             nn.Sigmoid()
         )
@@ -76,11 +76,11 @@ class StockTemporalDecoder(nn.Module):
             # 捕获短期依赖
             nn.Conv1d(hidden_dim, hidden_dim, kernel_size=3, padding=1),
             nn.BatchNorm1d(hidden_dim),
-            nn.GELU(),
+            nn.ReLU(),
             # 捕获中期依赖
             nn.Conv1d(hidden_dim, hidden_dim, kernel_size=7, padding=3),
             nn.BatchNorm1d(hidden_dim),
-            nn.GELU(),
+            nn.ReLU(),
             # 最终输出层
             nn.Conv1d(hidden_dim, output_dim, kernel_size=1)
         )
@@ -156,12 +156,14 @@ class FeatureFusion(nn.Module):
 
 # --- 5. 股票多模态自编码器 ---
 class StockMultiModalAutoencoder(nn.Module):
-    def __init__(self, ts_input_dim, ctx_input_dim, embedding_dim=64, 
+    def __init__(self, ts_input_dim, ctx_input_dim, ts_embedding_dim=64, ctx_embedding_dim=64, num_layers=2, attention_dim=64,
                  hidden_dim=128, seq_len=30, predict_dim=1, dropout_rate=0.1):
         super().__init__()
         
         self.dropout_rate = dropout_rate
-        self.embedding_dim = embedding_dim
+        self.ts_embedding_dim = ts_embedding_dim
+        self.ctx_embedding_dim = ctx_embedding_dim
+        self.final_embedding_dim = ts_embedding_dim + ctx_embedding_dim
         self.seq_len = seq_len
         
         # --- 时序编码器 ---
@@ -169,7 +171,7 @@ class StockMultiModalAutoencoder(nn.Module):
         
         # 时序特征池化和投影
         self.ts_pooling = nn.AdaptiveAvgPool1d(1)
-        self.ts_proj = nn.Linear(hidden_dim, embedding_dim)
+        self.ts_proj = nn.Linear(hidden_dim, ts_embedding_dim)
         
         # 时序注意力
         self.ts_attention = LightweightAttention(hidden_dim, num_heads=4)
@@ -178,37 +180,37 @@ class StockMultiModalAutoencoder(nn.Module):
         self.ctx_encoder = nn.Sequential(
             nn.Linear(ctx_input_dim, hidden_dim//2),
             nn.BatchNorm1d(hidden_dim//2),
-            nn.GELU(),
+            nn.ReLU(),
             nn.Dropout(dropout_rate),
             nn.Linear(hidden_dim//2, hidden_dim),
             nn.BatchNorm1d(hidden_dim),
-            nn.GELU(),
+            nn.ReLU(),
             nn.Dropout(dropout_rate)
         )
-        self.ctx_proj = nn.Linear(hidden_dim, embedding_dim)
+        self.ctx_proj = nn.Linear(hidden_dim, ctx_embedding_dim)
         
         # --- 特征融合 ---
-        self.feature_fusion = FeatureFusion(embedding_dim, embedding_dim, embedding_dim)
+        self.feature_fusion = FeatureFusion(ts_embedding_dim, ctx_embedding_dim, self.final_embedding_dim)
         
         # --- 时序解码器 ---
-        self.ts_decoder = StockTemporalDecoder(embedding_dim, ts_input_dim, hidden_dim, seq_len)
+        self.ts_decoder = StockTemporalDecoder(ts_embedding_dim, ts_input_dim, hidden_dim, seq_len)
         
         # --- 上下文解码器 ---
         self.ctx_decoder = nn.Sequential(
-            nn.Linear(embedding_dim, hidden_dim),
+            nn.Linear(ctx_embedding_dim, hidden_dim),
             nn.BatchNorm1d(hidden_dim),
-            nn.GELU(),
+            nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim//2),
             nn.BatchNorm1d(hidden_dim//2),
-            nn.GELU(),
+            nn.ReLU(),
             nn.Linear(hidden_dim//2, ctx_input_dim)
         )
         
         # --- 预测器 ---
         self.predictor = nn.Sequential(
-            nn.Linear(embedding_dim, hidden_dim//2),
+            nn.Linear(self.final_embedding_dim, hidden_dim//2),
             nn.BatchNorm1d(hidden_dim//2),
-            nn.GELU(),
+            nn.ReLU(),
             nn.Dropout(dropout_rate),
             nn.Linear(hidden_dim//2, predict_dim)
         )
@@ -247,14 +249,14 @@ class StockMultiModalAutoencoder(nn.Module):
         ctx_embedding = self.ctx_proj(ctx_features)  # [batch_size, embedding_dim]
         
         # 3. 特征融合
-        fused_embedding = self.feature_fusion(ts_embedding, ctx_embedding)
+        fused_embedding = torch.cat([ts_embedding, ctx_embedding], dim=1) #self.feature_fusion(, ctx_embedding)
         
         # --- 解码过程 ---
         # 1. 时序重构
-        ts_output = self.ts_decoder(fused_embedding)
+        ts_output = self.ts_decoder(ts_embedding)
         
         # 2. 上下文重构
-        ctx_output = self.ctx_decoder(fused_embedding)
+        ctx_output = self.ctx_decoder(ctx_embedding)
         
         # 3. 预测
         predict_output = self.predictor(fused_embedding)
