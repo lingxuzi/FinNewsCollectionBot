@@ -96,6 +96,10 @@ class DataPrefetcher():
                     data[k] = v.cuda(non_blocking=True)
                 else:
                     data[k] = self.parse_data_to_cuda(v)
+        elif isinstance(data, tuple):
+            data = tuple(self.parse_data_to_cuda(item) for item in data)
+        elif isinstance(data, str):
+            pass
         else:
             data = data.cuda(non_blocking=True)
         return data

@@ -88,6 +88,8 @@ class KlineDataset(Dataset):
             self.ts_sequences = [] # 时间序列部分
             self.ctx_sequences = [] # 上下文部分
             self.labels = []
+            self.date_ranges = []  # 用于存储日期范围
+            self.codes = []
 
             # for code in tqdm(stock_list, desc="Processing stocks"):
             i = 0
@@ -96,22 +98,25 @@ class KlineDataset(Dataset):
                 for future in tqdm(as_completed(futures), total=len(futures), desc="Generating sequences and caching"):
                     code = futures[future]
                     try:
-                        ts_seq, ctx_seq, labels = future.result()
+                        ts_seq, ctx_seq, labels, date_range, codes = future.result()
                         if ts_seq is not None:
                             self.ts_sequences.extend(ts_seq)
                             self.ctx_sequences.extend(ctx_seq)
                             self.labels.extend(labels)
+                            self.date_ranges.extend(date_range)
+                            self.codes.extend(codes)
                     except Exception as e:
                         print(f"Error processing stock {code}: {e}")
             # 3. 清理内存
-            for i, (ts_seq, ctx_seq, label) in tqdm(enumerate(zip(self.ts_sequences, self.ctx_sequences, self.labels)), desc="Caching sequences"):
-                self.cache.set(f'seq_{i}', (ts_seq, ctx_seq, label))
+            for i, (ts_seq, ctx_seq, label, date_range, code) in tqdm(enumerate(zip(self.ts_sequences, self.ctx_sequences, self.labels, self.date_ranges, self.codes)), desc="Caching sequences"):
+                self.cache.set(f'seq_{i}', (ts_seq, ctx_seq, label, date_range, code))
             self.cache.set('total_count', len(self.ts_sequences))
             print(f"Total sequences cached: {self.cache.get('total_count')}")
             del all_data_df  # 释放内存
             del self.ts_sequences
             del self.ctx_sequences
             del self.labels
+            del self.date_ranges
             if self.cache_method == 'lmdb':
                 self.cache.commit()  # 确保所有数据都已写入LMDB
         
@@ -123,13 +128,15 @@ class KlineDataset(Dataset):
         ts_sequences = [] # 时间序列部分
         ctx_sequences = [] # 上下文部分
         labels = []
+        date_range = []
 
         stock_data = all_data_df[all_data_df['code'] == code]
         stock_labels = stock_data['label'].to_numpy()
         featured_stock_data = stock_data[self.features].to_numpy()
         numerical_stock_data = stock_data[self.numerical].to_numpy()
+        date = stock_data['date']
         if len(stock_data) < self.seq_length:
-            return None, None, None
+            return None, None, None, None, None
         for i in range(len(stock_data) - self.seq_length + 1):
             # 时间序列部分 (例如: OHLCV, RSI, MACD)
             ts_sequences.append(featured_stock_data[i:i + self.seq_length])
@@ -138,10 +145,11 @@ class KlineDataset(Dataset):
             context_numerical = numerical_stock_data[i + self.seq_length - 1]
             context_categorical = encoded_categorical[i + self.seq_length - 1]
             ctx_sequences.append(np.concatenate([context_numerical, np.asarray([context_categorical])]))
+            date_range.append((str(date.iloc[i].date()), str(date.iloc[i + self.seq_length - 1].date())))
             # self.ctx_sequences.append(context_numerical)
 
             labels.append(stock_labels[i + self.seq_length - 1])
-        return ts_sequences, ctx_sequences, labels
+        return ts_sequences, ctx_sequences, labels, date_range, [code] * len(ts_sequences)
 
     def parallel_process(self, func, num_workers=4):
         """
@@ -159,7 +167,7 @@ class KlineDataset(Dataset):
     
     def __getitem__(self, idx):
         # t = time.time()
-        ts_seq, ctx_seq, label = self.cache.get(f'seq_{idx}')
+        ts_seq, ctx_seq, label, date_range, code = self.cache.get(f'seq_{idx}')
         # print(f"Cache access time: {time.time() - t:.4f} seconds")
         if ts_seq is None or ctx_seq is None or label is None:
             raise IndexError("Index out of range or data not found in cache.")
@@ -176,5 +184,7 @@ class KlineDataset(Dataset):
         return (
             torch.FloatTensor(ts_seq),
             torch.FloatTensor(ctx_seq),
-            torch.FloatTensor([label])
+            torch.FloatTensor([label]),
+            date_range,
+            code
         )

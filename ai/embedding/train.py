@@ -69,8 +69,8 @@ def run_training(config):
     eval_dataset = KlineDataset(
         cache=config['data']['cache'],
         db_path=config['data']['db_path'],
-        stock_list_file=config['data']['eval']['stock_list_file'],
-        hist_data_file=config['data']['eval']['hist_data_file'],
+        stock_list_file=config['data']['test']['stock_list_file'],
+        hist_data_file=config['data']['test']['hist_data_file'],
         seq_length=config['training']['sequence_length'],
         features=config['data']['features'],
         numerical=config['data']['numerical'],
@@ -78,7 +78,7 @@ def run_training(config):
         scaler=scaler,
         encoder=encoder,
         is_train=False,
-        tag='eval'
+        tag='test'
     )
 
     train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=True)
@@ -133,7 +133,7 @@ def run_training(config):
         # 使用tqdm显示进度条
         pbar = tqdm(range(num_iters_per_epoch(train_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training]")
         for _ in pbar:
-            ts_sequences, ctx_sequences, y = train_iter.next()
+            ts_sequences, ctx_sequences, y, _, _ = train_iter.next()
             # ts_sequences = ts_sequences.to(device)
             # ctx_sequences = ctx_sequences.to(device)
             # y = y.to(device)
@@ -171,7 +171,7 @@ def run_training(config):
                 # ts_sequences = ts_sequences.to(device)
                 # ctx_sequences = ctx_sequences.to(device)
                 # y = y.to(device)
-                ts_sequences, ctx_sequences, y = val_iter.next()
+                ts_sequences, ctx_sequences, y, _, _ = val_iter.next()
                 ts_reconstructed, ctx_reconstructed, pred, _ = _model(ts_sequences, ctx_sequences)
                 loss_ts = criterion_ts(ts_reconstructed, ts_sequences)
                 loss_ctx = criterion_ctx(ctx_reconstructed, ctx_sequences)
@@ -249,8 +249,8 @@ def run_eval(config):
     test_dataset = KlineDataset(
         cache=config['data']['cache'],
         db_path=config['data']['db_path'],
-        stock_list_file=config['data']['test']['stock_list_file'],
-        hist_data_file=config['data']['test']['hist_data_file'],
+        stock_list_file=config['data']['eval']['stock_list_file'],
+        hist_data_file=config['data']['eval']['hist_data_file'],
         seq_length=config['training']['sequence_length'],
         features=config['data']['features'],
         numerical=config['data']['numerical'],
@@ -293,7 +293,7 @@ def run_eval(config):
             # ctx_sequences = ctx_sequences.to(device)
             # y = y.to(device)
 
-            ts_sequences, ctx_sequences, y = test_iter.next()
+            ts_sequences, ctx_sequences, y, _, _ = test_iter.next()
             ts_reconstructed, ctx_reconstructed, pred, _ = model(ts_sequences, ctx_sequences)
             truth.append(y.cpu().numpy())
             preds.append(pred.cpu().numpy())
