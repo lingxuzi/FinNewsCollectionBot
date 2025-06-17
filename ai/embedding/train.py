@@ -97,7 +97,9 @@ def run_training(config):
         seq_len=config['training']['sequence_length'],
         num_layers=config['training']['num_layers'],
         predict_dim=config['training']['predict_dim'],
-        attention_dim=config['training']['attention_dim']
+        attention_dim=config['training']['attention_dim'],
+        noise_level=config['data']['noise_level'],
+        noise_prob=config['data']['noise_prob']
     )
 
     ema = ModelEmaV2(model, decay=0.9999, device=device)
@@ -224,6 +226,7 @@ def run_training(config):
     run_eval(config)
 
 def run_eval(config):
+    device = torch.device(config['device'] if torch.cuda.is_available() else "cpu")
     config['data']['db_path'] = os.path.join(BASE_DIR, config['data']['db_path'])
     scaler_path = os.path.join(config['data']['db_path'], 'scaler.joblib')
     encoder_path = os.path.join(config['data']['db_path'], 'encoder.joblib')
@@ -312,5 +315,6 @@ def run_eval(config):
 
         ctx_recon = np.concatenate(ctx_reconstructed_list)
         ctx_recon = ctx_recon.reshape(-1, ctx_recon.shape[-1])
+        ctx_recon[:, -1] = np.round(ctx_recon[:, -1], 2)
         r2_ctx_recon = r2_score(ctx_true, ctx_recon)
         print(f"Test R2 Score = {r2} Test R2 Recon Score = {r2_recon}, R2 CTX Recon Score = {r2_ctx_recon}")

@@ -36,7 +36,30 @@ training:
   model_save_path: "../fin_models/kline_encoder.pth"
   pretrained_path: "../fin_models/kline_pretrained.pth"
   processed_data_cache_path: "../fin_train_cache/"
+  data:
+    stock_list_file: "train_stocks.txt"
+    hist_data_file: 'fundamental_train.pkl'
+    features: ['open', 'high', 'low', 'close', 'volume', 'turn_over', 'MA5', 'MA10', 'MA20', 'RSI', 'MACD']
+    numerical: ['pe_ttm', 'pb', 'ps_ttm', 'pcf_ncf_ttm', 'ATR', 'OBV', 'CCI', 'ADX', 'vwap']
+    categorical: ['industry']
   load_pretrained: false
 
 # --- 设备配置 ---
 device: "cuda"              # 如果有GPU则使用cuda，否则使用cpu
+
+embedding:
+  cache: 'diskcache'
+  data:
+    stock_list_file: "train_stocks.txt"
+    hist_data_file: 'fundamental_train.pkl'
+    features: ['open', 'high', 'low', 'close', 'volume', 'turn_over', 'MA5', 'MA10', 'MA20', 'RSI', 'MACD']
+    numerical: ['pe_ttm', 'pb', 'ps_ttm', 'pcf_ncf_ttm', 'ATR', 'OBV', 'CCI', 'ADX', 'vwap']
+    categorical: ['industry']
+  model:
+    sequence_length: 50       # K线序列长度
+    ts_embedding_dim: 128         # 向量维度
+    ctx_embedding_dim: 64         # 向量维度
+    hidden_dim: 64           # LSTM隐藏层维度
+    num_layers: 2             # LSTM层数
+    predict_dim: 1            # 预测分支
+    attention_dim: 64            # 预测分支

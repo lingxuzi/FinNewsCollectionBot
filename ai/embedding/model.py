@@ -44,7 +44,7 @@ class ResidualMLPBlock(nn.Module):
 # --- 2. MultiModalAutoencoder (带注意力 & 强化预测 & Batch Norm) ---
 class MultiModalAutoencoder(nn.Module):
     def __init__(self, ts_input_dim, ctx_input_dim, ts_embedding_dim, ctx_embedding_dim, 
-                 hidden_dim, num_layers, predict_dim, attention_dim=64, seq_len=30,
+                 hidden_dim, num_layers, predict_dim, attention_dim=64, seq_len=30, noise_level=0,noise_prob=0.1,
                  dropout_rate=0.1):
         super().__init__()
 
@@ -53,6 +53,8 @@ class MultiModalAutoencoder(nn.Module):
             raise ValueError("dropout_rate 必须在 0 到 1 之间。")
             
         self.dropout_rate = dropout_rate
+        self.noise_level = noise_level
+        self.noise_prob = noise_prob
         
         self.total_embedding_dim = ts_embedding_dim + ctx_embedding_dim
 
@@ -89,7 +91,7 @@ class MultiModalAutoencoder(nn.Module):
         #     nn.ReLU(),
         #     nn.Linear(hidden_dim, ctx_input_dim)
         # )
-        self.ctx_decoder = ResidualMLPBlock(self.total_embedding_dim, hidden_dim, ctx_input_dim, dropout_rate=0)
+        self.ctx_decoder = ResidualMLPBlock(self.total_embedding_dim, hidden_dim, ctx_input_dim, dropout_rate=0.2)
 
         # self.predictor = nn.Sequential(
         #     nn.Linear(self.predictor_input_dim, hidden_dim),
@@ -121,6 +123,18 @@ class MultiModalAutoencoder(nn.Module):
 
 
     def forward(self, x_ts, x_ctx):
+        if self.training:
+            if torch.rand(1).item() < self.noise_prob:
+                # 添加噪声
+                # 这里假设 x_ts 是一个形状为 (batch_size, seq_len, feature_dim) 的张量
+                # 如果 x_ts 是一个一维时间序列，则需要调整噪声的形状
+                noise = torch.normal(0, self.noise_level, size=x_ts.size(), device=x_ts.device)
+                x_ts = x_ts + noise
+            if torch.rand(1).item() < self.noise_prob:
+                # 添加噪声
+                noise = torch.normal(0, self.noise_level, size=x_ctx.size(), device=x_ctx.device)
+                x_ctx = x_ctx + noise
+                
         # --- 编码过程 ---
         # 1. 时序编码
         ts_encoder_outputs, (ts_h_n, ts_c_n) = self.ts_encoder(x_ts)
