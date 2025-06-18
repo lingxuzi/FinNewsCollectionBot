@@ -114,7 +114,7 @@ def run_training(config):
     
     model = model.to(device)
 
-    criterion_ts = nn.HuberLoss(delta=0.1) # 均方误差损失
+    criterion_ts = nn.HuberLoss(delta=0.1, reduction='none') # 均方误差损失
     criterion_ctx = nn.HuberLoss(delta=0.1) # 均方误差损失
     criterion_predict = nn.HuberLoss(delta=0.1) # 均方误差损失
     alpha = config['training']['alpha']  # ctx loss weight
@@ -143,7 +143,10 @@ def run_training(config):
             optimizer.zero_grad()
             ts_reconstructed, ctx_reconstructed, pred, _, ts_mask = model(ts_sequences, ctx_sequences)
             loss_ts = criterion_ts(ts_reconstructed, ts_sequences)
-            masked_ts_loss = (loss_ts * ts_mask.unsqueeze(-1)).sum() / ts_mask.sum()
+            if ts_mask is not None:
+                masked_ts_loss = (loss_ts * ts_mask.unsqueeze(-1)).sum() / ts_mask.sum()
+            else:
+                masked_ts_loss = loss_ts.mean()
             loss_ctx = criterion_ctx(ctx_reconstructed, ctx_sequences)
             loss_pred = criterion_predict(pred, y)
             total_loss = masked_ts_loss + alpha * loss_ctx + beta * loss_pred
