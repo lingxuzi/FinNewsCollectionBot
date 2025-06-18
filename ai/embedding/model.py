@@ -44,7 +44,7 @@ class ResidualMLPBlock(nn.Module):
 # --- 2. MultiModalAutoencoder (带注意力 & 强化预测 & Batch Norm) ---
 class MultiModalAutoencoder(nn.Module):
     def __init__(self, ts_input_dim, ctx_input_dim, ts_embedding_dim, ctx_embedding_dim, 
-                 hidden_dim, num_layers, predict_dim, attention_dim=64, seq_len=30, noise_level=0,noise_prob=0.1,
+                 hidden_dim, num_layers, predict_dim, attention_dim=64, seq_len=30, noise_level=0,noise_prob=0.1, ts_masking_ratio=0.75,
                  dropout_rate=0.1):
         super().__init__()
 
@@ -83,6 +83,12 @@ class MultiModalAutoencoder(nn.Module):
         self.ts_decoder = nn.LSTM(self.ts_decoder_input_dim_with_attention, hidden_dim, num_layers, 
                                   batch_first=True)
         self.ts_output_layer = nn.Linear(hidden_dim, ts_input_dim)
+
+        # <<< MAE MODIFICATION START >>>
+        # Learnable token to represent masked patches in the decoder input
+        self.mask_token = nn.Parameter(torch.zeros(1, 1, self.ts_decoder_input_dim_with_attention))
+        torch.nn.init.normal_(self.mask_token, std=.02)
+        # <<< MAE MODIFICATION END >>>
         
         # 上下文解码器
         # 增加 Batch Normalization
@@ -106,6 +112,8 @@ class MultiModalAutoencoder(nn.Module):
         self.initialize_prediction_head(self.ts_output_layer)
         self.initialize_prediction_head(self.ctx_decoder.p[-1])
         self.initialize_prediction_head(self.predictor.p[-1])
+        self.ts_encoder.flatten_parameters()
+        self.ts_decoder.flatten_parameters()
 
 
     def initialize_prediction_head(self, module):
@@ -134,6 +142,31 @@ class MultiModalAutoencoder(nn.Module):
                 # 添加噪声
                 noise = torch.normal(0, self.noise_level, size=x_ctx.size(), device=x_ctx.device)
                 x_ctx = x_ctx + noise
+
+        # <<< MAE MODIFICATION START >>>
+        # --- MAE Masking for Time-Series Input ---
+        ts_mask = None
+        if self.training and self.ts_masking_ratio > 0:
+            batch_size, seq_len, _ = x_ts.shape
+            num_masked = int(self.ts_masking_ratio * seq_len)
+            
+            # Generate random indices to mask for each sample in the batch
+            masked_indices = torch.rand(batch_size, seq_len, device=x_ts.device).argsort(dim=-1)
+            masked_indices = masked_indices[:, :num_masked]
+
+            # Create the boolean mask for loss calculation later
+            ts_mask = torch.zeros(batch_size, seq_len, dtype=torch.bool, device=x_ts.device)
+            ts_mask.scatter_(1, masked_indices, True)
+
+            # Create the input for the encoder by removing the masked elements
+            # We create a boolean mask for selection
+            unmasked_mask = ~ts_mask
+            # We need to reshape x_ts and unmasked_mask to use boolean_mask
+            x_ts_unmasked = x_ts[unmasked_mask].reshape(batch_size, seq_len - num_masked, -1)
+        else:
+            # If not training or no masking, use the full sequence
+            x_ts_unmasked = x_ts
+        # <<< MAE MODIFICATION END >>>
                 
         # --- 编码过程 ---
         # 1. 时序编码
@@ -157,9 +190,37 @@ class MultiModalAutoencoder(nn.Module):
         ts_decoder_base_input = self.ts_decoder_projection(final_embedding) 
         
         ts_decoder_input_concat = torch.cat([ts_decoder_base_input, context_vector], dim=1)
-        ts_decoder_input_repeated = ts_decoder_input_concat.unsqueeze(1).repeat(1, x_ts.size(1), 1)
+        # ts_decoder_input_repeated = ts_decoder_input_concat.unsqueeze(1).repeat(1, x_ts.size(1), 1)
+
+        # <<< MAE MODIFICATION START >>>
+        # --- Prepare Full Sequence for Decoder (Unmasking) ---
+        if self.training and self.ts_masking_ratio > 0:
+            batch_size, seq_len, _ = x_ts.shape
+            num_masked = int(self.ts_masking_ratio * seq_len)
+
+            # Create a full sequence of mask tokens
+            decoder_full_sequence = self.mask_token.repeat(batch_size, seq_len, 1)
+
+            # Get the indices of the unmasked elements
+            unmasked_indices = torch.where(~ts_mask)[1].reshape(batch_size, -1)
+            
+            # Scatter the processed unmasked tokens back into the full sequence
+            # We need to expand unmasked_indices to match the dimension of decoder_full_sequence
+            unmasked_indices_expanded = unmasked_indices.unsqueeze(-1).expand(-1, -1, decoder_full_sequence.size(2))
+            
+            # The processed tokens are repeated for each time step in the original implementation
+            ts_decoder_input_repeated_unmasked = ts_decoder_input_concat.unsqueeze(1).repeat(1, seq_len - num_masked, 1)
+            
+            # Place the unmasked tokens into their original positions
+            decoder_full_sequence.scatter_(1, unmasked_indices_expanded, ts_decoder_input_repeated_unmasked)
+            
+            ts_decoder_input = decoder_full_sequence
+        else:
+            # Original behavior when not masking
+            ts_decoder_input = ts_decoder_input_concat.unsqueeze(1).repeat(1, x_ts.size(1), 1)
+        # <<< MAE MODIFICATION END >>>
         
-        ts_reconstructed, _ = self.ts_decoder(ts_decoder_input_repeated)
+        ts_reconstructed, _ = self.ts_decoder(ts_decoder_input)
         ts_output = self.ts_output_layer(ts_reconstructed)
         
         # 2. 上下文重构
@@ -168,7 +229,7 @@ class MultiModalAutoencoder(nn.Module):
         # --- 3. 预测分支 ---
         predict_output = self.predictor(final_embedding.detach())
         
-        return ts_output, ctx_output, predict_output, final_embedding
+        return ts_output, ctx_output, predict_output, final_embedding, x_ts_unmasked, ts_mask
 
     def get_embedding(self, x_ts, x_ctx):
         """用于推理的函数，只返回融合后的embedding。"""
