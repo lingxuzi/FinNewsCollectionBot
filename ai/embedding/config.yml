@@ -34,16 +34,12 @@ training:
   min_learning_rate: 0.00001
   batch_size: 1024
   num_epochs: 200
+  alpha: 0.2
+  beta: 0.2
   validation_split: 0.2     # 验证集比例
   model_save_path: "../fin_models/kline_encoder.pth"
   pretrained_path: "../fin_models/kline_pretrained.pth"
   processed_data_cache_path: "../fin_train_cache/"
-  data:
-    stock_list_file: "train_stocks.txt"
-    hist_data_file: 'fundamental_train.pkl'
-    features: ['open', 'high', 'low', 'close', 'volume', 'turn_over', 'MA5', 'MA10', 'MA20', 'RSI', 'MACD']
-    numerical: ['pe_ttm', 'pb', 'ps_ttm', 'pcf_ncf_ttm', 'ATR', 'OBV', 'CCI', 'ADX', 'vwap']
-    categorical: ['industry']
   load_pretrained: true
 
 # --- 设备配置 ---
