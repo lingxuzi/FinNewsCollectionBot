@@ -55,6 +55,7 @@ class MultiModalAutoencoder(nn.Module):
         self.dropout_rate = dropout_rate
         self.noise_level = noise_level
         self.noise_prob = noise_prob
+        self.ts_masking_ratio = ts_masking_ratio
         
         self.total_embedding_dim = ts_embedding_dim + ctx_embedding_dim
 
