@@ -62,8 +62,12 @@ def run(config):
         attention_dim=config['embedding']['model']['attention_dim']
     )
     device = torch.device(config['embedding']['device'] if torch.cuda.is_available() else "cpu")
+    print('Loading model from:', config['embedding']['model']['model_path'])
+    ckpt = torch.load(config['embedding']['model']['model_path'], map_location='cpu')
+    model.load_state_dict(ckpt, strict=False)
     model.to(device)
-
+    print('Model loaded successfully.')
+    
     with torch.inference_mode():
         for stock_list_file, hist_data_file, tag in zip(config['embedding']['data']['stock_list_files'], config['embedding']['data']['hist_data_files'], config['embedding']['data']['tags']):
             dataset = KlineDataset(

@@ -83,7 +83,7 @@ def run_training(config):
         tag='test'
     )
 
-    train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=False, drop_last=True)
+    train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=True, drop_last=True)
     val_loader = DataLoader(eval_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=False, drop_last=True)
 
     
@@ -102,7 +102,7 @@ def run_training(config):
         attention_dim=config['training']['attention_dim'],
         noise_level=config['data']['noise_level'],
         noise_prob=config['data']['noise_prob'],
-        ts_masking_ratio=config['data']['ts_masking_ratio']
+        ts_masking_ratio=config['data']['ts_masking_ratio'],
         dropout_rate=config['training']['dropout']
     )
 
@@ -291,7 +291,7 @@ def run_eval(config):
 
     device = torch.device(config['device'] if torch.cuda.is_available() else "cpu")
     state_dict = torch.load(config['training']['model_save_path'], map_location=device)
-    model.load_state_dict(state_dict)
+    model.load_state_dict(state_dict, strict=False)
     model.eval()
     truth = []
     preds = []

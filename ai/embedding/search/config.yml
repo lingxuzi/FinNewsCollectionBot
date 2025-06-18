@@ -3,6 +3,8 @@ embedding:
   cache: 'diskcache'
   index_db: 'tcp://localhost:19531/kline_embedding'
   collection_name: 'kline_embedding'
+  ann_field: 'embedding'
+  metric_type: 'COSINE'  # Inner Product
   batch_size: 1024
   data:
     scaler_path: '../hamuna_stock_data/train_data/hist/scaler.joblib'

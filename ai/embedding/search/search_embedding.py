@@ -19,4 +19,9 @@ def init_indexer(index_db):
 def run(config):
     client = init_indexer(config['embedding']['index_db'])
 
-    client.query(config['embedding']['collection_name'], )
+    client.search(config['embedding']['collection_name'], 
+                  limit=10,
+                  anns_field=config['embedding']['ann_field'],
+                  search_params={
+                      'metric_type': config['embedding']['metric_type'],
+                  })

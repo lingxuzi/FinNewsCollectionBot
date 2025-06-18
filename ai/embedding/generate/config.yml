@@ -22,3 +22,4 @@ embedding:
     num_layers: 2             # LSTM层数
     predict_dim: 1            # 预测分支
     attention_dim: 64            # 预测分支
+    model_path: "../fin_models/kline_encoder.pth"
