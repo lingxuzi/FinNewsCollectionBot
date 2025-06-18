@@ -101,7 +101,8 @@ def run_training(config):
         predict_dim=config['training']['predict_dim'],
         attention_dim=config['training']['attention_dim'],
         noise_level=config['data']['noise_level'],
-        noise_prob=config['data']['noise_prob']
+        noise_prob=config['data']['noise_prob'],
+        ts_masking_ratio=config['data']['ts_masking_ratio']
     )
 
     ema = ModelEmaV2(model, decay=0.9999, device=device)

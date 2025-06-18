@@ -124,8 +124,8 @@ class MultiModalAutoencoder(nn.Module):
         """
         print("🧠 Initializing prediction head for faster convergence...")
         if isinstance(module, nn.Linear):
-            nn.init.normal_(module.weight)
-            nn.init.normal_(module.bias)
+            nn.init.zeros_(module.weight)
+            nn.init.zeros_(module.bias)
             print(f"   -> Linear layer {module} has been zero-initialized.")
         else:
             print(f"   -> Module {type(module)} is not a Linear layer, skipping zero-initialization.")
