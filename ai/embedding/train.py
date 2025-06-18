@@ -109,7 +109,7 @@ def run_training(config):
 
     if config['training']['load_pretrained']:
         state_dict = torch.load(config['training']['pretrained_path'], map_location='cpu')
-        model.load_state_dict(state_dict)
+        model.load_state_dict(state_dict, strict=False)
         print('pretrain loaded')
     
     model = model.to(device)
