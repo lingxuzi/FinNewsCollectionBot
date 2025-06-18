@@ -34,7 +34,7 @@ def build_historical_stock_db(task, opts):
     codes = []
     
     stock_list = source.get_stock_list()
-    stock_list = stock_list[:100]
+    # stock_list = stock_list[:100]
     with ProcessPoolExecutor(max_workers=opts.workers) as executor:
         futures = {executor.submit(source.get_kline_daily, code, task_map[task]['start_date'], task_map[task]['end_date'], True, True): code for code in stock_list['code']}
         for future in tqdm(as_completed(futures), desc='获取股票数据', ncols=120):
