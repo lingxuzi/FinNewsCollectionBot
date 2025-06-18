@@ -230,7 +230,7 @@ class MultiModalAutoencoder(nn.Module):
         # --- 3. 预测分支 ---
         predict_output = self.predictor(final_embedding.detach())
         
-        return ts_output, ctx_output, predict_output, final_embedding, x_ts_unmasked, ts_mask
+        return ts_output, ctx_output, predict_output, final_embedding, ts_mask
 
     def get_embedding(self, x_ts, x_ctx):
         """用于推理的函数，只返回融合后的embedding。"""

@@ -63,6 +63,7 @@ def run_training(config):
         encoder=encoder,
         noise_prob=config['data']['noise_prob'],
         noise_level=config['data']['noise_level'],
+        include_meta=config['data']['include_meta'],
         tag='train'
     )
 
@@ -75,6 +76,7 @@ def run_training(config):
         features=config['data']['features'],
         numerical=config['data']['numerical'],
         categorical=config['data']['categorical'],
+        include_meta=config['data']['include_meta'],
         scaler=scaler,
         encoder=encoder,
         is_train=False,
@@ -138,13 +140,12 @@ def run_training(config):
             # ctx_sequences = ctx_sequences.to(device)
             # y = y.to(device)
             optimizer.zero_grad()
-            ts_reconstructed, ctx_reconstructed, pred, _, x_ts_original, ts_mask = model(ts_sequences, ctx_sequences)
-            per_element_ts_loss = criterion_ctx(ts_reconstructed, x_ts_original)
-            masked_ts_loss = (per_element_ts_loss * ts_mask.unsqueeze(-1)).sum() / ts_mask.sum()
+            ts_reconstructed, ctx_reconstructed, pred, _, ts_mask = model(ts_sequences, ctx_sequences)
             loss_ts = criterion_ts(ts_reconstructed, ts_sequences)
+            masked_ts_loss = (loss_ts * ts_mask.unsqueeze(-1)).sum() / ts_mask.sum()
             loss_ctx = criterion_ctx(ctx_reconstructed, ctx_sequences)
             loss_pred = criterion_predict(pred, y)
-            total_loss = masked_ts_loss + loss_ts + alpha * loss_ctx + beta * loss_pred
+            total_loss = masked_ts_loss + alpha * loss_ctx + beta * loss_pred
             total_loss.backward()
             optimizer.step()
 
@@ -259,6 +260,7 @@ def run_eval(config):
         features=config['data']['features'],
         numerical=config['data']['numerical'],
         categorical=config['data']['categorical'],
+        include_meta=config['data']['include_meta'],
         scaler=scaler,
         encoder=encoder,
         is_train=False,
