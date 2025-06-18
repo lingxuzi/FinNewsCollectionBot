@@ -1,10 +1,11 @@
 embedding:
   device: "cuda"
   cache: 'diskcache'
-  index_db: '../fin_index/index.db'
+  index_db: 'tcp://localhost:19531/kline_embedding'
   batch_size: 1024
   data:
     db_path: '../hamuna_stock_data/train_data/hist'
+    include_meta: true
     stock_list_files: ["eval_stocks.txt", "test_stocks.txt"]
     hist_data_files: ['fundamental_eval.pkl', 'fundamental_test.pkl']
     tags: ['eval', 'test']
