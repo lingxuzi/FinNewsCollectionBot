@@ -42,7 +42,7 @@ training:
     features: ['open', 'high', 'low', 'close', 'volume', 'turn_over', 'MA5', 'MA10', 'MA20', 'RSI', 'MACD']
     numerical: ['pe_ttm', 'pb', 'ps_ttm', 'pcf_ncf_ttm', 'ATR', 'OBV', 'CCI', 'ADX', 'vwap']
     categorical: ['industry']
-  load_pretrained: false
+  load_pretrained: true
 
 # --- 设备配置 ---
 device: "cuda"              # 如果有GPU则使用cuda，否则使用cpu
