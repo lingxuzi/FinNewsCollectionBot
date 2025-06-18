@@ -64,35 +64,35 @@ def run(config):
     device = torch.device(config['embedding']['device'] if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-    for stock_list_file, hist_data_file, tag in zip(config['embedding']['data']['stock_list_files'], config['embedding']['data']['hist_data_files'], config['embedding']['data']['tags']):
-        dataset = KlineDataset(
-            cache=config['embedding']['cache'],
-            db_path=config['embedding']['data']['db_path'],
-            stock_list_file=stock_list_file,
-            hist_data_file=hist_data_file,
-            seq_length=config['embedding']['model']['sequence_length'],
-            features=config['embedding']['data']['features'],
-            numerical=config['embedding']['data']['numerical'],
-            categorical=config['embedding']['data']['categorical'],
-            include_meta=config['embedding']['data']['include_meta'],
-            scaler=scaler,
-            encoder=encoder,
-            is_train=False,
-            tag=tag
-        )
+    with torch.inference_mode():
+        for stock_list_file, hist_data_file, tag in zip(config['embedding']['data']['stock_list_files'], config['embedding']['data']['hist_data_files'], config['embedding']['data']['tags']):
+            dataset = KlineDataset(
+                cache=config['embedding']['cache'],
+                db_path=config['embedding']['data']['db_path'],
+                stock_list_file=stock_list_file,
+                hist_data_file=hist_data_file,
+                seq_length=config['embedding']['model']['sequence_length'],
+                features=config['embedding']['data']['features'],
+                numerical=config['embedding']['data']['numerical'],
+                categorical=config['embedding']['data']['categorical'],
+                include_meta=config['embedding']['data']['include_meta'],
+                scaler=scaler,
+                encoder=encoder,
+                is_train=False,
+                tag=tag
+            )
 
-        loader = DataLoader(dataset, batch_size=config['embedding']['batch_size'], shuffle=False, num_workers=4)
+            loader = DataLoader(dataset, batch_size=config['embedding']['batch_size'], shuffle=False, num_workers=4)
 
-        for ts_sequences, ctx_sequences, y, date_range, code in tqdm(loader, desc=f"Processing {tag} data"):
-            ts_sequences = ts_sequences.to(device)
-            ctx_sequences = ctx_sequences.to(device)
-            y = y.to(device)
-            
-            start_date = [datetime.strptime(d, '%Y-%m-%d').timestamp() for d in date_range[0]]
-            end_date = [datetime.strptime(d, '%Y-%m-%d').timestamp() for d in date_range[1]]
-            industry = encoder.inverse_transform(ctx_sequences[:, -1].cpu().numpy().astype('int32'))  # 假设最后一列是行业信息
+            for ts_sequences, ctx_sequences, y, date_range, code in tqdm(loader, desc=f"Processing {tag} data"):
+                ts_sequences = ts_sequences.to(device)
+                ctx_sequences = ctx_sequences.to(device)
+                y = y.to(device)
+                
+                start_date = [datetime.strptime(d, '%Y-%m-%d').timestamp() for d in date_range[0]]
+                end_date = [datetime.strptime(d, '%Y-%m-%d').timestamp() for d in date_range[1]]
+                industry = encoder.inverse_transform(ctx_sequences[:, -1].cpu().numpy().astype('int32'))  # 假设最后一列是行业信息
 
-            with torch.no_grad():
                 _, _, predict_output, final_embedding, _ = model(ts_sequences, ctx_sequences)
 
                 data = [
@@ -111,7 +111,4 @@ def run(config):
                     data=data
                 )
 
-                # 这里可以将 embeddings 存储到 Milvus 或其他数据库中
-                # 例如：milvus_client.insert(embeddings.cpu().numpy(), ids=code.numpy(), date_range=date_range.numpy())
-
-    
+        
