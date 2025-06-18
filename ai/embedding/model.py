@@ -171,7 +171,7 @@ class MultiModalAutoencoder(nn.Module):
                 
         # --- 编码过程 ---
         # 1. 时序编码
-        ts_encoder_outputs, (ts_h_n, ts_c_n) = self.ts_encoder(x_ts)
+        ts_encoder_outputs, (ts_h_n, ts_c_n) = self.ts_encoder(x_ts_unmasked)
         ts_last_hidden_state = ts_h_n[-1, :, :]
         
         ts_embedding = self.ts_encoder_fc(ts_last_hidden_state) 
