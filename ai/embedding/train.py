@@ -20,7 +20,7 @@ from utils.common import ModelEmaV2
 
 
 def num_iters_per_epoch(loader, batch_size):
-    return len(loader) // batch_size if (len(loader) % batch_size) == 0 else len(loader) // batch_size + 1
+    return len(loader) // batch_size
 
 def run_training(config):
     """主训练函数"""
@@ -83,8 +83,8 @@ def run_training(config):
         tag='test'
     )
 
-    train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=False)
-    val_loader = DataLoader(eval_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=False, drop_last=True)
+    val_loader = DataLoader(eval_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=False, drop_last=True)
 
     
     print(f"Training data size: {len(train_dataset)}, Validation data size: {len(eval_dataset)}")

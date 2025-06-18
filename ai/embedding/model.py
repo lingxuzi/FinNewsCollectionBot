@@ -60,7 +60,7 @@ class MultiModalAutoencoder(nn.Module):
         self.total_embedding_dim = ts_embedding_dim + ctx_embedding_dim
 
         # --- 分支1: 时序编码器 (LSTM) ---
-        self.ts_encoder = nn.LSTM(ts_input_dim, hidden_dim, num_layers, batch_first=True)
+        self.ts_encoder = nn.LSTM(ts_input_dim, hidden_dim, num_layers, batch_first=True, dropout=dropout_rate if num_layers > 1 else 0)
         self.ts_encoder_fc = nn.Linear(hidden_dim, ts_embedding_dim)
         self.ts_encoder_dropout = nn.Dropout(self.dropout_rate)
 
@@ -82,7 +82,7 @@ class MultiModalAutoencoder(nn.Module):
         
         self.ts_decoder_input_dim_with_attention = hidden_dim + hidden_dim 
         self.ts_decoder = nn.LSTM(self.ts_decoder_input_dim_with_attention, hidden_dim, num_layers, 
-                                  batch_first=True)
+                                  batch_first=True, dropout=dropout_rate if num_layers > 1 else 0)
         self.ts_output_layer = nn.Linear(hidden_dim, ts_input_dim)
 
         # <<< MAE MODIFICATION START >>>
@@ -132,7 +132,7 @@ class MultiModalAutoencoder(nn.Module):
 
 
     def forward(self, x_ts, x_ctx):
-        if self.training:
+        if self.training and self.noise_level > 0:
             if torch.rand(1).item() < self.noise_prob:
                 # 添加噪声
                 # 这里假设 x_ts 是一个形状为 (batch_size, seq_len, feature_dim) 的张量
