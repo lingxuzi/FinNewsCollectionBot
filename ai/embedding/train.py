@@ -175,13 +175,12 @@ def run_training(config):
                 # ctx_sequences = ctx_sequences.to(device)
                 # y = y.to(device)
                 ts_sequences, ctx_sequences, y, _, _ = val_iter.next()
-                ts_reconstructed, ctx_reconstructed, pred, _, x_ts_original, ts_mask = model(ts_sequences, ctx_sequences)
-                per_element_ts_loss = criterion_ctx(ts_reconstructed, x_ts_original)
-                masked_ts_loss = (per_element_ts_loss * ts_mask.unsqueeze(-1)).sum() / ts_mask.sum()
+                ts_reconstructed, ctx_reconstructed, pred, _, ts_mask = model(ts_sequences, ctx_sequences)
                 loss_ts = criterion_ts(ts_reconstructed, ts_sequences)
+                masked_ts_loss = (loss_ts * ts_mask.unsqueeze(-1)).sum() / ts_mask.sum()
                 loss_ctx = criterion_ctx(ctx_reconstructed, ctx_sequences)
                 loss_pred = criterion_predict(pred, y)
-                total_loss = masked_ts_loss + loss_ts + alpha * loss_ctx + beta * loss_pred
+                total_loss = masked_ts_loss + alpha * loss_ctx + beta * loss_pred
                 val_loss_meter.update(total_loss.item())
 
                 truth.append(y.cpu().numpy())
@@ -300,7 +299,7 @@ def run_eval(config):
             # y = y.to(device)
 
             ts_sequences, ctx_sequences, y, _, _ = test_iter.next()
-            ts_reconstructed, ctx_reconstructed, pred, _, _, _ = model(ts_sequences, ctx_sequences)
+            ts_reconstructed, ctx_reconstructed, pred, _, _ = model(ts_sequences, ctx_sequences)
             truth.append(y.cpu().numpy())
             preds.append(pred.cpu().numpy())
             ts_reconstructed_list.append(ts_reconstructed.cpu().numpy())
