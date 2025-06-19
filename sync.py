@@ -1,10 +1,9 @@
-from api import get_financial_metrics
-from api import get_financial_statements
+from kline_sync.kline_sync import StockKlineSynchronizer
+import asyncio
+    
+if __name__ == '__main__':
+    loop = asyncio.get_event_loop()
 
-
-if __name__  == '__main__':
-    metrics = get_financial_metrics('300024')
-
-    # statements = get_financial_statements('300024')
-
-    print(metrics)
+    synchronizer = StockKlineSynchronizer('10.26.0.8', '2000', 'hmcz', 'Hmcz_12345678')
+    loop.run_until_complete(synchronizer.connect_async())
+    loop.run_until_complete(synchronizer.all_sync())

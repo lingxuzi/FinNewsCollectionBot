@@ -26,9 +26,8 @@ class BaoSource(StockSource):
     def _format_date(self, date):
         return date.strftime('%Y-%m-%d')
 
-    @cache_decorate
-    def get_stock_list(self):
-        return super().get_stock_list()
+    def get_stock_list(self, all_stocks=False):
+        return super().get_stock_list(all_stocks)
         
     @cache_decorate
     def get_Kline_basic(self, code, start_date, end_date):
@@ -109,6 +108,4 @@ class BaoSource(StockSource):
         except Exception as e:
             print(f"Error fetching data for {code}: {e}")
             return None
-        finally:
-            pass
         

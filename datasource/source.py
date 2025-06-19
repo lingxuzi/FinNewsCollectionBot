@@ -66,7 +66,7 @@ class StockSource:
     def _format_date(self, date: datetime):
         return date.strftime('%Y%m%d')
     
-    def get_stock_list(self):
+    def get_stock_list(self, all_stocks=False):
         stock_list = run_with_cache(ak.stock_zh_a_spot_em).rename(columns={
             '代码': 'code',
             '名称': 'name',
@@ -74,29 +74,33 @@ class StockSource:
             '涨跌幅': 'change_pct'
         })
         stock_list['code'] = stock_list['code'].apply(lambda x: str(x).zfill(6))
-        # 初始过滤：去除ST股和退市股，这些通常不适合投资分析
-        all_stocks_df = stock_list[~stock_list['name'].str.contains('ST|退')].copy()
+        stock_list = stock_list[['code', 'name']]
+        stock_list['market'] = [self._get_code_prefix(code) for code in stock_list['code'] ]
+        stock_list = stock_list[stock_list['market'].str.contains('SZ|SH')]
+        if not all_stocks:
+            # 初始过滤：去除ST股和退市股，这些通常不适合投资分析
+            all_stocks_df = stock_list[~stock_list['name'].str.contains('ST|退')].copy()
 
-        # 定义沪深主板A股的代码前缀
-        # 沪市主板A股前缀：600, 601, 603, 605
-        is_sh_main = all_stocks_df['code'].str.startswith(('600', '601', '603', '605'))
-        
-        # 深市主板A股前缀：000, 001, 002, 003
-        # 002 开头为原中小板股票，现已全部并入深市主板
-        is_sz_main = all_stocks_df['code'].str.startswith(('000', '001', '002', '003'))
+            # 定义沪深主板A股的代码前缀
+            # 沪市主板A股前缀：600, 601, 603, 605
+            is_sh_main = all_stocks_df['code'].str.startswith(('600', '601', '603', '605'))
+            
+            # 深市主板A股前缀：000, 001, 002, 003
+            # 002 开头为原中小板股票，现已全部并入深市主板
+            is_sz_main = all_stocks_df['code'].str.startswith(('000', '001', '002', '003'))
 
-        # 结合沪市主板和深市主板的条件进行最终过滤
-        # 这个逻辑会自然地排除：
-        # - 创业板股票 (300开头)
-        # - 科创板股票 (688开头)
-        # - 北交所股票 (83/87/88/430开头)
-        # - B股 (900/200开头)
-        # - **各类指数、基金、债券、回购等非股票金融产品** (它们的编码规则通常不符合主板A股前缀)
-        filtered_stocks_df = all_stocks_df[is_sh_main | is_sz_main].copy()
+            # 结合沪市主板和深市主板的条件进行最终过滤
+            # 这个逻辑会自然地排除：
+            # - 创业板股票 (300开头)
+            # - 科创板股票 (688开头)
+            # - 北交所股票 (83/87/88/430开头)
+            # - B股 (900/200开头)
+            # - **各类指数、基金、债券、回购等非股票金融产品** (它们的编码规则通常不符合主板A股前缀)
+            stock_list = all_stocks_df[is_sh_main | is_sz_main].copy()
 
-        print(f"过滤后，剩余 {len(filtered_stocks_df)} 只股票（仅包含沪深主板A股）。")
+            print(f"过滤后，剩余 {len(stock_list)} 只股票（仅包含沪深主板A股）。")
 
-        return filtered_stocks_df
+        return stock_list
     
     def get_Kline_basic(self, code, start_date, end_date):
         pass
