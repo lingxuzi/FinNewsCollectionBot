@@ -122,9 +122,8 @@ class StockSource:
         df['MA20'] = df['close'].rolling(10).mean()
         df['RSI'] = talib.RSI(df['close'], timeperiod=14)
         df['MACD'], _, _ = talib.MACD(df['close'])
-        df['log_return'] = np.log(df['close'].pct_change())
+        df['return'] = df['close'].pct_change()
         # 计算OBV
-        df['volume'] = [0 if x == "" else float(x) for x in df['volume']]
         df['OBV'] = talib.OBV(df['close'], df['volume'])
 
         # 计算CCI
@@ -136,7 +135,7 @@ class StockSource:
         # 计算ADX
         df['ADX'] = talib.ADX(df['high'], df['low'], df['close'], timeperiod=14)
 
-        df['hurst'] = calculate_hurst(df['close'], 20, range(2, 20))
+        # df['hurst'] = calculate_hurst(df['close'], 20, range(2, 20))
 
         df['vwap'] = ((df['high'] + df['low'] + df['close']) / 3 * df['volume']).cumsum() / df['volume'].cumsum()
 

@@ -13,6 +13,7 @@ from config.base import *
 from ai.embedding.dataset import KlineDataset, generate_scaler_and_encoder
 from ai.embedding.model import MultiModalAutoencoder
 from ai.embedding.stock_tcn import StockMultiModalAutoencoder
+from ai.modules.multiloss import AutomaticWeightedLoss
 from ai.modules.earlystop import EarlyStopping
 from ai.scheduler.sched import *
 from utils.prefetcher import DataPrefetcher
@@ -89,6 +90,10 @@ def run_training(config):
     
     print(f"Training data size: {len(train_dataset)}, Validation data size: {len(eval_dataset)}")
 
+    if config['training']['awl']:
+        awl = AutomaticWeightedLoss(len(config['training']['losses']), config['training']['loss_weights'])
+        awl.to(device)
+
     # --- 3. 初始化模型、损失函数和优化器 ---
     model = MultiModalAutoencoder(
         ts_input_dim=len(config['data']['features']),
@@ -143,21 +148,37 @@ def run_training(config):
             # y = y.to(device)
             optimizer.zero_grad()
             ts_reconstructed, ctx_reconstructed, pred, _, ts_mask = model(ts_sequences, ctx_sequences)
-            loss_ts = criterion_ts(ts_reconstructed, ts_sequences)
-            if ts_mask is not None:
-                masked_ts_loss = (loss_ts * ts_mask.unsqueeze(-1)).sum() / ts_mask.sum()
+
+            losses = []
+
+            if 'ts' in config['training']['losses']:
+                loss_ts = criterion_ts(ts_reconstructed, ts_sequences)
+                if ts_mask is not None:
+                    masked_ts_loss = (loss_ts * ts_mask.unsqueeze(-1)).sum() / ts_mask.sum()
+                else:
+                    masked_ts_loss = loss_ts.mean()
+                
+                losses.append(masked_ts_loss)
+            
+            if 'ctx' in config['training']['losses']:
+                loss_ctx = criterion_ctx(ctx_reconstructed, ctx_sequences)
+                losses.append(loss_ctx)
+            
+            if 'pred' in config['training']['losses']:
+                loss_pred = criterion_predict(pred, y)
+                losses.append(loss_pred)
+                pred_loss_meter.update(loss_pred.item())
+
+            if config['training']['awl']:
+                total_loss = awl(*losses)
             else:
-                masked_ts_loss = loss_ts.mean()
-            loss_ctx = criterion_ctx(ctx_reconstructed, ctx_sequences)
-            loss_pred = criterion_predict(pred, y)
-            total_loss = masked_ts_loss + alpha * loss_ctx + beta * loss_pred
+                total_loss = masked_ts_loss + alpha * loss_ctx + beta * loss_pred
             total_loss.backward()
             optimizer.step()
 
             ema.update(model)
 
             train_loss_meter.update(total_loss.item())
-            pred_loss_meter.update(loss_pred.item())
             #| Pred Loss: {pred_loss_meter.avg}
             pbar.set_description(f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training] | Loss: {train_loss_meter.avg} | Pred Loss: {pred_loss_meter.avg}")
         
@@ -181,13 +202,25 @@ def run_training(config):
                 # y = y.to(device)
                 ts_sequences, ctx_sequences, y, _, _ = val_iter.next()
                 ts_reconstructed, ctx_reconstructed, pred, _, ts_mask = model(ts_sequences, ctx_sequences)
-                loss_ts = criterion_ts(ts_reconstructed, ts_sequences)
-                if ts_mask is not None:
-                    masked_ts_loss = (loss_ts * ts_mask.unsqueeze(-1)).sum() / ts_mask.sum()
+                if 'ts' in config['training']['losses']:
+                    loss_ts = criterion_ts(ts_reconstructed, ts_sequences)
+                    if ts_mask is not None:
+                        masked_ts_loss = (loss_ts * ts_mask.unsqueeze(-1)).sum() / ts_mask.sum()
+                    else:
+                        masked_ts_loss = loss_ts.mean()
                 else:
-                    masked_ts_loss = loss_ts.mean()
-                loss_ctx = criterion_ctx(ctx_reconstructed, ctx_sequences)
-                loss_pred = criterion_predict(pred, y)
+                    masked_ts_loss = 0
+                
+                if 'ctx' in config['training']['losses']:
+                    loss_ctx = criterion_ctx(ctx_reconstructed, ctx_sequences)
+                else:
+                    loss_ctx = 0
+                
+                if 'pred' in config['training']['losses']:
+                    loss_pred = criterion_predict(pred, y)
+                else:
+                    loss_pred = 0
+                
                 total_loss = masked_ts_loss + alpha * loss_ctx + beta * loss_pred
                 val_loss_meter.update(total_loss.item())
 
