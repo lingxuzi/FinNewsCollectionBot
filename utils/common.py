@@ -63,3 +63,25 @@ class ModelEmaV2(nn.Module):
 
     def set(self, model):
         self._update(model, update_fn=lambda e, m: m)
+
+import numpy as np
+def calculate_r2_components(truth, preds):
+    """
+    计算 SSR 和 SST.
+    """
+    truth = np.array(truth)
+    preds = np.array(preds)
+    mean_truth = np.mean(truth)
+    ssr = np.sum((truth - preds) ** 2)
+    sst = np.sum((truth - mean_truth) ** 2)
+    return ssr, sst
+
+def calculate_r2_components_recon(true, recon):
+    """
+    计算 SSR 和 SST 对于重构任务.
+    """
+    true = np.array(true)
+    recon = np.array(recon)
+    ssr = np.sum((true - recon) ** 2)
+    sst = np.sum((true - np.mean(true)) ** 2)
+    return ssr, sst

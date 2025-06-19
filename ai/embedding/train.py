@@ -12,16 +12,16 @@ from utils.common import AverageMeter
 from config.base import *
 from ai.embedding.dataset import KlineDataset, generate_scaler_and_encoder
 from ai.embedding.model import MultiModalAutoencoder
-from ai.embedding.stock_tcn import StockMultiModalAutoencoder
 from ai.modules.multiloss import AutomaticWeightedLoss
 from ai.modules.earlystop import EarlyStopping
 from ai.scheduler.sched import *
 from utils.prefetcher import DataPrefetcher
-from utils.common import ModelEmaV2
+from utils.common import ModelEmaV2, calculate_r2_components, calculate_r2_components_recon
 
 
 def num_iters_per_epoch(loader, batch_size):
     return len(loader) // batch_size
+
 
 def run_training(config):
     """主训练函数"""
@@ -198,12 +198,19 @@ def run_training(config):
         val_loss_meter = AverageMeter()
         with torch.no_grad():
             val_iter = DataPrefetcher(val_loader, config['device'], enable_queue=False, num_threads=1)
-            truth = []
-            preds = []
-            ts_reconstructed_list = []
-            ctx_reconstructed_list = []
-            ts_sequence_list = []
-            ctx_sequence_list = []
+            # truth = []
+            # preds = []
+            # ts_reconstructed_list = []
+            # ctx_reconstructed_list = []
+            # ts_sequence_list = []
+            # ctx_sequence_list = []
+            # 初始化 R² 相关变量
+            overall_ssr = 0.0
+            overall_sst = 0.0
+            overall_ts_ssr = 0.0
+            overall_ts_sst = 0.0
+            overall_ctx_ssr = 0.0
+            overall_ctx_sst = 0.0
             for _ in tqdm(range(num_iters_per_epoch(eval_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Validation]"):
                 # ts_sequences = ts_sequences.to(device)
                 # ctx_sequences = ctx_sequences.to(device)
@@ -232,28 +239,53 @@ def run_training(config):
                 total_loss = masked_ts_loss + alpha * loss_ctx + beta * loss_pred
                 val_loss_meter.update(total_loss.item())
 
-                truth.append(y.cpu().numpy())
-                preds.append(pred.cpu().numpy())
-                ts_reconstructed_list.append(ts_reconstructed.cpu().numpy())
-                ctx_reconstructed_list.append(ctx_reconstructed.cpu().numpy())
-                ts_sequence_list.append(ts_sequences.cpu().numpy())
-                ctx_sequence_list.append(ctx_sequences.cpu().numpy())
+                
+                y_cpu = y.cpu().numpy()
+                pred_cpu = pred.cpu().numpy()
+                ssr, sst = calculate_r2_components(y_cpu, pred_cpu)
+                overall_ssr += ssr
+                overall_sst += sst
+                ts_sequences_cpu = ts_sequences.cpu().numpy()
+                ts_reconstructed_cpu = ts_reconstructed.cpu().numpy()
+                ts_ssr, ts_sst = calculate_r2_components_recon(ts_sequences_cpu.reshape(-1, ts_sequences_cpu.shape[-1]), ts_reconstructed_cpu.reshape(-1, ts_reconstructed_cpu.shape[-1]))
+                overall_ts_ssr += ts_ssr
+                overall_ts_sst += ts_sst
+                ctx_sequences_cpu = ctx_sequences.cpu().numpy()
+                ctx_reconstructed_cpu = ctx_reconstructed.cpu().numpy()
+                ctx_reconstructed_cpu[:, -1] = np.round(ctx_reconstructed_cpu[:, -1], 2)
+                ctx_ssr, ctx_sst = calculate_r2_components_recon(ctx_sequences_cpu.reshape(-1, ctx_sequences_cpu.shape[-1]), ctx_reconstructed_cpu.reshape(-1, ctx_reconstructed_cpu.shape[-1]))
+                overall_ctx_ssr += ctx_ssr
+                overall_ctx_sst += ctx_sst
 
-        r2 = r2_score(np.concatenate(truth), np.concatenate(preds))
-        ts_true = np.concatenate(ts_sequence_list)
-        ts_true = ts_true.reshape(-1, ts_true.shape[-1])
+        # r2 = r2_score(np.concatenate(truth), np.concatenate(preds))
+        # ts_true = np.concatenate(ts_sequence_list)
+        # ts_true = ts_true.reshape(-1, ts_true.shape[-1])
 
-        ts_recon = np.concatenate(ts_reconstructed_list)
-        ts_recon = ts_recon.reshape(-1, ts_recon.shape[-1])
-        r2_recon = r2_score(ts_true, ts_recon)
+        # ts_recon = np.concatenate(ts_reconstructed_list)
+        # ts_recon = ts_recon.reshape(-1, ts_recon.shape[-1])
+        # r2_recon = r2_score(ts_true, ts_recon)
 
-        ctx_true = np.concatenate(ctx_sequence_list)
-        ctx_true = ctx_true.reshape(-1, ctx_true.shape[-1])
+        # ctx_true = np.concatenate(ctx_sequence_list)
+        # ctx_true = ctx_true.reshape(-1, ctx_true.shape[-1])
 
-        ctx_recon = np.concatenate(ctx_reconstructed_list)
-        ctx_recon = ctx_recon.reshape(-1, ctx_recon.shape[-1])
-        ctx_recon[:, -1] = np.round(ctx_recon[:, -1], 2)
-        r2_ctx_recon = r2_score(ctx_true, ctx_recon)
+        # ctx_recon = np.concatenate(ctx_reconstructed_list)
+        # ctx_recon = ctx_recon.reshape(-1, ctx_recon.shape[-1])
+        # ctx_recon[:, -1] = np.round(ctx_recon[:, -1], 2)
+        # r2_ctx_recon = r2_score(ctx_true, ctx_recon)
+
+        # --- 计算整体 R² ---
+        if overall_sst > 0:
+            r2 = 1 - (overall_ssr / overall_sst)
+        else:
+            r2 = 0.0  # 避免除以零
+        if overall_ts_sst > 0:
+            r2_recon = 1 - (overall_ts_ssr / overall_ts_sst)
+        else:
+            r2_recon = 0.0
+        if overall_ctx_sst > 0:
+            r2_ctx_recon = 1 - (overall_ctx_ssr / overall_ctx_sst)
+        else:
+            r2_ctx_recon = 0.0
         
         print(f"Epoch {epoch+1}: Train Loss = {train_loss_meter.avg:.6f}, Val Loss = {val_loss_meter.avg:.6f}, R2 Score = {r2} R2 Recon Score = {r2_recon}, R2 CTX Recon Score = {r2_ctx_recon}")
         
@@ -334,12 +366,13 @@ def run_eval(config):
     state_dict = torch.load(config['training']['model_save_path'], map_location=device)
     model.load_state_dict(state_dict, strict=False)
     model.eval()
-    truth = []
-    preds = []
-    ts_reconstructed_list = []
-    ctx_reconstructed_list = []
-    ts_sequence_list = []
-    ctx_sequence_list = []
+    
+    overall_ssr = 0.0
+    overall_sst = 0.0
+    overall_ts_ssr = 0.0
+    overall_ts_sst = 0.0
+    overall_ctx_ssr = 0.0
+    overall_ctx_sst = 0.0
     with torch.no_grad():
         test_iter = DataPrefetcher(test_loader, config['device'], enable_queue=False, num_threads=1)
         for _ in tqdm(range(num_iters_per_epoch(test_dataset, config['training']['batch_size'])), desc=f"[Testing]"):
@@ -349,26 +382,36 @@ def run_eval(config):
 
             ts_sequences, ctx_sequences, y, _, _ = test_iter.next()
             ts_reconstructed, ctx_reconstructed, pred, _, _ = model(ts_sequences, ctx_sequences)
-            truth.append(y.cpu().numpy())
-            preds.append(pred.cpu().numpy())
-            ts_reconstructed_list.append(ts_reconstructed.cpu().numpy())
-            ctx_reconstructed_list.append(ctx_reconstructed.cpu().numpy())
-            ts_sequence_list.append(ts_sequences.cpu().numpy())
-            ctx_sequence_list.append(ctx_sequences.cpu().numpy())
+            
+            y_cpu = y.cpu().numpy()
+            pred_cpu = pred.cpu().numpy()
+            ssr, sst = calculate_r2_components(y_cpu, pred_cpu)
+            overall_ssr += ssr
+            overall_sst += sst
+            ts_sequences_cpu = ts_sequences.cpu().numpy()
+            ts_reconstructed_cpu = ts_reconstructed.cpu().numpy()
+            ts_ssr, ts_sst = calculate_r2_components_recon(ts_sequences_cpu.reshape(-1, ts_sequences_cpu.shape[-1]), ts_reconstructed_cpu.reshape(-1, ts_reconstructed_cpu.shape[-1]))
+            overall_ts_ssr += ts_ssr
+            overall_ts_sst += ts_sst
+            ctx_sequences_cpu = ctx_sequences.cpu().numpy()
+            ctx_reconstructed_cpu = ctx_reconstructed.cpu().numpy()
+            ctx_reconstructed_cpu[:, -1] = np.round(ctx_reconstructed_cpu[:, -1], 2)
+            ctx_ssr, ctx_sst = calculate_r2_components_recon(ctx_sequences_cpu.reshape(-1, ctx_sequences_cpu.shape[-1]), ctx_reconstructed_cpu.reshape(-1, ctx_reconstructed_cpu.shape[-1]))
+            overall_ctx_ssr += ctx_ssr
+            overall_ctx_sst += ctx_sst
 
-        r2 = r2_score(np.concatenate(truth), np.concatenate(preds))
-        ts_true = np.concatenate(ts_sequence_list)
-        ts_true = ts_true.reshape(-1, ts_true.shape[-1])
 
-        ts_recon = np.concatenate(ts_reconstructed_list)
-        ts_recon = ts_recon.reshape(-1, ts_recon.shape[-1])
-        r2_recon = r2_score(ts_true, ts_recon)
-
-        ctx_true = np.concatenate(ctx_sequence_list)
-        ctx_true = ctx_true.reshape(-1, ctx_true.shape[-1])
-
-        ctx_recon = np.concatenate(ctx_reconstructed_list)
-        ctx_recon = ctx_recon.reshape(-1, ctx_recon.shape[-1])
-        ctx_recon[:, -1] = np.round(ctx_recon[:, -1], 2)
-        r2_ctx_recon = r2_score(ctx_true, ctx_recon)
+        # --- 计算整体 R² ---
+        if overall_sst > 0:
+            r2 = 1 - (overall_ssr / overall_sst)
+        else:
+            r2 = 0.0  # 避免除以零
+        if overall_ts_sst > 0:
+            r2_recon = 1 - (overall_ts_ssr / overall_ts_sst)
+        else:
+            r2_recon = 0.0
+        if overall_ctx_sst > 0:
+            r2_ctx_recon = 1 - (overall_ctx_ssr / overall_ctx_sst)
+        else:
+            r2_ctx_recon = 0.0
         print(f"Test R2 Score = {r2} Test R2 Recon Score = {r2_recon}, R2 CTX Recon Score = {r2_ctx_recon}")
