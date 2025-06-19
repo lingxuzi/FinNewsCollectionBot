@@ -142,7 +142,9 @@ class StockSource:
         return df
     
     def generate_predict_labels(self, df):
-        df['label'] = df['vwap'].shift(-5)
+        for i in range(5):
+            df[f'label_vwap_{i+1}'] = df['vwap'].shift(-i-1)
+        # df['label'] = df['vwap'].shift(-5)
         return df
     
     def post_process(self, df):
