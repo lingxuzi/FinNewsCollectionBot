@@ -34,13 +34,13 @@ def build_historical_stock_db(task, opts):
     codes = []
     
     stock_list = source.get_stock_list()
-    # stock_list = stock_list[:100]
+    stock_list = stock_list[:100]
     with ProcessPoolExecutor(max_workers=opts.workers) as executor:
         futures = {executor.submit(source.get_kline_daily, code, task_map[task]['start_date'], task_map[task]['end_date'], True, False): code for code in stock_list['code']}
         for future in tqdm(as_completed(futures), desc='获取股票数据', ncols=120):
             try:
                 result = future.result()
-                if result is not None and not result.empty and len(result) >= 500:
+                if result is not None and not result.empty and len(result) >= 200:
                     result = source.calculate_indicators(result)
                     result = source.generate_predict_labels(result)
                     result = source.post_process(result)
