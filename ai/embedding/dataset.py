@@ -191,7 +191,7 @@ class KlineDataset(Dataset):
             return (
                 torch.FloatTensor(ts_seq),
                 torch.FloatTensor(ctx_seq),
-                torch.FloatTensor([label]),
+                torch.FloatTensor(label),
                 date_range,
                 code
             )

@@ -124,7 +124,11 @@ def run_training(config):
     criterion_predict = nn.HuberLoss(delta=0.1) # 均方误差损失
     alpha = config['training']['alpha']  # ctx loss weight
     beta = config['training']['beta']  # pred loss weight
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config['training']['min_learning_rate'], weight_decay=1e-5)
+    parameters = []
+    if config['training']['awl']:
+        parameters += [{'params': awl.parameters(), 'weight_decay': 0}]
+    parameters += [{'params': model.parameters(), 'weight_decay': 1e-3}]
+    optimizer = torch.optim.AdamW(parameters, lr=config['training']['min_learning_rate'])
     early_stopper = EarlyStopping(patience=10, direction='up')
     
     scheduler = CosineWarmupLR(

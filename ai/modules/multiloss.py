@@ -16,11 +16,7 @@ class AutomaticWeightedLoss(nn.Module):
     def forward(self, *x):
         loss_sum = 0
         for i, loss in enumerate(x):
-            if self.uncertain_loss:
-                precision = torch.exp(-self.params[i])
-                loss_sum += precision * loss + self.params[i]
-            else:
-                loss_sum += self.params[i] * loss
+            loss_sum += 0.5 / (self.params[i] ** 2) * loss + torch.log(1 + self.params[i] ** 2)
         return loss_sum
 
 
