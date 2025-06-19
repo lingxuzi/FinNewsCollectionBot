@@ -136,6 +136,8 @@ def run_training(config):
     for epoch in range(config['training']['num_epochs']):
         model.train()
         train_loss_meter = AverageMeter()
+        ts_loss_meter = AverageMeter()
+        ctx_loss_meter = AverageMeter()
         pred_loss_meter = AverageMeter()
         train_iter = DataPrefetcher(train_loader, config['device'], enable_queue=False, num_threads=1)
         
@@ -157,11 +159,14 @@ def run_training(config):
                     masked_ts_loss = (loss_ts * ts_mask.unsqueeze(-1)).sum() / ts_mask.sum()
                 else:
                     masked_ts_loss = loss_ts.mean()
+
+                ts_loss_meter.update(masked_ts_loss.item())
                 
                 losses.append(masked_ts_loss)
             
             if 'ctx' in config['training']['losses']:
                 loss_ctx = criterion_ctx(ctx_reconstructed, ctx_sequences)
+                ctx_loss_meter.update(loss_ctx.item())
                 losses.append(loss_ctx)
             
             if 'pred' in config['training']['losses']:
@@ -180,7 +185,7 @@ def run_training(config):
 
             train_loss_meter.update(total_loss.item())
             #| Pred Loss: {pred_loss_meter.avg}
-            pbar.set_description(f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training] | Loss: {train_loss_meter.avg} | Pred Loss: {pred_loss_meter.avg}")
+            pbar.set_description(f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training] | Loss: {train_loss_meter.avg} | TS Loss: {ts_loss_meter.avg} | CTX Loss: {ctx_loss_meter.avg} | Pred Loss: {pred_loss_meter.avg}")
         
         scheduler.step()
 
