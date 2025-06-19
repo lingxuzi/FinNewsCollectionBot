@@ -17,8 +17,8 @@ data:
     stock_list_file: "test_stocks.txt"
     hist_data_file: 'fundamental_test.pkl'
     #, 'ATR', 'OBV', 'CCI', 'ADX'
-  features: ['open', 'high', 'low', 'close', 'volume', 'turn_over', 'MA5', 'MA10', 'MA20', 'RSI', 'MACD']
-  numerical: ['pe_ttm', 'pb', 'ps_ttm', 'pcf_ncf_ttm', 'ATR', 'OBV', 'CCI', 'ADX', 'vwap']
+  features: ['open', 'high', 'low', 'close', 'volume', 'turn_over', 'MA5', 'MA10', 'MA20', 'RSI', 'MACD', 'ATR', 'OBV', 'CCI', 'ADX', 'vwap']
+  numerical: ['pe_ttm', 'pb', 'ps_ttm', 'pcf_ncf_ttm']
   categorical: ['industry']
 
 # --- 训练参数 ---

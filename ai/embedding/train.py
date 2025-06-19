@@ -71,8 +71,8 @@ def run_training(config):
     eval_dataset = KlineDataset(
         cache=config['data']['cache'],
         db_path=config['data']['db_path'],
-        stock_list_file=config['data']['test']['stock_list_file'],
-        hist_data_file=config['data']['test']['hist_data_file'],
+        stock_list_file=config['data']['eval']['stock_list_file'],
+        hist_data_file=config['data']['eval']['hist_data_file'],
         seq_length=config['training']['sequence_length'],
         features=config['data']['features'],
         numerical=config['data']['numerical'],
@@ -81,7 +81,7 @@ def run_training(config):
         scaler=scaler,
         encoder=encoder,
         is_train=False,
-        tag='test'
+        tag='eval'
     )
 
     train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=True, drop_last=True)
@@ -299,8 +299,8 @@ def run_eval(config):
     test_dataset = KlineDataset(
         cache=config['data']['cache'],
         db_path=config['data']['db_path'],
-        stock_list_file=config['data']['eval']['stock_list_file'],
-        hist_data_file=config['data']['eval']['hist_data_file'],
+        stock_list_file=config['data']['test']['stock_list_file'],
+        hist_data_file=config['data']['test']['hist_data_file'],
         seq_length=config['training']['sequence_length'],
         features=config['data']['features'],
         numerical=config['data']['numerical'],
