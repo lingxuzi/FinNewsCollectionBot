@@ -109,12 +109,14 @@ class StockKlineSynchronizer:
     @BoundedSemaphore(4)
     async def _sync_stocks(self, stock_list):
         # tasks = [self.fetch_kline_daily(code, self.start_date, datetime.now().date()) for code in stock_list]
+        batch_size = 4
+        batchs = [stock_list[i:i+batch_size] for i in range(0, len(stock_list), batch_size)]
 
-        # results = await asyncio.gather(*tasks)
         results = []
-        for code in tqdm(stock_list):
-            result = await self.fetch_kline_daily(code, self.start_date, datetime.now().date())
-            results.append(result)
+        for batch in tqdm(batchs, desc='Processing Klines...'):
+            tasks = [self.fetch_kline_daily(code, self.start_date, datetime.now().date()) for code in batch]
+            batch_results = await asyncio.gather(*tasks)
+            batch_results.extend(batch_results)
         return results
     
     async def sync_stocks(self):
