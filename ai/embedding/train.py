@@ -119,11 +119,9 @@ def run_training(config):
     
     model = model.to(device)
 
-    criterion_ts = nn.HuberLoss(delta=0.1, reduction='none') # 均方误差损失
+    criterion_ts = nn.HuberLoss(delta=0.1) # 均方误差损失
     criterion_ctx = nn.HuberLoss(delta=0.1) # 均方误差损失
     criterion_predict = nn.HuberLoss(delta=0.1) # 均方误差损失
-    alpha = config['training']['alpha']  # ctx loss weight
-    beta = config['training']['beta']  # pred loss weight
     parameters = []
     if config['training']['awl']:
         parameters += [{'params': awl.parameters(), 'weight_decay': 0}]
@@ -152,35 +150,31 @@ def run_training(config):
             # ctx_sequences = ctx_sequences.to(device)
             # y = y.to(device)
             optimizer.zero_grad()
-            ts_reconstructed, ctx_reconstructed, pred, _, ts_mask = model(ts_sequences, ctx_sequences)
+            ts_reconstructed, ctx_reconstructed, pred, _ = model(ts_sequences, ctx_sequences)
 
-            losses = []
+            losses = {}
 
             if 'ts' in config['training']['losses']:
                 loss_ts = criterion_ts(ts_reconstructed, ts_sequences)
-                if ts_mask is not None:
-                    masked_ts_loss = (loss_ts * ts_mask.unsqueeze(-1)).sum() / ts_mask.sum()
-                else:
-                    masked_ts_loss = loss_ts.mean()
 
-                ts_loss_meter.update(masked_ts_loss.item())
+                ts_loss_meter.update(loss_ts.item())
                 
-                losses.append(masked_ts_loss)
+                losses['ts'] = loss_ts
             
             if 'ctx' in config['training']['losses']:
                 loss_ctx = criterion_ctx(ctx_reconstructed, ctx_sequences)
                 ctx_loss_meter.update(loss_ctx.item())
-                losses.append(loss_ctx)
+                losses['ctx'] = loss_ctx
             
             if 'pred' in config['training']['losses']:
                 loss_pred = criterion_predict(pred, y)
-                losses.append(loss_pred)
+                losses['pred'] = loss_pred
                 pred_loss_meter.update(loss_pred.item())
 
             if config['training']['awl']:
-                total_loss = awl(*losses)
+                total_loss = awl(*list(losses.values))
             else:
-                total_loss = masked_ts_loss + alpha * loss_ctx + beta * loss_pred
+                total_loss = sum([losses[lk] * w for w, lk in zip(config['training']['loss_weights'], config['training']['losses'])])
             total_loss.backward()
             optimizer.step()
 
@@ -195,7 +189,6 @@ def run_training(config):
         # --- 5. 验证循环 ---
         _model = copy.deepcopy(ema.module)
         _model.eval()
-        val_loss_meter = AverageMeter()
         with torch.no_grad():
             val_iter = DataPrefetcher(val_loader, config['device'], enable_queue=False, num_threads=1)
             # truth = []
@@ -216,28 +209,7 @@ def run_training(config):
                 # ctx_sequences = ctx_sequences.to(device)
                 # y = y.to(device)
                 ts_sequences, ctx_sequences, y, _, _ = val_iter.next()
-                ts_reconstructed, ctx_reconstructed, pred, _, ts_mask = model(ts_sequences, ctx_sequences)
-                if 'ts' in config['training']['losses']:
-                    loss_ts = criterion_ts(ts_reconstructed, ts_sequences)
-                    if ts_mask is not None:
-                        masked_ts_loss = (loss_ts * ts_mask.unsqueeze(-1)).sum() / ts_mask.sum()
-                    else:
-                        masked_ts_loss = loss_ts.mean()
-                else:
-                    masked_ts_loss = 0
-                
-                if 'ctx' in config['training']['losses']:
-                    loss_ctx = criterion_ctx(ctx_reconstructed, ctx_sequences)
-                else:
-                    loss_ctx = 0
-                
-                if 'pred' in config['training']['losses']:
-                    loss_pred = criterion_predict(pred, y)
-                else:
-                    loss_pred = 0
-                
-                total_loss = masked_ts_loss + alpha * loss_ctx + beta * loss_pred
-                val_loss_meter.update(total_loss.item())
+                ts_reconstructed, ctx_reconstructed, pred, _ = model(ts_sequences, ctx_sequences)
 
                 
                 y_cpu = y.cpu().numpy()
@@ -287,7 +259,7 @@ def run_training(config):
         else:
             r2_ctx_recon = 0.0
         
-        print(f"Epoch {epoch+1}: Train Loss = {train_loss_meter.avg:.6f}, Val Loss = {val_loss_meter.avg:.6f}, R2 Score = {r2} R2 Recon Score = {r2_recon}, R2 CTX Recon Score = {r2_ctx_recon}")
+        print(f"Epoch {epoch+1}: R2 Score = {r2} R2 Recon Score = {r2_recon}, R2 CTX Recon Score = {r2_ctx_recon}")
         
         mean_r2 = (r2_ctx_recon + r2_recon + r2) / 3
         # --- 6. 保存最佳模型 ---
@@ -381,7 +353,7 @@ def run_eval(config):
             # y = y.to(device)
 
             ts_sequences, ctx_sequences, y, _, _ = test_iter.next()
-            ts_reconstructed, ctx_reconstructed, pred, _, _ = model(ts_sequences, ctx_sequences)
+            ts_reconstructed, ctx_reconstructed, pred, _ = model(ts_sequences, ctx_sequences)
             
             y_cpu = y.cpu().numpy()
             pred_cpu = pred.cpu().numpy()

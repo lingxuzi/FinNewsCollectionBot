@@ -3,21 +3,47 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # --- 1. 轻量级注意力模块 (不变) ---
-class Attention(nn.Module):
-    def __init__(self, query_dim, key_dim, value_dim, attention_dim):
+class SEFusionBlock(nn.Module):
+    """
+    Squeeze-and-Excitation Block for feature fusion.
+    Applies lightweight self-attention to a fused feature vector.
+    """
+    def __init__(self, input_dim: int, reduction_ratio: int = 16):
+        """
+        Args:
+            input_dim (int): The dimension of the fused input vector.
+            reduction_ratio (int): The factor by which to reduce the dimension in the bottleneck MLP.
+        """
         super().__init__()
-        self.query_proj = nn.Linear(query_dim, attention_dim)
-        self.key_proj = nn.Linear(key_dim, attention_dim)
-        self.value_proj = nn.Linear(value_dim, value_dim)
-        self.score_proj = nn.Linear(attention_dim, 1, bias=False)
+        bottleneck_dim = max(input_dim // reduction_ratio, 4) # 保证瓶颈层不至于太小
+        
+        self.se_module = nn.Sequential(
+            # Squeeze: 使用一个线性层将维度降低
+            nn.Linear(input_dim, bottleneck_dim),
+            nn.ReLU(inplace=True),
+            # Excite: 再用一个线性层恢复到原始维度
+            nn.Linear(bottleneck_dim, input_dim),
+            # Sigmoid将输出转换为0-1之间的注意力分数
+            nn.Sigmoid()
+        )
 
-    def forward(self, query, keys, values):
-        projected_query = self.query_proj(query).unsqueeze(1)
-        projected_keys = self.key_proj(keys)
-        scores = self.score_proj(torch.tanh(projected_query + projected_keys))
-        attention_weights = F.softmax(scores, dim=1).squeeze(2)
-        context_vector = torch.sum(attention_weights.unsqueeze(2) * values, dim=1)
-        return context_vector, attention_weights
+    def forward(self, x):
+        """
+        Args:
+            x (Tensor): The fused input tensor of shape [batch_size, input_dim].
+        
+        Returns:
+            Tensor: The re-weighted feature tensor of the same shape.
+        """
+        # x是我们的融合embedding
+        
+        # se_module(x) 会输出每个特征维度的注意力权重
+        attention_weights = self.se_module(x)
+        
+        # 将原始特征与注意力权重相乘，进行重标定
+        reweighted_features = x * attention_weights
+        
+        return reweighted_features
     
 
 class ResidualMLPBlock(nn.Module):
@@ -62,55 +88,25 @@ class MultiModalAutoencoder(nn.Module):
         # --- 分支1: 时序编码器 (LSTM) ---
         self.ts_encoder = nn.LSTM(ts_input_dim, hidden_dim, num_layers, batch_first=True)
         self.ts_encoder_fc = nn.Linear(hidden_dim, ts_embedding_dim)
-        self.ts_encoder_dropout = nn.Dropout(self.dropout_rate)
 
         # --- 分支2: 上下文编码器 (MLP) ---
         # 增加 Batch Normalization
         self.ctx_encoder = ResidualMLPBlock(ctx_input_dim, hidden_dim, ctx_embedding_dim, dropout_rate=0, use_batchnorm=True)
 
-        # --- 注意力机制 ---
-        self.attention = Attention(
-            query_dim=self.total_embedding_dim, 
-            key_dim=hidden_dim, 
-            value_dim=hidden_dim, 
-            attention_dim=attention_dim
-        )
-
         # --- 解码器 ---
         # 时序解码器
-        self.ts_decoder_projection = nn.Linear(self.total_embedding_dim, hidden_dim)
-        
-        self.ts_decoder_input_dim_with_attention = hidden_dim + hidden_dim 
-        self.ts_decoder = nn.LSTM(self.ts_decoder_input_dim_with_attention, hidden_dim, num_layers, 
+        self.ts_decoder_fc = nn.Linear(ts_embedding_dim, hidden_dim)
+        self.ts_decoder = nn.LSTM(hidden_dim, hidden_dim, num_layers, 
                                   batch_first=True)
-        self.ts_output_layer = nn.Linear(hidden_dim, ts_input_dim)
-
-        # <<< MAE MODIFICATION START >>>
-        # Learnable token to represent masked patches in the decoder input
-        self.mask_token = nn.Parameter(torch.zeros(1, 1, self.ts_decoder_input_dim_with_attention))
-        torch.nn.init.normal_(self.mask_token, std=.02)
-        # <<< MAE MODIFICATION END >>>
-        
-        # 上下文解码器
-        # 增加 Batch Normalization
-        # self.ctx_decoder = nn.Sequential(
-        #     nn.Linear(self.total_embedding_dim, hidden_dim),
-        #     nn.ReLU(),
-        #     nn.Linear(hidden_dim, ctx_input_dim)
-        # )
-        self.ctx_decoder = ResidualMLPBlock(self.total_embedding_dim, hidden_dim, ctx_input_dim, dropout_rate=0.2)
-
-        # self.predictor = nn.Sequential(
-        #     nn.Linear(self.predictor_input_dim, hidden_dim),
-        #     nn.ReLU(),
-        #     nn.Linear(hidden_dim, predict_dim)
-        # )
+        self.ts_output_layer = ResidualMLPBlock(hidden_dim, hidden_dim, ts_input_dim, dropout_rate=0.2)
+        self.ctx_decoder = ResidualMLPBlock(ctx_embedding_dim, hidden_dim, ctx_input_dim, dropout_rate=0.2)
         self.predictor = ResidualMLPBlock(self.total_embedding_dim, int(hidden_dim), predict_dim, dropout_rate=0.2)
 
         self.embedding_norm = nn.LayerNorm(self.total_embedding_dim)
+        self.fusion_block = SEFusionBlock(input_dim=self.total_embedding_dim, reduction_ratio=8)
 
         # 初始化预测头
-        self.initialize_prediction_head(self.ts_output_layer)
+        self.initialize_prediction_head(self.ts_output_layer.p[-1])
         self.initialize_prediction_head(self.ctx_decoder.p[-1])
         self.initialize_prediction_head(self.predictor.p[-1])
         self.ts_encoder.flatten_parameters()
@@ -143,94 +139,36 @@ class MultiModalAutoencoder(nn.Module):
                 # 添加噪声
                 noise = torch.normal(0, self.noise_level, size=x_ctx.size(), device=x_ctx.device)
                 x_ctx = x_ctx + noise
-
-        # <<< MAE MODIFICATION START >>>
-        # --- MAE Masking for Time-Series Input ---
-        ts_mask = None
-        if self.training and self.ts_masking_ratio > 0:
-            batch_size, seq_len, _ = x_ts.shape
-            num_masked = int(self.ts_masking_ratio * seq_len)
-            
-            # Generate random indices to mask for each sample in the batch
-            masked_indices = torch.rand(batch_size, seq_len, device=x_ts.device).argsort(dim=-1)
-            masked_indices = masked_indices[:, :num_masked]
-
-            # Create the boolean mask for loss calculation later
-            ts_mask = torch.zeros(batch_size, seq_len, dtype=torch.bool, device=x_ts.device)
-            ts_mask.scatter_(1, masked_indices, True)
-
-            # Create the input for the encoder by removing the masked elements
-            # We create a boolean mask for selection
-            unmasked_mask = ~ts_mask
-            # We need to reshape x_ts and unmasked_mask to use boolean_mask
-            x_ts_unmasked = x_ts[unmasked_mask].reshape(batch_size, seq_len - num_masked, -1)
-        else:
-            # If not training or no masking, use the full sequence
-            x_ts_unmasked = x_ts
-        # <<< MAE MODIFICATION END >>>
                 
         # --- 编码过程 ---
         # 1. 时序编码
-        ts_encoder_outputs, (ts_h_n, ts_c_n) = self.ts_encoder(x_ts_unmasked)
+        ts_encoder_outputs, (ts_h_n, ts_c_n) = self.ts_encoder(x_ts)
         ts_last_hidden_state = ts_h_n[-1, :, :]
         
         ts_embedding = self.ts_encoder_fc(ts_last_hidden_state) 
-        ts_embedding = self.ts_encoder_dropout(ts_embedding)
         
         # 2. 上下文编码
         ctx_embedding = self.ctx_encoder(x_ctx)
 
         # # 3. 融合Embedding
-        final_embedding = torch.cat([ts_embedding, ctx_embedding], dim=1)
-        final_embedding = self.embedding_norm(final_embedding)
-
-        # --- 解码过程 ---
-        # 1. 时序重构
-        context_vector, _ = self.attention(final_embedding, ts_encoder_outputs, ts_encoder_outputs)
-        
-        ts_decoder_base_input = self.ts_decoder_projection(final_embedding) 
-        
-        ts_decoder_input_concat = torch.cat([ts_decoder_base_input, context_vector], dim=1)
-        # ts_decoder_input_repeated = ts_decoder_input_concat.unsqueeze(1).repeat(1, x_ts.size(1), 1)
-
-        # <<< MAE MODIFICATION START >>>
-        # --- Prepare Full Sequence for Decoder (Unmasking) ---
-        if self.training and self.ts_masking_ratio > 0:
-            batch_size, seq_len, _ = x_ts.shape
-            num_masked = int(self.ts_masking_ratio * seq_len)
-
-            # Create a full sequence of mask tokens
-            decoder_full_sequence = self.mask_token.repeat(batch_size, seq_len, 1)
-
-            # Get the indices of the unmasked elements
-            unmasked_indices = torch.where(~ts_mask)[1].reshape(batch_size, -1)
-            
-            # Scatter the processed unmasked tokens back into the full sequence
-            # We need to expand unmasked_indices to match the dimension of decoder_full_sequence
-            unmasked_indices_expanded = unmasked_indices.unsqueeze(-1).expand(-1, -1, decoder_full_sequence.size(2))
-            
-            # The processed tokens are repeated for each time step in the original implementation
-            ts_decoder_input_repeated_unmasked = ts_decoder_input_concat.unsqueeze(1).repeat(1, seq_len - num_masked, 1)
-            
-            # Place the unmasked tokens into their original positions
-            decoder_full_sequence.scatter_(1, unmasked_indices_expanded, ts_decoder_input_repeated_unmasked)
-            
-            ts_decoder_input = decoder_full_sequence
-        else:
-            # Original behavior when not masking
-            ts_decoder_input = ts_decoder_input_concat.unsqueeze(1).repeat(1, x_ts.size(1), 1)
-        # <<< MAE MODIFICATION END >>>
-        
+        # final_embedding = torch.cat([ts_embedding, ctx_embedding], dim=1)
+        # final_embedding = self.embedding_norm(final_embedding)
+        ts_decoder_input = self.ts_decoder_fc(ts_embedding).unsqueeze(1).repeat(1, x_ts.size(1), 1)
         ts_reconstructed, _ = self.ts_decoder(ts_decoder_input)
         ts_output = self.ts_output_layer(ts_reconstructed)
         
         # 2. 上下文重构
-        ctx_output = self.ctx_decoder(final_embedding)
+        ctx_output = self.ctx_decoder(ctx_embedding)
+
+        # 3. Fused Embedding
+        final_embedding = torch.cat([ts_embedding, ctx_embedding], dim=1).detach()
+        final_embedding = self.embedding_norm(final_embedding)
+        final_embedding = self.fusion_block(final_embedding)
 
         # --- 3. 预测分支 ---
-        predict_output = self.predictor(final_embedding.detach())
+        predict_output = self.predictor(final_embedding)
         
-        return ts_output, ctx_output, predict_output, final_embedding, ts_mask
+        return ts_output, ctx_output, predict_output, final_embedding
 
     def get_embedding(self, x_ts, x_ctx):
         """用于推理的函数，只返回融合后的embedding。"""
