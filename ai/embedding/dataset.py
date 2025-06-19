@@ -71,7 +71,7 @@ class KlineDataset(Dataset):
 
         self.cache_method = cache
 
-        if self.cache.get('total_count') is None:
+        if self.cache.get('total_count', 0) == 0:
             # 1. 从数据库加载数据
             all_data_df = pd.read_parquet(os.path.join(db_path, hist_data_file))
             stock_list = read_text(os.path.join(db_path, stock_list_file)).split(',')
@@ -132,7 +132,10 @@ class KlineDataset(Dataset):
         date_range = []
 
         stock_data = all_data_df[all_data_df['code'] == code]
-        stock_labels = stock_data['label'].to_numpy()
+        label_cols = []
+        for i in range(5):
+            label_cols.append(f'label_vwap_{i+1}')
+        stock_labels = stock_data[label_cols].to_numpy()
         featured_stock_data = stock_data[self.features].to_numpy()
         numerical_stock_data = stock_data[self.numerical].to_numpy()
         date = stock_data['date']
