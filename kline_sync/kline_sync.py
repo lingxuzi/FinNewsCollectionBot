@@ -6,16 +6,19 @@ from aiodecorators import BoundedSemaphore
 from utils.common import save_text, read_text
 from datetime import datetime
 from tqdm import tqdm
+from diskcache import Deque
 import asyncio
 import pandas as pd
 import os
 
 class StockKlineSynchronizer:
-    def __init__(self, host, port, username, password):
+    def __init__(self, host, port, username, password, queue_path):
         self.db = AsyncMongoEngine(host, port, username, password)
         self.datasource = BaoSource()
         self.executor = ThreadPoolExecutor(max_workers=10)
         self.start_date = datetime(2018, 1, 1).date()
+        os.makedirs(os.path.dirname(queue_path), exist_ok=True) 
+        self.deque = Deque(queue_path)
         if os.path.isfile('fail_sync.txt'):
             try:
                 self.fail_sync_stocks = read_text('fail_sync.txt').split(',')
@@ -66,6 +69,30 @@ class StockKlineSynchronizer:
         
         print('stock list synced')
 
+    async def _process_queue(self):
+        updates = []
+        while True:
+            if len(self.deque) > 0:
+                insert_data = self.deque.popleft()
+                updates.append(insert_data)
+                if len(updates) == 1000:
+                    ret = await self.db.bulk_write(self._cluster(), self._kline_daily(), updates)
+                    if ret:
+                        print('Insert success')
+                    else:
+                        errors += 1
+                        print('Insert failed')
+                    updates = []
+            else:
+                if len(updates) > 0:
+                    ret = await self.db.bulk_write(self._cluster(), self._kline_daily(), updates)
+                if ret:
+                    print('Insert success')
+                else:
+                    errors += 1
+                    print('Insert failed')
+                await asyncio.sleep(1)
+
     async def fetch_kline_daily(self, code, start_date, end_date):
         print(f'syncing daily kline -> {code}...')
         df: pd.DataFrame = self.datasource.get_kline_daily(code, start_date, end_date, True, False) 
@@ -75,31 +102,8 @@ class StockKlineSynchronizer:
             updates = []
             for i, row in df.iterrows():
                 insert_data = row.to_dict()
-                updates.append(UpdateOne(filter={
-                    'code': row['code'],
-                    'date': row['date']
-                }, update={
-                    '$set': insert_data
-                }, upsert=True))
-
-                if len(updates) == 1000:
-                    ret = await self.db.bulk_write(self._cluster(), self._kline_daily(), updates)
-                    if ret:
-                        print('Insert success')
-                    else:
-                        errors += 1
-                        print('Insert failed')
-                    updates = []
-                
-
-            if len(updates) > 0:
-                ret = await self.db.bulk_write(self._cluster(), self._kline_daily(), updates)
-                if ret:
-                    print('Insert success')
-                else:
-                    errors += 1
-                    print('Insert failed')
-            print(f'{code} daily kline synced.')
+                self.deque.append(insert_data)
+            print(f'{code} daily kline queued.')
             return errors == 0, code
         else:
             return False, code
