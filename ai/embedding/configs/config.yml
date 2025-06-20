@@ -3,9 +3,6 @@
 data:
   cache: 'diskcache'
   db_path: "train_data/hist/"
-  noise_level: 0.001
-  noise_prob: 0.3
-  ts_masking_ratio: 0.
   include_meta: true
   train:
     stock_list_file: "train_stocks.txt"
@@ -23,21 +20,15 @@ data:
 
 # --- 训练参数 ---
 training:
+  model: 'transformer-ae'
   awl: false
   losses: ['ts', 'ctx']
   loss_weights: [1., 0.2]
   sequence_length: 50       # K线序列长度
-  ts_embedding_dim: 160         # 向量维度
-  ctx_embedding_dim: 32         # 向量维度
-  hidden_dim: 64           # LSTM隐藏层维度
-  num_layers: 2             # LSTM层数
-  predict_dim: 5            # 预测分支
-  attention_dim: 64            # 预测分支
   learning_rate: 0.005
   min_learning_rate: 0.00001
   batch_size: 1024
   num_epochs: 200
-  dropout: 0.1
   validation_split: 0.2     # 验证集比例
   model_save_path: "../fin_models/kline_encoder.pth"
   pretrained_path: "../fin_models/kline_pretrained.pth"

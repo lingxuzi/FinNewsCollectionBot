@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from ai.embedding.models import register_model
+
 # --- 1. 轻量级注意力模块 (不变) ---
 class SEFusionBlock(nn.Module):
     """
@@ -47,12 +49,12 @@ class SEFusionBlock(nn.Module):
     
 
 class ResidualMLPBlock(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, dropout_rate, use_batchnorm=True):
+    def __init__(self, input_dim, hidden_dim, output_dim, dropout_rate, act=nn.ReLU, use_batchnorm=True):
         super().__init__()
         self.p = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
             nn.LayerNorm(hidden_dim) if use_batchnorm else nn.Identity(),
-            nn.ReLU(),
+            act(),
             nn.Dropout(dropout_rate),
             nn.Linear(hidden_dim, output_dim)
         )
@@ -68,20 +70,28 @@ class ResidualMLPBlock(nn.Module):
         return out + residual
 
 # --- 2. MultiModalAutoencoder (带注意力 & 强化预测 & Batch Norm) ---
+@register_model(name='lstm-ae')
 class MultiModalAutoencoder(nn.Module):
-    def __init__(self, ts_input_dim, ctx_input_dim, ts_embedding_dim, ctx_embedding_dim, 
-                 hidden_dim, num_layers, predict_dim, attention_dim=64, seq_len=30, noise_level=0,noise_prob=0.1, ts_masking_ratio=0.75,
-                 dropout_rate=0.1):
+    def __init__(self, config):
         super().__init__()
+
+        ts_input_dim = config['ts_input_dim']
+        ctx_input_dim = config['ctx_input_dim']
+        ts_embedding_dim = config['ts_embedding_dim']
+        ctx_embedding_dim = config['ctx_embedding_dim']
+        hidden_dim = config['hidden_dim']
+        num_layers = config['num_layers'] 
+        predict_dim = config['predict_dim']
+        noise_level = config['noise_level']
+        noise_prob = config['noise_prob']
+        dropout_rate = config['dropout']
 
         # 参数校验
         if not (0 <= dropout_rate <= 1):
             raise ValueError("dropout_rate 必须在 0 到 1 之间。")
             
-        self.dropout_rate = dropout_rate
         self.noise_level = noise_level
         self.noise_prob = noise_prob
-        self.ts_masking_ratio = ts_masking_ratio
         
         self.total_embedding_dim = ts_embedding_dim + ctx_embedding_dim
 
@@ -98,9 +108,9 @@ class MultiModalAutoencoder(nn.Module):
         self.ts_decoder_fc = nn.Linear(ts_embedding_dim, hidden_dim)
         self.ts_decoder = nn.LSTM(hidden_dim, hidden_dim, num_layers, 
                                   batch_first=True)
-        self.ts_output_layer = ResidualMLPBlock(hidden_dim, hidden_dim, ts_input_dim, dropout_rate=0.2)
-        self.ctx_decoder = ResidualMLPBlock(ctx_embedding_dim, hidden_dim, ctx_input_dim, dropout_rate=0.2)
-        self.predictor = ResidualMLPBlock(self.total_embedding_dim, int(hidden_dim), predict_dim, dropout_rate=0.2)
+        self.ts_output_layer = ResidualMLPBlock(hidden_dim, hidden_dim, ts_input_dim, dropout_rate=dropout_rate)
+        self.ctx_decoder = ResidualMLPBlock(ctx_embedding_dim, hidden_dim, ctx_input_dim, dropout_rate=dropout_rate)
+        self.predictor = ResidualMLPBlock(self.total_embedding_dim, int(hidden_dim), predict_dim, dropout_rate=dropout_rate)
 
         self.embedding_norm = nn.LayerNorm(self.total_embedding_dim)
         self.fusion_block = SEFusionBlock(input_dim=self.total_embedding_dim, reduction_ratio=8)

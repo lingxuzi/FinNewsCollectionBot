@@ -1,6 +1,6 @@
 from pymilvus import MilvusClient, DataType
 from pymilvus.milvus_client.index import IndexParams
-from ai.embedding.model import MultiModalAutoencoder
+from ai.embedding.models.lstm import MultiModalAutoencoder
 from ai.embedding.dataset import KlineDataset
 from torch.utils.data import DataLoader
 from datetime import datetime, timedelta

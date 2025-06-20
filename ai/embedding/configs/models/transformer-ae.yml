@@ -1,0 +1,11 @@
+ts_embedding_dim: 128         # 向量维度
+ctx_embedding_dim: 32         # 向量维度
+hidden_dim: 64           # 隐藏层维度
+num_layers: 1             # 层数
+num_heads: 4
+predict_dim: 5            # 预测分支
+attention_dim: 64            # 预测分支
+dropout: 0.1
+noise_level: 0.001
+noise_prob: 0.3
+ts_masking_ratio: 0.
