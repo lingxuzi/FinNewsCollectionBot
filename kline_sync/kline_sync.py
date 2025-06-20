@@ -68,38 +68,41 @@ class StockKlineSynchronizer:
 
     async def fetch_kline_daily(self, code, start_date, end_date):
         print(f'syncing daily kline -> {code}...')
-        df: pd.DataFrame = self.datasource.get_kline_daily(code, start_date, end_date, True, False)
+        df: pd.DataFrame = self.datasource.get_kline_daily(code, start_date, end_date, True, False) 
 
-        errors = 0
-        updates = []
-        for i, row in df.iterrows():
-            insert_data = row.to_dict()
-            updates.append(UpdateOne(filter={
-                'code': row['code'],
-                'date': row['date']
-            }, update={
-                '$set': insert_data
-            }, upsert=True))
+        if df is not None:
+            errors = 0
+            updates = []
+            for i, row in df.iterrows():
+                insert_data = row.to_dict()
+                updates.append(UpdateOne(filter={
+                    'code': row['code'],
+                    'date': row['date']
+                }, update={
+                    '$set': insert_data
+                }, upsert=True))
 
-            if len(updates) == 1000:
+                if len(updates) == 1000:
+                    ret = await self.db.bulk_write(self._cluster(), self._kline_daily(), updates)
+                    if ret:
+                        print('Insert success')
+                    else:
+                        errors += 1
+                        print('Insert failed')
+                    updates = []
+                
+
+            if len(updates) > 0:
                 ret = await self.db.bulk_write(self._cluster(), self._kline_daily(), updates)
                 if ret:
                     print('Insert success')
                 else:
                     errors += 1
                     print('Insert failed')
-                updates = []
-            
-
-        if len(updates) > 0:
-            ret = await self.db.bulk_write(self._cluster(), self._kline_daily(), updates)
-            if ret:
-                print('Insert success')
-            else:
-                errors += 1
-                print('Insert failed')
-        print(f'{code} daily kline synced.')
-        return errors == 0, code
+            print(f'{code} daily kline synced.')
+            return errors == 0, code
+        else:
+            return False, code
 
     async def get_stock_list(self):
         stock_list = await self.db.query_and_sort(self._cluster(), self._stock_list(), {})
