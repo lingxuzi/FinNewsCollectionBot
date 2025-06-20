@@ -141,9 +141,12 @@ class KlineDataset(Dataset):
         date = stock_data['date']
         if len(stock_data) < self.seq_length:
             return None, None, None, None, None
-        for i in range(len(stock_data) - self.seq_length + 1):
+        for i in range(0, len(stock_data) - self.seq_length + 1, 5):
+            ts_seq = featured_stock_data[i:i + self.seq_length]
+            if len(ts_seq) < self.seq_length:
+                break
             # 时间序列部分 (例如: OHLCV, RSI, MACD)
-            ts_sequences.append(featured_stock_data[i:i + self.seq_length])
+            ts_sequences.append(ts_seq)
             # 上下文部分 (例如: PE, PB, 行业One-Hot向量)
             # 我们取序列最后一天的上下文特征作为代表
             context_numerical = numerical_stock_data[i + self.seq_length - 1]

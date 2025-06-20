@@ -1,6 +1,6 @@
 from pymilvus import MilvusClient, DataType
 from pymilvus.milvus_client.index import IndexParams
-from ai.embedding.models.lstm import MultiModalAutoencoder
+from ai.embedding.models import get_model_config, create_model
 from ai.embedding.dataset import KlineDataset
 from torch.utils.data import DataLoader
 from datetime import datetime, timedelta
@@ -11,6 +11,7 @@ import joblib
 import os
 import numpy as np
 import torch
+import ai.embedding.models.base
 
 class EmbeddingQueryer:
     def __init__(self, config):
@@ -26,24 +27,19 @@ class EmbeddingQueryer:
         return vec_client
 
     def init_model(self):
+
+        model_config = get_model_config(self.config['embedding']['model'])
+        model_config['ts_input_dim'] = len(self.config['embedding']['data']['features'])
+        model_config['ctx_input_dim'] = len(self.config['embedding']['data']['numerical'] + self.config['embedding']['data']['categorical'])
         scaler_path = self.config['embedding']['data']['scaler_path']
         encoder_path = self.config['embedding']['data']['encoder_path']
         self.scaler = joblib.load(scaler_path)
         self.encoder: LabelEncoder = joblib.load(encoder_path)
-        model = MultiModalAutoencoder(
-            ts_input_dim=len(self.config['embedding']['data']['features']),
-            ctx_input_dim=len(self.config['embedding']['data']['numerical'] + self.config['embedding']['data']['categorical']),
-            ts_embedding_dim=self.config['embedding']['model']['ts_embedding_dim'],
-            ctx_embedding_dim=self.config['embedding']['model']['ctx_embedding_dim'],
-            hidden_dim=self.config['embedding']['model']['hidden_dim'],
-            seq_len=self.config['embedding']['model']['sequence_length'],
-            num_layers=self.config['embedding']['model']['num_layers'],
-            predict_dim=self.config['embedding']['model']['predict_dim'],
-            attention_dim=self.config['embedding']['model']['attention_dim']
-        )
+        
+        model = create_model(self.config['embedding']['model'], model_config)
         device = torch.device(self.config['embedding']['device'] if torch.cuda.is_available() else "cpu")
-        print('Loading model from:', self.config['embedding']['model']['model_path'])
-        ckpt = torch.load(self.config['embedding']['model']['model_path'], map_location='cpu')
+        print('Loading model from:', self.config['embedding']['model_path'])
+        ckpt = torch.load(self.config['embedding']['model_path'], map_location='cpu')
         model.load_state_dict(ckpt, strict=False)
         model.to(device)
         model.eval()
@@ -59,7 +55,8 @@ class EmbeddingQueryer:
             search_params={
                 'metric_type': self.config['embedding']['metric_type'],
             },
-            data=vectors
+            data=vectors,
+            output_fields=['code', 'start_date', 'end_date', 'industry']
             )
         return res
     
@@ -103,14 +100,14 @@ class EmbeddingQueryer:
             categorical=self.config['embedding']['data']['categorical'],
             keep_kline=return_kline
         )
-        kline_data = kline_data[-self.config['embedding']['model']['sequence_length']:]
+        kline_data = kline_data[-self.config['embedding']['data']['seq_len']:]
         ts_seq = kline_data[self.config['embedding']['data']['features']].values
         ctx_seq =  kline_data[self.config['embedding']['data']['numerical'] + self.config['embedding']['data']['categorical']].values
 
         ts_seq = torch.tensor(ts_seq, dtype=torch.float32).unsqueeze(0).to(self.device, non_blocking=True)
         ctx_seq = torch.tensor(ctx_seq, dtype=torch.float32).unsqueeze(0).to(self.device, non_blocking=True)
         with torch.inference_mode():
-            _, _, pred, embedding, _ = self.model(ts_seq, ctx_seq[:, -1, :])
+            _, _, pred, embedding = self.model(ts_seq, ctx_seq[:, -1, :])
 
         embedding = embedding.cpu().numpy().tolist()
 

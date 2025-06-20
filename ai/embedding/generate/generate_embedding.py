@@ -1,6 +1,6 @@
 from pymilvus import MilvusClient, DataType
 from pymilvus.milvus_client.index import IndexParams
-from ai.embedding.models.lstm import MultiModalAutoencoder
+from ai.embedding.models import get_model_config, create_model
 from ai.embedding.dataset import KlineDataset
 from torch.utils.data import DataLoader
 from datetime import datetime
@@ -9,6 +9,7 @@ from tqdm import tqdm
 import joblib
 import os
 import torch
+import ai.embedding.models.base
 
 def init_indexer(index_db, embedding_dim):
     path = os.path.split(index_db)[0]
@@ -44,28 +45,25 @@ def init_indexer(index_db, embedding_dim):
     return vec_client
 
 def run(config):
-    client = init_indexer(config['embedding']['index_db'], config['embedding']['model']['ts_embedding_dim'] + config['embedding']['model']['ctx_embedding_dim'])
+    model_config = get_model_config(config['embedding']['model'])
+    model_config['ts_input_dim'] = len(config['embedding']['data']['features'])
+    model_config['ctx_input_dim'] = len(config['embedding']['data']['numerical'] + config['embedding']['data']['categorical'])
+
+    client = init_indexer(config['embedding']['index_db'], model_config['ts_embedding_dim'] + model_config['ctx_embedding_dim'])
 
     scaler_path = config['embedding']['data']['scaler_path']
     encoder_path = config['embedding']['data']['encoder_path']
     scaler = joblib.load(scaler_path)
     encoder: LabelEncoder = joblib.load(encoder_path)
-    model = MultiModalAutoencoder(
-        ts_input_dim=len(config['embedding']['data']['features']),
-        ctx_input_dim=len(config['embedding']['data']['numerical'] + config['embedding']['data']['categorical']),
-        ts_embedding_dim=config['embedding']['model']['ts_embedding_dim'],
-        ctx_embedding_dim=config['embedding']['model']['ctx_embedding_dim'],
-        hidden_dim=config['embedding']['model']['hidden_dim'],
-        seq_len=config['embedding']['model']['sequence_length'],
-        num_layers=config['embedding']['model']['num_layers'],
-        predict_dim=config['embedding']['model']['predict_dim'],
-        attention_dim=config['embedding']['model']['attention_dim']
-    )
+
+    model = create_model(config['embedding']['model'], model_config)
+    
     device = torch.device(config['embedding']['device'] if torch.cuda.is_available() else "cpu")
-    print('Loading model from:', config['embedding']['model']['model_path'])
-    ckpt = torch.load(config['embedding']['model']['model_path'], map_location='cpu')
+    print('Loading model from:', config['embedding']['model_path'])
+    ckpt = torch.load(config['embedding']['model_path'], map_location='cpu')
     model.load_state_dict(ckpt, strict=False)
     model.to(device)
+    model.eval()
     print('Model loaded successfully.')
     
     with torch.inference_mode():
@@ -75,7 +73,7 @@ def run(config):
                 db_path=config['embedding']['data']['db_path'],
                 stock_list_file=stock_list_file,
                 hist_data_file=hist_data_file,
-                seq_length=config['embedding']['model']['sequence_length'],
+                seq_length=config['embedding']['data']['seq_len'],
                 features=config['embedding']['data']['features'],
                 numerical=config['embedding']['data']['numerical'],
                 categorical=config['embedding']['data']['categorical'],
@@ -97,7 +95,7 @@ def run(config):
                 end_date = [datetime.strptime(d, '%Y-%m-%d').timestamp() for d in date_range[1]]
                 industry = encoder.inverse_transform(ctx_sequences[:, -1].cpu().numpy().astype('int32'))  # 假设最后一列是行业信息
 
-                _, _, predict_output, final_embedding, _ = model(ts_sequences, ctx_sequences)
+                _, _, predict_output, final_embedding = model(ts_sequences, ctx_sequences)
 
                 data = [
                     {

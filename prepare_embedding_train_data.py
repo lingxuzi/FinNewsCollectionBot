@@ -73,7 +73,7 @@ def parse_args():
     import argparse
     parser = argparse.ArgumentParser(description='Prepare historical stock data for training, evaluation, and testing.')
     parser.add_argument('--workers', type=int, default=16, help='Number of worker threads to use for data processing.')
-    parser.add_argument('--runs', type=str, default='train,eval,test,finetune', help='Number of runs to perform.')
+    parser.add_argument('--runs', type=str, default='train,eval,test', help='Number of runs to perform.')
     return parser.parse_args()
 
 if __name__ == '__main__':
