@@ -114,7 +114,7 @@ class StockKlineSynchronizer:
                 if df is not None:
                     self.deque.append(df.to_dict('records'))
                 else:
-                    results.append(False, code)
+                    results.append((False, code))
             return results
     
     async def sync_stocks(self):
