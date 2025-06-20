@@ -310,7 +310,7 @@ def run_eval(config):
     )
     test_loader = DataLoader(test_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=False)
 
-    model_config = config['model']
+    model_config = get_model_config(config['training']['model'])
     model_config['ts_input_dim'] = len(config['data']['features'])
     model_config['ctx_input_dim'] = len(config['data']['numerical'] + config['data']['categorical'])
 
