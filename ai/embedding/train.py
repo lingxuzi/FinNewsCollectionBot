@@ -52,36 +52,68 @@ def run_training(config):
         print(f"Scaler and encoder saved to {scaler_path} and {encoder_path}")
 
     # --- 2. 准备数据 ---
-    train_dataset = KlineDataset(
-        cache=config['data']['cache'],
-        db_path=config['data']['db_path'],
-        stock_list_file=config['data']['train']['stock_list_file'],
-        hist_data_file=config['data']['train']['hist_data_file'],
-        seq_length=config['training']['sequence_length'],
-        features=config['data']['features'],
-        numerical=config['data']['numerical'],
-        categorical=config['data']['categorical'],
-        include_meta=config['data']['include_meta'],
-        scaler=scaler,
-        encoder=encoder,
-        tag='train'
-    )
+    if not config['training']['finetune']:
+        train_dataset = KlineDataset(
+            cache=config['data']['cache'],
+            db_path=config['data']['db_path'],
+            stock_list_file=config['data']['train']['stock_list_file'],
+            hist_data_file=config['data']['train']['hist_data_file'],
+            seq_length=config['training']['sequence_length'],
+            features=config['data']['features'],
+            numerical=config['data']['numerical'],
+            categorical=config['data']['categorical'],
+            include_meta=config['data']['include_meta'],
+            scaler=scaler,
+            encoder=encoder,
+            tag='train'
+        )
 
-    eval_dataset = KlineDataset(
-        cache=config['data']['cache'],
-        db_path=config['data']['db_path'],
-        stock_list_file=config['data']['eval']['stock_list_file'],
-        hist_data_file=config['data']['eval']['hist_data_file'],
-        seq_length=config['training']['sequence_length'],
-        features=config['data']['features'],
-        numerical=config['data']['numerical'],
-        categorical=config['data']['categorical'],
-        include_meta=config['data']['include_meta'],
-        scaler=scaler,
-        encoder=encoder,
-        is_train=False,
-        tag='eval'
-    )
+        eval_dataset = KlineDataset(
+            cache=config['data']['cache'],
+            db_path=config['data']['db_path'],
+            stock_list_file=config['data']['eval']['stock_list_file'],
+            hist_data_file=config['data']['eval']['hist_data_file'],
+            seq_length=config['training']['sequence_length'],
+            features=config['data']['features'],
+            numerical=config['data']['numerical'],
+            categorical=config['data']['categorical'],
+            include_meta=config['data']['include_meta'],
+            scaler=scaler,
+            encoder=encoder,
+            is_train=False,
+            tag='eval'
+        )
+    else:
+        train_dataset = KlineDataset(
+            cache=config['data']['cache'],
+            db_path=config['data']['db_path'],
+            stock_list_file=config['data']['eval']['stock_list_file'],
+            hist_data_file=config['data']['eval']['hist_data_file'],
+            seq_length=config['training']['sequence_length'],
+            features=config['data']['features'],
+            numerical=config['data']['numerical'],
+            categorical=config['data']['categorical'],
+            include_meta=config['data']['include_meta'],
+            scaler=scaler,
+            encoder=encoder,
+            is_train=False,
+            tag='eval'
+        )
+        eval_dataset = KlineDataset(
+            cache=config['data']['cache'],
+            db_path=config['data']['db_path'],
+            stock_list_file=config['data']['test']['stock_list_file'],
+            hist_data_file=config['data']['test']['hist_data_file'],
+            seq_length=config['training']['sequence_length'],
+            features=config['data']['features'],
+            numerical=config['data']['numerical'],
+            categorical=config['data']['categorical'],
+            include_meta=config['data']['include_meta'],
+            scaler=scaler,
+            encoder=encoder,
+            is_train=False,
+            tag='test'
+        )
     train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=True, drop_last=True)
     val_loader = DataLoader(eval_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=False, drop_last=True)
 
@@ -115,12 +147,12 @@ def run_training(config):
     parameters = []
     if config['training']['awl']:
         parameters += [{'params': awl.parameters(), 'weight_decay': 0}]
-    parameters += [{'params': model.parameters(), 'weight_decay': 1e-3}]
-    optimizer = torch.optim.AdamW(parameters, lr=config['training']['min_learning_rate'])
+    parameters += [{'params': model.parameters(), 'weight_decay': config['training']['weight_decay']}]
+    optimizer = torch.optim.AdamW(parameters, lr=config['training']['min_learning_rate'] if config['training']['warmup_epochs'] > 0 else config['training']['learning_rate'])
     early_stopper = EarlyStopping(patience=10, direction='up')
     
     scheduler = CosineWarmupLR(
-        optimizer, config['training']['num_epochs'], config['training']['learning_rate'], config['training']['min_learning_rate'], warmup_epochs=10, warmup_lr=config['training']['min_learning_rate'])
+        optimizer, config['training']['num_epochs'], config['training']['learning_rate'], config['training']['min_learning_rate'], warmup_epochs=config['training']['warmup_epochs'], warmup_lr=config['training']['min_learning_rate'])
 
     # --- 4. 训练循环 ---
     best_val_loss = float('inf') if early_stopper.direction == 'down' else -float('inf')
