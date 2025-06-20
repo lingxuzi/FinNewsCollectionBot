@@ -103,6 +103,7 @@ class BaoSource(StockSource):
                         how='left'
                     )
                     result.fillna(method='ffill', inplace=True)
+                result = result[result['tradestatus'] == 1.0]
                 return result
             return None
         except Exception as e:
