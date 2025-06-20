@@ -280,7 +280,7 @@ class AsyncMongoEngine(Singleton):
         if isinstance(db, str):
             db = self.get_db(db)
         
-        # await self.create_collection(db, key)
+        await self.create_collection(db, key)
 
         try:
             result = await db[key].bulk_write(requests)
