@@ -150,8 +150,8 @@ class MultiModalAutoencoder(nn.Module):
         self.initialize_prediction_head(self.ts_output_layer.p[-1])
         self.initialize_prediction_head(self.ctx_decoder.p[-1])
         self.initialize_prediction_head(self.predictor.p[-1])
-        self.ts_encoder.flatten_parameters()
-        self.ts_decoder.flatten_parameters()
+        self.ts_encoder[0].flatten_parameters()
+        self.ts_decoder[0].flatten_parameters()
 
         if config.get('encoder_only', False):
             self.encoder_only(True)
