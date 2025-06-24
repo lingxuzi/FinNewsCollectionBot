@@ -23,8 +23,7 @@ from utils.common import ModelEmaV2, calculate_r2_components, calculate_r2_compo
 def num_iters_per_epoch(loader, batch_size):
     return len(loader) // batch_size
 
-def kl_loss(model):
-    latent_logvar, latent_mean = model.ts_encoder_fc.latent_logvar, model.ts_encoder_fc.latent_mean
+def kl_loss(latent_mean, latent_logvar):
     return -0.5 * torch.mean(1 + latent_logvar - latent_mean.pow(2) - latent_logvar.exp())
 
 def run_training(config):
@@ -151,7 +150,7 @@ def run_training(config):
     if config['training']['awl']:
         parameters += [{'params': awl.parameters(), 'weight_decay': 0}]
     parameters += [{'params': model.parameters(), 'weight_decay': config['training']['weight_decay']}]
-    optimizer = torch.optim.Adam(parameters, lr=config['training']['min_learning_rate'] if config['training']['warmup_epochs'] > 0 else config['training']['learning_rate'])
+    optimizer = torch.optim.AdamW(parameters, lr=config['training']['min_learning_rate'] if config['training']['warmup_epochs'] > 0 else config['training']['learning_rate'])
     early_stopper = EarlyStopping(patience=10, direction='up')
     
     scheduler = CosineWarmupLR(
@@ -167,6 +166,13 @@ def run_training(config):
         pred_loss_meter = AverageMeter()
         kl_loss_meter = AverageMeter()
         train_iter = DataPrefetcher(train_loader, config['device'], enable_queue=False, num_threads=1)
+
+
+
+        if epoch < config['training']['num_epochs'] // 2:
+            kl_weight = epoch / (config['training']['num_epochs']//2) # 线性增加
+        else:
+            kl_weight = 1
         
         # 使用tqdm显示进度条
         pbar = tqdm(range(num_iters_per_epoch(train_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training]")
@@ -176,7 +182,7 @@ def run_training(config):
             # ctx_sequences = ctx_sequences.to(device)
             # y = y.to(device)
             optimizer.zero_grad()
-            ts_reconstructed, ctx_reconstructed, pred, _ = model(ts_sequences, ctx_sequences)
+            ts_reconstructed, ctx_reconstructed, pred, _, ts_mean, ts_logvar = model(ts_sequences, ctx_sequences)
 
             losses = {}
 
@@ -196,15 +202,15 @@ def run_training(config):
                 loss_pred = criterion_predict(pred, y)
                 losses['pred'] = loss_pred
                 pred_loss_meter.update(loss_pred.item())
-            
-            _kl_loss = kl_loss(model)
+
+            _kl_loss = kl_loss(ts_mean, ts_logvar)
             kl_loss_meter.update(_kl_loss.item())
             losses['kl'] = _kl_loss
 
             if config['training']['awl']:
                 total_loss = awl(*list(losses.values))
             else:
-                total_loss = sum([losses[lk] * w for w, lk in zip(config['training']['loss_weights'], config['training']['losses'])])
+                total_loss = sum([losses[lk] * w for w, lk in zip(config['training']['loss_weights'], config['training']['losses'])]) + kl_weight * _kl_loss
             total_loss.backward()
             optimizer.step()
 
@@ -239,7 +245,7 @@ def run_training(config):
                 # ctx_sequences = ctx_sequences.to(device)
                 # y = y.to(device)
                 ts_sequences, ctx_sequences, y, _, _ = val_iter.next()
-                ts_reconstructed, ctx_reconstructed, pred, _ = model(ts_sequences, ctx_sequences)
+                ts_reconstructed, ctx_reconstructed, pred, _ = _model(ts_sequences, ctx_sequences)
 
                 
                 y_cpu = y.cpu().numpy()

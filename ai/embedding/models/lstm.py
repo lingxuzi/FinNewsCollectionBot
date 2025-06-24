@@ -130,6 +130,10 @@ class MultiModalAutoencoder(nn.Module):
         self.ts_decoder = nn.LSTM(hidden_dim, hidden_dim, num_layers, 
                                   batch_first=True)
         self.ts_output_layer = ResidualMLPBlock(hidden_dim, hidden_dim, ts_input_dim, dropout_rate=dropout_rate)
+
+        # nn.init.xavier_uniform_(self.ts_decoder_fc.weight)
+        # nn.init.xavier_uniform_(self.ts_output_layer.p[-1].weight)
+
         self.ctx_decoder = ResidualMLPBlock(ctx_embedding_dim if not self.use_fused_embedding else self.total_embedding_dim, hidden_dim, ctx_input_dim, dropout_rate=dropout_rate)
         self.predictor = ResidualMLPBlock(self.total_embedding_dim, int(hidden_dim), predict_dim, dropout_rate=dropout_rate)
 
@@ -183,7 +187,7 @@ class MultiModalAutoencoder(nn.Module):
         ts_encoder_outputs, (ts_h_n, ts_c_n) = self.ts_encoder(x_ts)
         ts_last_hidden_state = ts_h_n[-1, :, :]
         # ts_last_hidden_state, _ = self.ts_encoder_att(ts_encoder_outputs)
-        ts_embedding = self.ts_encoder_fc(ts_last_hidden_state) 
+        ts_embedding, ts_mean, ts_logvar = self.ts_encoder_fc(ts_last_hidden_state) 
         
         # 2. 上下文编码
         ctx_embedding = self.ctx_encoder(x_ctx)
@@ -212,6 +216,8 @@ class MultiModalAutoencoder(nn.Module):
         predict_output = self.predictor(norm_embedding)
 
         if not self.encoder_mode:
+            if self.training:
+                return ts_output, ctx_output, predict_output, final_embedding, ts_mean, ts_logvar
             return ts_output, ctx_output, predict_output, final_embedding
         else:
             return predict_output, final_embedding
