@@ -173,10 +173,10 @@ class MultiModalAutoencoder(nn.Module):
                 # 如果 x_ts 是一个一维时间序列，则需要调整噪声的形状
                 noise = torch.normal(0, self.noise_level, size=x_ts.size(), device=x_ts.device)
                 x_ts = x_ts + noise
-            if torch.rand(1).item() < self.noise_prob:
-                # 添加噪声
-                noise = torch.normal(0, self.noise_level, size=x_ctx.size(), device=x_ctx.device)
-                x_ctx = x_ctx + noise
+            # if torch.rand(1).item() < self.noise_prob:
+            #     # 添加噪声
+            #     noise = torch.normal(0, self.noise_level, size=x_ctx.size(), device=x_ctx.device)
+            #     x_ctx = x_ctx + noise
                 
         # --- 编码过程 ---
         # 1. 时序编码
