@@ -1,10 +1,15 @@
+db:
+  host: '10.26.0.8'
+  port: '2000'
+  username: 'hmcz'
+  password: 'Hmcz_12345678'
 embedding:
   device: "cuda"
   cache: 'diskcache'
   index_db: 'http://localhost:19531/default'
   collection_name: 'kline_embeddings'
   ann_field: 'embedding'
-  metric_type: 'L2'  # Inner Product
+  metric_type: 'COSINE'  # Inner Product
   batch_size: 1024
   data:
     seq_len: 50

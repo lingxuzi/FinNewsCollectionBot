@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm # 提供优雅的进度条
 from utils.common import AverageMeter
 from config.base import *
-from ai.embedding.dataset import KlineDataset, generate_scaler_and_encoder
+from ai.embedding.dataset.dataset import KlineDataset, generate_scaler_and_encoder
 from ai.modules.multiloss import AutomaticWeightedLoss
 from ai.modules.earlystop import EarlyStopping
 from ai.scheduler.sched import *

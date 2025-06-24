@@ -8,3 +8,4 @@ dropout: 0.
 noise_level: 0.001
 noise_prob: 0.3
 ts_masking_ratio: 0.
+fused_embedding: true

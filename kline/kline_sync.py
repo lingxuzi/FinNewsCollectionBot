@@ -2,13 +2,13 @@ from datasource.baostock_source import BaoSource
 from utils.async_mongo import AsyncMongoEngine
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pymongo import ReturnDocument, UpdateOne, InsertOne, UpdateMany, DeleteMany, ReplaceOne, WriteConcern
-from aiodecorators import BoundedSemaphore
 from utils.common import save_text, read_text
 from datetime import datetime
 from tqdm import tqdm
 from diskcache import Deque
 from shutil import rmtree
 from threading import Thread
+from utils.aggregation_builder import AggregationBuilder
 import asyncio
 import pandas as pd
 import os
@@ -25,7 +25,11 @@ class StockKlineSynchronizer:
         self.deque = Deque(directory=queue_path)
         if os.path.isfile('fail_sync.txt'):
             try:
-                self.fail_sync_stocks = read_text('fail_sync.txt').split(',')
+                fail_sync_stocks = read_text('fail_sync.txt').strip()
+                if len(fail_sync_stocks) > 0:
+                    self.fail_sync_stocks = fail_sync_stocks.split(',')
+                else:
+                    self.fail_sync_stocks = []
             except:
                 self.fail_sync_stocks = []
         else:
@@ -44,6 +48,7 @@ class StockKlineSynchronizer:
 
     async def connect_async(self):
         await self.db.connect_async()
+        await self._init_latest_sync_date()
 
     async def fetch_stocks(self):
         print('start syncing stock list...')
@@ -80,6 +85,21 @@ class StockKlineSynchronizer:
         self.thread.daemon = True # 设置为守护线程，主线程退出时子线程也退出
         self.thread.start()
 
+    async def _init_latest_sync_date(self):
+        aggregate_builder = AggregationBuilder()
+        aggregate_builder.groupby('code', {'max_date': {'$max': '$date'}}).sort({
+            'max_date':-1
+        })
+
+        data = await self.db.aggregate('latest_sync', self._cluster(), self._kline_daily(), aggregate_builder.result())
+
+        data = {
+            d['_id']: d['max_date']
+            for d in data
+        }
+
+        self.latest_sync_time = data
+
     async def _process_queue(self):
         while True:
             try:
@@ -107,13 +127,16 @@ class StockKlineSynchronizer:
     def _sync_stocks(self, stock_list):
         results = []
         with ProcessPoolExecutor(max_workers=10) as pool:
-            futures = {pool.submit(self.datasource.get_kline_daily, code, self.start_date, datetime.now().date(), True, False): code for code in stock_list}
+            futures = {pool.submit(self.datasource.get_kline_daily, code, self.latest_sync_time.get(self.datasource._get_code_prefix(code), self.start_date), datetime.now().date(), True, False): code for code in stock_list}
             for future in tqdm(as_completed(futures), total=len(futures), desc='Processing Klines...', ncols=120):
-                code = futures[future]
-                df = future.result()
-                if df is not None:
-                    self.deque.append(df.to_dict('records'))
-                else:
+                try:
+                    code = futures[future]
+                    df = future.result()
+                    if df is not None:
+                        self.deque.append(df.to_dict('records'))
+                        print(f'{code} queued')
+                except Exception as e:
+                    print(f'Error fetching data for {code}: {e}')
                     results.append((False, code))
             return results
     
@@ -129,6 +152,9 @@ class StockKlineSynchronizer:
                 fail_stocks.append(code)
         
         save_text(','.join(fail_stocks), 'fail_sync.txt')
+
+        print('creating index...')
+        await self.db.create_index(self._cluster(), self._kline_daily(), [('code', 1), ('date', 1)], unique=True)
     
     async def all_sync(self):
         if len(self.fail_sync_stocks) > 0:
@@ -140,12 +166,11 @@ class StockKlineSynchronizer:
                     fail_stocks.append(code)
             
             save_text(','.join(fail_stocks), 'fail_sync.txt')
-        else:
-            # await self.fetch_stocks()
-            await self.sync_stocks()
+        await self.fetch_stocks()
+        await self.sync_stocks()
 
     def run_in_thread(self, coro, loop):
         asyncio.set_event_loop(loop)
         # asyncio.run_coroutine_threadsafe(coro, loop)
         loop.run_until_complete(coro)
-        loop.close()
+        # loop.close()

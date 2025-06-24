@@ -67,15 +67,10 @@ class StockSource:
         return date.strftime('%Y%m%d')
     
     def get_stock_list(self, all_stocks=False):
-        stock_list = run_with_cache(ak.stock_zh_a_spot_em).rename(columns={
-            '代码': 'code',
-            '名称': 'name',
-            '最新价': 'price',
-            '涨跌幅': 'change_pct'
-        })
+        stock_list = run_with_cache(ak.stock_info_a_code_name)
         stock_list['code'] = stock_list['code'].apply(lambda x: str(x).zfill(6))
         stock_list = stock_list[['code', 'name']]
-        stock_list['market'] = [self._get_code_prefix(code) for code in stock_list['code'] ]
+        stock_list['market'] = [self._get_code_prefix(code) for code in stock_list['code']]
         stock_list = stock_list[stock_list['market'].str.contains('SZ|SH')]
         if not all_stocks:
             # 初始过滤：去除ST股和退市股，这些通常不适合投资分析
@@ -143,12 +138,22 @@ class StockSource:
 
         df['vwap'] = ((df['high'] + df['low'] + df['close']) / 3 * df['volume']).cumsum() / df['volume'].cumsum()
 
+        # 计算每日VWAP变化率
+        df['vwap_change'] = df['vwap'].pct_change()
+        
+        # 计算价格与VWAP的偏离度
+        df['vwap_deviation'] = (df['close'] - df['vwap']) / df['vwap']
+        
+        # 计算标准差用于风险评估
+        df['vwap_std'] = df['vwap'].rolling(window=20).std()
+
         return df
     
     def generate_predict_labels(self, df):
         for i in range(5):
             df[f'label_vwap_{i+1}'] = df['vwap'].shift(-i-1)
-        # df['label'] = df['vwap'].shift(-5)
+            df[f'label_vwap_deviation_{i+1}'] = df['vwap_deviation'].shift(-i-1)
+            df[f'label_vwap_std_{i+1}'] = df['vwap_std'].shift(-i-1)
         return df
     
     def post_process(self, df):

@@ -12,9 +12,9 @@ class BaoSource(StockSource):
         super().__init__()
     
     def _login_baostock(self) -> None:
-        with open(os.devnull, "w") as devnull:
-            with redirect_stdout(devnull):
-                bs.login()
+        # with open(os.devnull, "w") as devnull:
+        #     with redirect_stdout(devnull):
+        bs.login()
 
     def _logout_baostock(self) -> None:
         bs.logout()

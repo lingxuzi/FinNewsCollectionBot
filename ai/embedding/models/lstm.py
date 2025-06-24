@@ -94,6 +94,7 @@ class MultiModalAutoencoder(nn.Module):
         self.noise_prob = noise_prob
         
         self.total_embedding_dim = ts_embedding_dim + ctx_embedding_dim
+        self.use_fused_embedding = config['fused_embedding']
 
         # --- 分支1: 时序编码器 (LSTM) ---
         self.ts_encoder = nn.LSTM(ts_input_dim, hidden_dim, num_layers, batch_first=True)
@@ -105,11 +106,11 @@ class MultiModalAutoencoder(nn.Module):
 
         # --- 解码器 ---
         # 时序解码器
-        self.ts_decoder_fc = nn.Linear(ts_embedding_dim, hidden_dim)
+        self.ts_decoder_fc = nn.Linear(ts_embedding_dim if not self.use_fused_embedding else self.total_embedding_dim, hidden_dim)
         self.ts_decoder = nn.LSTM(hidden_dim, hidden_dim, num_layers, 
                                   batch_first=True)
         self.ts_output_layer = ResidualMLPBlock(hidden_dim, hidden_dim, ts_input_dim, dropout_rate=dropout_rate)
-        self.ctx_decoder = ResidualMLPBlock(ctx_embedding_dim, hidden_dim, ctx_input_dim, dropout_rate=dropout_rate)
+        self.ctx_decoder = ResidualMLPBlock(ctx_embedding_dim if not self.use_fused_embedding else self.total_embedding_dim, hidden_dim, ctx_input_dim, dropout_rate=dropout_rate)
         self.predictor = ResidualMLPBlock(self.total_embedding_dim, int(hidden_dim), predict_dim, dropout_rate=dropout_rate)
 
         self.embedding_norm = nn.LayerNorm(self.total_embedding_dim)
@@ -121,7 +122,6 @@ class MultiModalAutoencoder(nn.Module):
         self.initialize_prediction_head(self.predictor.p[-1])
         self.ts_encoder.flatten_parameters()
         self.ts_decoder.flatten_parameters()
-
 
     def initialize_prediction_head(self, module):
         """
@@ -161,22 +161,26 @@ class MultiModalAutoencoder(nn.Module):
         ctx_embedding = self.ctx_encoder(x_ctx)
 
         # # 3. 融合Embedding
-        # final_embedding = torch.cat([ts_embedding, ctx_embedding], dim=1)
-        # final_embedding = self.embedding_norm(final_embedding)
-        ts_decoder_input = self.ts_decoder_fc(ts_embedding).unsqueeze(1).repeat(1, x_ts.size(1), 1)
+        final_embedding = torch.cat([ts_embedding, ctx_embedding], dim=1)
+        final_embedding = self.embedding_norm(final_embedding)
+        if not self.use_fused_embedding:
+            ts_decoder_input = self.ts_decoder_fc(ts_embedding).unsqueeze(1).repeat(1, x_ts.size(1), 1)
+        else:
+            ts_decoder_input = self.ts_decoder_fc(final_embedding).unsqueeze(1).repeat(1, x_ts.size(1), 1)
         ts_reconstructed, _ = self.ts_decoder(ts_decoder_input)
         ts_output = self.ts_output_layer(ts_reconstructed)
         
         # 2. 上下文重构
-        ctx_output = self.ctx_decoder(ctx_embedding)
+        if not self.use_fused_embedding:
+            ctx_output = self.ctx_decoder(ctx_embedding)
+        else:
+            ctx_output = self.ctx_decoder(final_embedding)
 
         # 3. Fused Embedding
-        final_embedding = torch.cat([ts_embedding, ctx_embedding], dim=1).detach()
-        final_embedding = self.embedding_norm(final_embedding)
-        final_embedding = self.fusion_block(final_embedding)
+        norm_embedding = self.fusion_block(final_embedding)
 
         # --- 3. 预测分支 ---
-        predict_output = self.predictor(final_embedding)
+        predict_output = self.predictor(norm_embedding)
         
         return ts_output, ctx_output, predict_output, final_embedding
 

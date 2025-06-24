@@ -36,15 +36,14 @@ class AsyncMongoEngine(Singleton):
     def get_db(self, cluster):
         return self.client[cluster]
 
-    async def create_index(self, db, key, indexes):
+    async def create_index(self, db, key, index, unique=False):
         try:
             if isinstance(db, str):
                 db = self.get_db(db)
             
             await self.create_collection(db, key)
 
-            for index in indexes:
-                await db[key].create_index(index, background=True)
+            await db[key].create_index(index, background=True, unique=unique)
             return True
         except Exception as e:
             return False
@@ -80,11 +79,11 @@ class AsyncMongoEngine(Singleton):
             
             await self.create_collection(db, key, session=session)
 
-            result = await db[key].with_options(write_concern=WriteConcern(w=0)).insert_many(
+            result = await db[key].insert_many(
                 list, session=session, ordered=False)
             return True, result.inserted_ids
         except Exception as e:
-            return False, None
+            return False, str(e)
 
     async def query_one(self, db, key, query, project=None):
         if isinstance(db, str):
@@ -222,20 +221,17 @@ class AsyncMongoEngine(Singleton):
 
     async def aggregate(self, cache_key, db, key, query, refresh_cache=False, need_count=False, count_query={}, expired=7200):
         try:
-            results = await self.get_cache(
-                cache_key) if not refresh_cache else None
-            if results is None:
-                if isinstance(db, str):
-                    db = self.get_db(db)
-                results = db[key].aggregate(query, allowDiskUse=True)
-                results = await results.to_list(length=None)
+            if isinstance(db, str):
+                db = self.get_db(db)
+            results = db[key].aggregate(query, allowDiskUse=True)
+            results = await results.to_list(length=None)
 
-                if need_count:
-                    if len(count_query) > 0:
-                        count = await db[key].count_documents(count_query)
-                    else:
-                        count = await db[key].estimated_document_count()
-                    return (results, count)
+            if need_count:
+                if len(count_query) > 0:
+                    count = await db[key].count_documents(count_query)
+                else:
+                    count = await db[key].estimated_document_count()
+                return (results, count)
             return results
         except Exception as e:
             traceback.print_exc()

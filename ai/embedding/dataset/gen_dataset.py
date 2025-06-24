@@ -18,6 +18,8 @@ def normalize(df, features, numerical):
     if 'MBRevenue' in df.columns:
         df.drop(columns=['MBRevenue'], axis=1, inplace=True)
     df.dropna(inplace=True)
+
+    df[f'ori_close'] = df['close'].copy()
     
     price_cols = ['open', 'high', 'low', 'close']
     for col in price_cols:
@@ -47,7 +49,7 @@ def generate_scaler_and_encoder(db_path, hist_data_files, features, numerical, c
     return encoder, scaler
     
 
-class KlineDataset(Dataset):
+class GenKlineDataset(Dataset):
     """
     自定义K线数据Dataset。
     负责从数据库加载数据、归一化处理，并生成时间序列样本。
@@ -91,6 +93,7 @@ class KlineDataset(Dataset):
             self.labels = []
             self.date_ranges = []  # 用于存储日期范围
             self.codes = []
+            self.future_5d_max_returns = []
 
             # for code in tqdm(stock_list, desc="Processing stocks"):
             i = 0
@@ -99,18 +102,19 @@ class KlineDataset(Dataset):
                 for future in tqdm(as_completed(futures), total=len(futures), desc="Generating sequences and caching"):
                     code = futures[future]
                     try:
-                        ts_seq, ctx_seq, labels, date_range, codes = future.result()
+                        ts_seq, ctx_seq, labels, future_5d_max_return, date_range, codes = future.result()
                         if ts_seq is not None:
                             self.ts_sequences.extend(ts_seq)
                             self.ctx_sequences.extend(ctx_seq)
                             self.labels.extend(labels)
                             self.date_ranges.extend(date_range)
                             self.codes.extend(codes)
+                            self.future_5d_max_returns.extend(future_5d_max_return)
                     except Exception as e:
                         print(f"Error processing stock {code}: {e}")
             # 3. 清理内存
-            for i, (ts_seq, ctx_seq, label, date_range, code) in tqdm(enumerate(zip(self.ts_sequences, self.ctx_sequences, self.labels, self.date_ranges, self.codes)), desc="Caching sequences"):
-                self.cache.set(f'seq_{i}', (ts_seq, ctx_seq, label, date_range, code))
+            for i, (ts_seq, ctx_seq, label, future_5d_max_return, date_range, code) in tqdm(enumerate(zip(self.ts_sequences, self.ctx_sequences, self.labels, self.future_5d_max_returns, self.date_ranges, self.codes)), desc="Caching sequences"):
+                self.cache.set(f'seq_{i}', (ts_seq, ctx_seq, label, future_5d_max_return, date_range, code))
             self.cache.set('total_count', len(self.ts_sequences))
             print(f"Total sequences cached: {self.cache.get('total_count')}")
             del all_data_df  # 释放内存
@@ -129,6 +133,7 @@ class KlineDataset(Dataset):
         ts_sequences = [] # 时间序列部分
         ctx_sequences = [] # 上下文部分
         labels = []
+        future_5d_max_return = []
         date_range = []
 
         stock_data = all_data_df[all_data_df['code'] == code]
@@ -138,13 +143,19 @@ class KlineDataset(Dataset):
         stock_labels = stock_data[label_cols].to_numpy()
         featured_stock_data = stock_data[self.features].to_numpy()
         numerical_stock_data = stock_data[self.numerical].to_numpy()
+        ori_close = stock_data['ori_close'].to_numpy()
         date = stock_data['date']
         if len(stock_data) < self.seq_length:
-            return None, None, None, None, None
+            return None, None, None, None, None, None
         for i in range(0, len(stock_data) - self.seq_length + 1, 5):
             ts_seq = featured_stock_data[i:i + self.seq_length]
             if len(ts_seq) < self.seq_length:
                 break
+            future_5d_closes = ori_close[i + self.seq_length:i + self.seq_length + 5]
+            if len(future_5d_closes) > 0:
+                future_5d_max_return.append(future_5d_closes.max() / ori_close[i+self.seq_length-1] - 1)
+            else:
+                future_5d_max_return.append(0)
             # 时间序列部分 (例如: OHLCV, RSI, MACD)
             ts_sequences.append(ts_seq)
             # 上下文部分 (例如: PE, PB, 行业One-Hot向量)
@@ -156,7 +167,7 @@ class KlineDataset(Dataset):
             # self.ctx_sequences.append(context_numerical)
 
             labels.append(stock_labels[i + self.seq_length - 1])
-        return ts_sequences, ctx_sequences, labels, date_range, [code] * len(ts_sequences)
+        return ts_sequences, ctx_sequences, labels, future_5d_max_return, date_range, [code] * len(ts_sequences)
 
     def parallel_process(self, func, num_workers=4):
         """
@@ -176,8 +187,8 @@ class KlineDataset(Dataset):
         # t = time.time()
 
         if self.include_meta:
-
-            ts_seq, ctx_seq, label, date_range, code = self.cache.get(f'seq_{idx}')
+            # t = time.time()
+            ts_seq, ctx_seq, label, future_5d_max_return, date_range, code = self.cache.get(f'seq_{idx}')
             # print(f"Cache access time: {time.time() - t:.4f} seconds")
             if ts_seq is None or ctx_seq is None or label is None:
                 raise IndexError("Index out of range or data not found in cache.")
@@ -195,6 +206,7 @@ class KlineDataset(Dataset):
                 torch.FloatTensor(ts_seq),
                 torch.FloatTensor(ctx_seq),
                 torch.FloatTensor(label),
+                future_5d_max_return,
                 date_range,
                 code
             )
@@ -217,6 +229,7 @@ class KlineDataset(Dataset):
                 torch.FloatTensor(ts_seq),
                 torch.FloatTensor(ctx_seq),
                 torch.FloatTensor([label]),
+                'null',
                 'null',
                 'null'
             )

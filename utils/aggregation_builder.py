@@ -53,6 +53,23 @@ class AggregationBuilder:
 
         return self
     
+    def groupby(self, field, search_params):
+        self.__aggregations.append({
+            '$group': {
+                '_id': '$' + field,
+                **search_params
+            }
+        })
+
+        return self
+    
+    def sort(self, fields):
+        self.__aggregations.append({
+            '$sort': fields
+        })
+
+        return self
+    
     def unwind(self, field):
         self.__aggregations.append({
             '$unwind': '$' + field

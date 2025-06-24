@@ -1,11 +1,13 @@
 from pymilvus import MilvusClient, DataType
 from pymilvus.milvus_client.index import IndexParams
 from ai.embedding.models import get_model_config, create_model
-from ai.embedding.dataset import KlineDataset
+from ai.embedding.dataset.gen_dataset import GenKlineDataset
 from torch.utils.data import DataLoader
 from datetime import datetime
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from tqdm import tqdm
+from utils.prefetcher import DataPrefetcher
+from utils.norm import l2_norm
 import joblib
 import os
 import torch
@@ -25,6 +27,7 @@ def init_indexer(index_db, embedding_dim):
     shema.add_field(field_name='code', datatype=DataType.VARCHAR, max_length=16)
     shema.add_field(field_name='start_date', datatype=DataType.FLOAT)
     shema.add_field(field_name='end_date', datatype=DataType.FLOAT)
+    shema.add_field(field_name='future_5d_return', datatype=DataType.FLOAT)
     shema.add_field(field_name='embedding', datatype=DataType.FLOAT_VECTOR, dim=embedding_dim)
     shema.add_field(field_name='industry', datatype=DataType.VARCHAR, max_length=64)
 
@@ -34,7 +37,7 @@ def init_indexer(index_db, embedding_dim):
     # index_params.add_index('start_date', index_type=)
     # index_params.add_index('end_date', index_type='STL_SORT')
     # index_params.add_index('industry', index_type='STL_SORT')
-    index_params.add_index('embedding', index_type='IVF_FLAT', metric_type='L2', params={'nlist': 1024})
+    index_params.add_index('embedding', index_type='IVF_FLAT', metric_type='COSINE', params={'nlist': 128})
 
     vec_client.create_collection(
         auto_id=True,
@@ -68,7 +71,7 @@ def run(config):
     
     with torch.inference_mode():
         for stock_list_file, hist_data_file, tag in zip(config['embedding']['data']['stock_list_files'], config['embedding']['data']['hist_data_files'], config['embedding']['data']['tags']):
-            dataset = KlineDataset(
+            dataset = GenKlineDataset(
                 cache=config['embedding']['cache'],
                 db_path=config['embedding']['data']['db_path'],
                 stock_list_file=stock_list_file,
@@ -81,15 +84,16 @@ def run(config):
                 scaler=scaler,
                 encoder=encoder,
                 is_train=False,
-                tag=tag
+                tag=f'gen_{tag}'
             )
 
-            loader = DataLoader(dataset, batch_size=config['embedding']['batch_size'], shuffle=False, num_workers=4)
+            loader = DataLoader(dataset, batch_size=config['embedding']['batch_size'], shuffle=False, num_workers=4, pin_memory=False)
+            loader = DataPrefetcher(loader, config['embedding']['device'], enable_queue=False, num_threads=1)
 
-            for ts_sequences, ctx_sequences, y, date_range, code in tqdm(loader, desc=f"Processing {tag} data"):
-                ts_sequences = ts_sequences.to(device)
-                ctx_sequences = ctx_sequences.to(device)
-                y = y.to(device)
+            iters = len(dataset) // config['embedding']['batch_size'] if len(dataset) % config['embedding']['batch_size'] == 0 else len(dataset) // config['embedding']['batch_size'] + 1
+
+            for _ in tqdm(range(iters), desc=f"Processing {tag} data"):
+                ts_sequences, ctx_sequences, y, future_5d_returns, date_range, code = loader.next()
                 
                 start_date = [datetime.strptime(d, '%Y-%m-%d').timestamp() for d in date_range[0]]
                 end_date = [datetime.strptime(d, '%Y-%m-%d').timestamp() for d in date_range[1]]
@@ -97,15 +101,18 @@ def run(config):
 
                 _, _, predict_output, final_embedding = model(ts_sequences, ctx_sequences)
 
+                final_embedding = l2_norm(final_embedding)
+
                 data = [
                     {
                         'code': code_item,
                         'start_date': start,
                         'end_date': end,
+                        'future_5d_return': future_5d_return,
                         'embedding': final_embedding_item.cpu().numpy().tolist(),
                         'industry': industry_item
                     }
-                    for code_item, start, end, final_embedding_item, industry_item in zip(code, start_date, end_date, final_embedding, industry)
+                    for code_item, start, end, future_5d_return, final_embedding_item, industry_item in zip(code, start_date, end_date, future_5d_returns, final_embedding, industry)
                 ]
 
                 client.insert(

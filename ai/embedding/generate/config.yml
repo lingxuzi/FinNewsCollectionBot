@@ -4,12 +4,15 @@ embedding:
   index_db: 'http://localhost:19531/default'
   batch_size: 1024
   data:
-    seq_len: 50,
+    seq_len: 50
     db_path: '../hamuna_stock_data/train_data/hist'
     include_meta: true
     stock_list_files: ["eval_stocks.txt", "test_stocks.txt"]
     hist_data_files: ['fundamental_eval.pkl', 'fundamental_test.pkl']
     tags: ['eval', 'test']
+    # stock_list_files: ["test_stocks.txt"]
+    # hist_data_files: ['fundamental_test.pkl']
+    # tags: ['test']
     scaler_path: '../hamuna_stock_data/train_data/hist/scaler.joblib'
     encoder_path: '../hamuna_stock_data/train_data/hist/encoder.joblib'
     features: ['open', 'high', 'low', 'close', 'volume', 'turn_over', 'MA5', 'MA10', 'MA20', 'RSI', 'MACD', 'ATR', 'OBV', 'CCI', 'ADX', 'vwap']
