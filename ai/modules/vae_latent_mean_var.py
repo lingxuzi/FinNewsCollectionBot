@@ -16,8 +16,8 @@ class VAELambda(nn.Module):
         self.hidden_to_mean = nn.Linear(self.hidden_size, self.latent_length)
         self.hidden_to_logvar = nn.Linear(self.hidden_size, self.latent_length)
 
-        nn.init.xavier_uniform_(self.hidden_to_mean.weight)
-        nn.init.xavier_uniform_(self.hidden_to_logvar.weight)
+        # nn.init.xavier_uniform_(self.hidden_to_mean.weight)
+        # nn.init.xavier_uniform_(self.hidden_to_logvar.weight)
 
     def forward(self, cell_output):
         """Given last hidden state of encoder, passes through a linear layer, and finds the mean and variance
