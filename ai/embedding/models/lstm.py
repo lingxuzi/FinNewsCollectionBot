@@ -4,6 +4,24 @@ import torch.nn.functional as F
 
 from ai.embedding.models import register_model
 
+class Attention(nn.Module):
+    def __init__(self, hidden_size):
+        super(Attention, self).__init__()
+        self.hidden_size = hidden_size
+        self.attention_weights = nn.Linear(hidden_size, 1)
+    def forward(self, lstm_out):
+        # lstm_out 的 shape: (batch_size, sequence_length, hidden_size)
+        # 计算 Attention 权重
+        attention_scores = self.attention_weights(lstm_out)
+        # attention_scores 的 shape: (batch_size, sequence_length, 1)
+        attention_scores = torch.tanh(attention_scores)
+        attention_weights = F.softmax(attention_scores, dim=1)
+        # attention_weights 的 shape: (batch_size, sequence_length, 1)
+        # 将 Attention 权重应用于 LSTM 输出
+        context_vector = torch.sum(attention_weights * lstm_out, dim=1)
+        # context_vector 的 shape: (batch_size, hidden_size)
+        return context_vector, attention_weights.squeeze(2) # 去掉最后一维，方便后续使用
+
 # --- 1. 轻量级注意力模块 (不变) ---
 class SEFusionBlock(nn.Module):
     """
@@ -98,6 +116,7 @@ class MultiModalAutoencoder(nn.Module):
 
         # --- 分支1: 时序编码器 (LSTM) ---
         self.ts_encoder = nn.LSTM(ts_input_dim, hidden_dim, num_layers, batch_first=True)
+        self.ts_encoder_att = Attention(hidden_dim)
         self.ts_encoder_fc = nn.Linear(hidden_dim, ts_embedding_dim)
 
         # --- 分支2: 上下文编码器 (MLP) ---
@@ -153,8 +172,8 @@ class MultiModalAutoencoder(nn.Module):
         # --- 编码过程 ---
         # 1. 时序编码
         ts_encoder_outputs, (ts_h_n, ts_c_n) = self.ts_encoder(x_ts)
-        ts_last_hidden_state = ts_h_n[-1, :, :]
-        
+        # ts_last_hidden_state = ts_h_n[-1, :, :]
+        ts_last_hidden_state, _ = self.ts_encoder_att(ts_encoder_outputs)
         ts_embedding = self.ts_encoder_fc(ts_last_hidden_state) 
         
         # 2. 上下文编码

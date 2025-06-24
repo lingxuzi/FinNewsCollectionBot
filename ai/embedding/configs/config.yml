@@ -36,7 +36,7 @@ training:
   model_save_path: "../fin_models/kline_encoder.pth"
   pretrained_path: "../fin_models/kline_pretrained.pth"
   processed_data_cache_path: "../fin_train_cache/"
-  load_pretrained: true
+  load_pretrained: false
 
 # --- 设备配置 ---
 device: "cuda"              # 如果有GPU则使用cuda，否则使用cpu
