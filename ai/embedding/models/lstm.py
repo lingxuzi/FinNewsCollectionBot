@@ -128,7 +128,7 @@ class MultiModalAutoencoder(nn.Module):
         # 时序解码器
         self.ts_decoder_fc = nn.Linear(ts_embedding_dim if not self.use_fused_embedding else self.total_embedding_dim, hidden_dim)
         self.ts_decoder = nn.LSTM(hidden_dim, hidden_dim, num_layers, 
-                                  batch_first=True)
+                                  batch_first=True, dropout=dropout_rate)
         self.ts_output_layer = ResidualMLPBlock(hidden_dim, hidden_dim, ts_input_dim, dropout_rate=dropout_rate)
 
         # nn.init.xavier_uniform_(self.ts_decoder_fc.weight)
