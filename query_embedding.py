@@ -12,7 +12,7 @@ warnings.filterwarnings("ignore")
 def parse_args():
     parser = argparse.ArgumentParser(description='Qurey embedding model')
     parser.add_argument('--config', type=str, default='./ai/embedding/search/config.yml', help='Path to the configuration file')
-    parser.add_argument('--code', type=str, default='all', help='Stock code to query')
+    parser.add_argument('--code', type=str, default='600318', help='Stock code to query')
     return parser.parse_args()
 
 async def test_db():

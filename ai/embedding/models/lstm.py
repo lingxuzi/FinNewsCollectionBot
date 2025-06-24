@@ -162,7 +162,6 @@ class MultiModalAutoencoder(nn.Module):
 
         # # 3. 融合Embedding
         final_embedding = torch.cat([ts_embedding, ctx_embedding], dim=1)
-        final_embedding = self.embedding_norm(final_embedding)
         if not self.use_fused_embedding:
             ts_decoder_input = self.ts_decoder_fc(ts_embedding).unsqueeze(1).repeat(1, x_ts.size(1), 1)
         else:
@@ -177,7 +176,8 @@ class MultiModalAutoencoder(nn.Module):
             ctx_output = self.ctx_decoder(final_embedding)
 
         # 3. Fused Embedding
-        norm_embedding = self.fusion_block(final_embedding)
+        norm_embedding = self.embedding_norm(final_embedding)
+        norm_embedding = self.fusion_block(norm_embedding)
 
         # --- 3. 预测分支 ---
         predict_output = self.predictor(norm_embedding)

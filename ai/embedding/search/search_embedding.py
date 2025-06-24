@@ -148,7 +148,7 @@ class EmbeddingQueryer:
 
         end_date = datetime.now()
         start_date = end_date - timedelta(days=180)
-        kline_data = self.get_kline_data(stock_code, start_date, end_date)
+        kline_data = get_kline_data(stock_code, start_date, end_date)
 
         return self._query(kline_data, filters, limit, return_kline)
     

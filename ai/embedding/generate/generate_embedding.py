@@ -120,4 +120,6 @@ def run(config):
                     data=data
                 )
 
-        
+                print('embedding inserted')
+
+            del loader
