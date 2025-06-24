@@ -51,6 +51,7 @@ def run(config):
     model_config = get_model_config(config['embedding']['model'])
     model_config['ts_input_dim'] = len(config['embedding']['data']['features'])
     model_config['ctx_input_dim'] = len(config['embedding']['data']['numerical'] + config['embedding']['data']['categorical'])
+    model_config['encoder_only'] = config['embedding']['encoder_only']
 
     client = init_indexer(config['embedding']['index_db'], model_config['ts_embedding_dim'] + model_config['ctx_embedding_dim'])
 
@@ -66,7 +67,6 @@ def run(config):
     ckpt = torch.load(config['embedding']['model_path'], map_location='cpu')
     model.load_state_dict(ckpt, strict=False)
     model.to(device)
-    model.eval()
     print('Model loaded successfully.')
     
     with torch.inference_mode():
@@ -99,7 +99,7 @@ def run(config):
                 end_date = [datetime.strptime(d, '%Y-%m-%d').timestamp() for d in date_range[1]]
                 industry = encoder.inverse_transform(ctx_sequences[:, -1].cpu().numpy().astype('int32'))  # 假设最后一列是行业信息
 
-                _, _, predict_output, final_embedding = model(ts_sequences, ctx_sequences)
+                predict_output, final_embedding = model(ts_sequences, ctx_sequences)
 
                 final_embedding = l2_norm(final_embedding)
 

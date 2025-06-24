@@ -21,7 +21,7 @@ data:
 # --- 训练参数 ---
 training:
   finetune: true
-  model: 'lstm-ae'
+  model: 'xlstm-ae'
   awl: false
   losses: ['ts', 'ctx', 'pred']
   loss_weights: [1., 0.2, 1]

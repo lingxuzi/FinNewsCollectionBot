@@ -52,6 +52,7 @@ class EmbeddingQueryer:
         model_config = get_model_config(self.config['embedding']['model'])
         model_config['ts_input_dim'] = len(self.config['embedding']['data']['features'])
         model_config['ctx_input_dim'] = len(self.config['embedding']['data']['numerical'] + self.config['embedding']['data']['categorical'])
+        model_config['encoder_only'] = self.config['embedding']['encoder_only']
         scaler_path = self.config['embedding']['data']['scaler_path']
         encoder_path = self.config['embedding']['data']['encoder_path']
         self.scaler = joblib.load(scaler_path)
@@ -164,14 +165,8 @@ class EmbeddingQueryer:
         kline_data = kline_data[-self.config['embedding']['data']['seq_len']:]
         ts_seq = kline_data[self.config['embedding']['data']['features']].values
         ctx_seq =  kline_data[self.config['embedding']['data']['numerical'] + self.config['embedding']['data']['categorical']].values
-        # ctx_seq = np.expand_dims(ctx_seq, axis=0)
 
-        # ts_seq = torch.tensor(ts_seq, dtype=torch.float32).unsqueeze(0).to(self.device, non_blocking=True)
-        # ctx_seq = torch.tensor(ctx_seq, dtype=torch.float32).unsqueeze(0).to(self.device, non_blocking=True)
-        # with torch.inference_mode():
-        #     _, _, pred, embedding = self.model(ts_seq, ctx_seq[:, -1, :])
-
-        _, _, pred, embedding = self.model_engine.inference(self.config['embedding']['model'], (ts_seq, ctx_seq[-1, :]))
+        pred, embedding = self.model_engine.inference(self.config['embedding']['model'], (ts_seq, ctx_seq[-1, :]))
 
         embedding = l2_norm(embedding)
 

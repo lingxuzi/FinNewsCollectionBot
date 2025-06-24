@@ -1,0 +1,17 @@
+strategy: 'vwap_future'
+code: '600318'
+start_date: '20180101'
+end_date: '20240101'
+cash: 10000.0
+comission: 0.006
+model:
+  device: 'cuda'
+  features: ['open', 'high', 'low', 'close', 'volume', 'turn_over', 'MA5', 'MA10', 'MA20', 'RSI', 'MACD', 'ATR', 'OBV', 'CCI', 'ADX', 'vwap']
+  numerical: ['pe_ttm', 'pb', 'ps_ttm', 'pcf_ncf_ttm']
+  categorical: ['industry']
+  name: 'lstm-ae'
+  path: '../fin_models/kline_encoder.pth'
+  scaler_path: '../hamuna_stock_data/train_data/hist/scaler.joblib'
+  encoder_path: '../hamuna_stock_data/train_data/hist/encoder.joblib'
+  encoder_only: true
+  seq_len: 50

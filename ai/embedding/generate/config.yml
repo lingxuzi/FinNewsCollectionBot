@@ -20,3 +20,4 @@ embedding:
     categorical: ['industry']
   model: 'lstm-ae'
   model_path: "../fin_models/kline_encoder.pth"
+  encoder_only: true
