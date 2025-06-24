@@ -116,7 +116,10 @@ class MultiModalAutoencoder(nn.Module):
         self.encoder_mode = False
 
         # --- 分支1: 时序编码器 (LSTM) ---
-        self.ts_encoder = nn.LSTM(ts_input_dim, hidden_dim, num_layers, batch_first=True)
+        self.ts_encoder = nn.Sequential(
+            nn.LSTM(ts_input_dim, hidden_dim, num_layers, batch_first=True),
+            nn.BatchNorm1d(hidden_dim)
+        )
         # self.ts_encoder_att = Attention(hidden_dim)
         self.ts_encoder_fc = VAELambda(hidden_dim, ts_embedding_dim) #nn.Linear(hidden_dim, ts_embedding_dim)
 
@@ -127,8 +130,11 @@ class MultiModalAutoencoder(nn.Module):
         # --- 解码器 ---
         # 时序解码器
         self.ts_decoder_fc = nn.Linear(ts_embedding_dim if not self.use_fused_embedding else self.total_embedding_dim, hidden_dim)
-        self.ts_decoder = nn.LSTM(hidden_dim, hidden_dim, num_layers, 
-                                  batch_first=True, dropout=dropout_rate)
+        self.ts_decoder = nn.Sequential(
+            nn.LSTM(hidden_dim, hidden_dim, num_layers, 
+                                  batch_first=True, dropout=dropout_rate),
+            nn.BatchNorm1d(hidden_dim)
+        )
         self.ts_output_layer = ResidualMLPBlock(hidden_dim, hidden_dim, ts_input_dim, dropout_rate=dropout_rate)
 
         # nn.init.xavier_uniform_(self.ts_decoder_fc.weight)
