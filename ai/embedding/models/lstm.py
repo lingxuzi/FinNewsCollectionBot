@@ -116,12 +116,10 @@ class MultiModalAutoencoder(nn.Module):
         self.encoder_mode = False
 
         # --- 分支1: 时序编码器 (LSTM) ---
-        self.ts_encoder = nn.Sequential(
-            nn.LSTM(ts_input_dim, hidden_dim, num_layers, batch_first=True),
-            nn.BatchNorm1d(hidden_dim)
-        )
+        self.ts_encoder = nn.LSTM(ts_input_dim, hidden_dim, num_layers, batch_first=True)
         # self.ts_encoder_att = Attention(hidden_dim)
         self.ts_encoder_fc = VAELambda(hidden_dim, ts_embedding_dim) #nn.Linear(hidden_dim, ts_embedding_dim)
+        self.ts_encoder_bn = nn.BatchNorm1d(ts_embedding_dim)  # 添加 BN
 
         # --- 分支2: 上下文编码器 (MLP) ---
         # 增加 Batch Normalization
@@ -130,11 +128,9 @@ class MultiModalAutoencoder(nn.Module):
         # --- 解码器 ---
         # 时序解码器
         self.ts_decoder_fc = nn.Linear(ts_embedding_dim if not self.use_fused_embedding else self.total_embedding_dim, hidden_dim)
-        self.ts_decoder = nn.Sequential(
-            nn.LSTM(hidden_dim, hidden_dim, num_layers, 
-                                  batch_first=True, dropout=dropout_rate),
-            nn.BatchNorm1d(hidden_dim)
-        )
+        self.ts_decoder_fc_bn = nn.BatchNorm1d(hidden_dim)  # 添加 BN
+        self.ts_decoder = nn.LSTM(hidden_dim, hidden_dim, num_layers, 
+                                  batch_first=True, dropout=dropout_rate)
         self.ts_output_layer = ResidualMLPBlock(hidden_dim, hidden_dim, ts_input_dim, dropout_rate=dropout_rate)
 
         # nn.init.xavier_uniform_(self.ts_decoder_fc.weight)
@@ -150,8 +146,8 @@ class MultiModalAutoencoder(nn.Module):
         self.initialize_prediction_head(self.ts_output_layer.p[-1])
         self.initialize_prediction_head(self.ctx_decoder.p[-1])
         self.initialize_prediction_head(self.predictor.p[-1])
-        self.ts_encoder[0].flatten_parameters()
-        self.ts_decoder[0].flatten_parameters()
+        self.ts_encoder.flatten_parameters()
+        self.ts_decoder.flatten_parameters()
 
         if config.get('encoder_only', False):
             self.encoder_only(True)
@@ -194,6 +190,7 @@ class MultiModalAutoencoder(nn.Module):
         ts_last_hidden_state = ts_h_n[-1, :, :]
         # ts_last_hidden_state, _ = self.ts_encoder_att(ts_encoder_outputs)
         ts_embedding, ts_mean, ts_logvar = self.ts_encoder_fc(ts_last_hidden_state) 
+        ts_embedding = self.ts_encoder_bn(ts_embedding)
         
         # 2. 上下文编码
         ctx_embedding = self.ctx_encoder(x_ctx)
@@ -202,9 +199,10 @@ class MultiModalAutoencoder(nn.Module):
         final_embedding = torch.cat([ts_embedding, ctx_embedding], dim=1)
         if not self.encoder_mode:
             if not self.use_fused_embedding:
-                ts_decoder_input = self.ts_decoder_fc(ts_embedding).unsqueeze(1).repeat(1, x_ts.size(1), 1)
+                ts_decoder_input = self.ts_decoder_fc(ts_embedding)
             else:
-                ts_decoder_input = self.ts_decoder_fc(final_embedding).unsqueeze(1).repeat(1, x_ts.size(1), 1)
+                ts_decoder_input = self.ts_decoder_fc(final_embedding)
+            ts_decoder_input = self.ts_decoder_fc_bn(ts_decoder_input).unsqueeze(1).repeat(1, x_ts.size(1), 1) # 应用 BN
             ts_reconstructed, _ = self.ts_decoder(ts_decoder_input)
             ts_output = self.ts_output_layer(ts_reconstructed)
         
