@@ -9,7 +9,6 @@ class Attention(nn.Module):
         super(Attention, self).__init__()
         self.hidden_size = hidden_size
         self.attention_weights = nn.Linear(hidden_size, 1)
-
     def forward(self, lstm_out):
         # lstm_out 的 shape: (batch_size, sequence_length, hidden_size)
         # 计算 Attention 权重
@@ -19,7 +18,7 @@ class Attention(nn.Module):
         attention_weights = F.softmax(attention_scores, dim=1)
         # attention_weights 的 shape: (batch_size, sequence_length, 1)
         # 将 Attention 权重应用于 LSTM 输出
-        context_vector = attention_weights * lstm_out
+        context_vector = torch.sum(attention_weights * lstm_out, dim=1)
         # context_vector 的 shape: (batch_size, hidden_size)
         return context_vector, attention_weights.squeeze(2) # 去掉最后一维，方便后续使用
 
@@ -117,9 +116,8 @@ class MultiModalAutoencoder(nn.Module):
         self.encoder_mode = False
 
         # --- 分支1: 时序编码器 (LSTM) ---
-        self.ts_encoder_first = nn.LSTM(ts_input_dim, hidden_dim, num_layers // 2, batch_first=True)
-        self.ts_encoder_att = Attention(hidden_dim)
-        self.ts_encoder_second = nn.LSTM(hidden_dim, hidden_dim, num_layers - (num_layers // 2), batch_first=True)
+        self.ts_encoder = nn.LSTM(ts_input_dim, hidden_dim, num_layers, batch_first=True)
+        # self.ts_encoder_att = Attention(hidden_dim)
         self.ts_encoder_fc = nn.Linear(hidden_dim, ts_embedding_dim)
 
         # --- 分支2: 上下文编码器 (MLP) ---
@@ -142,8 +140,7 @@ class MultiModalAutoencoder(nn.Module):
         self.initialize_prediction_head(self.ts_output_layer.p[-1])
         self.initialize_prediction_head(self.ctx_decoder.p[-1])
         self.initialize_prediction_head(self.predictor.p[-1])
-        self.ts_encoder_first.flatten_parameters()
-        self.ts_encoder_second.flatten_parameters()
+        self.ts_encoder.flatten_parameters()
         self.ts_decoder.flatten_parameters()
 
         if config.get('encoder_only', False):
@@ -183,11 +180,9 @@ class MultiModalAutoencoder(nn.Module):
                 
         # --- 编码过程 ---
         # 1. 时序编码
-        ts_encoder_outputs, _ = self.ts_encoder_first(x_ts)
-        # ts_last_hidden_state = ts_h_n[-1, :, :]
-        ts_encoder_outputs, _ = self.ts_encoder_att(ts_encoder_outputs)
-        _, (ts_h_n, ts_c_n) = self.ts_encoder_second(ts_encoder_outputs)
+        ts_encoder_outputs, (ts_h_n, ts_c_n) = self.ts_encoder(x_ts)
         ts_last_hidden_state = ts_h_n[-1, :, :]
+        # ts_last_hidden_state, _ = self.ts_encoder_att(ts_encoder_outputs)
         ts_embedding = self.ts_encoder_fc(ts_last_hidden_state) 
         
         # 2. 上下文编码
@@ -195,6 +190,7 @@ class MultiModalAutoencoder(nn.Module):
 
         # # 3. 融合Embedding
         final_embedding = torch.cat([ts_embedding, ctx_embedding], dim=1)
+        final_embedding = self.embedding_norm(final_embedding)
         if not self.encoder_mode:
             if not self.use_fused_embedding:
                 ts_decoder_input = self.ts_decoder_fc(ts_embedding).unsqueeze(1).repeat(1, x_ts.size(1), 1)
@@ -210,8 +206,7 @@ class MultiModalAutoencoder(nn.Module):
                 ctx_output = self.ctx_decoder(final_embedding)
 
         # 3. Fused Embedding
-        norm_embedding = self.embedding_norm(final_embedding.detach())
-        norm_embedding = self.fusion_block(norm_embedding)
+        norm_embedding = self.fusion_block(final_embedding.detach())
 
         # --- 3. 预测分支 ---
         predict_output = self.predictor(norm_embedding)
