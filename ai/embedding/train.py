@@ -23,6 +23,9 @@ from utils.common import ModelEmaV2, calculate_r2_components, calculate_r2_compo
 def num_iters_per_epoch(loader, batch_size):
     return len(loader) // batch_size
 
+def kl_loss(model):
+    latent_logvar, latent_mean = model.ts_encoder_fc.latent_logvar, model.ts_encoder_fc.latent_mean
+    return -0.5 * torch.mean(1 + latent_logvar - latent_mean.pow(2) - latent_logvar.exp())
 
 def run_training(config):
     """主训练函数"""
@@ -162,6 +165,7 @@ def run_training(config):
         ts_loss_meter = AverageMeter()
         ctx_loss_meter = AverageMeter()
         pred_loss_meter = AverageMeter()
+        kl_loss_meter = AverageMeter()
         train_iter = DataPrefetcher(train_loader, config['device'], enable_queue=False, num_threads=1)
         
         # 使用tqdm显示进度条
@@ -192,6 +196,10 @@ def run_training(config):
                 loss_pred = criterion_predict(pred, y)
                 losses['pred'] = loss_pred
                 pred_loss_meter.update(loss_pred.item())
+            
+            _kl_loss = kl_loss(model)
+            kl_loss_meter.update(_kl_loss.item())
+            losses['kl'] = _kl_loss
 
             if config['training']['awl']:
                 total_loss = awl(*list(losses.values))
@@ -204,7 +212,7 @@ def run_training(config):
 
             train_loss_meter.update(total_loss.item())
             #| Pred Loss: {pred_loss_meter.avg}
-            pbar.set_description(f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training] | Loss: {train_loss_meter.avg} | TS Loss: {ts_loss_meter.avg} | CTX Loss: {ctx_loss_meter.avg} | Pred Loss: {pred_loss_meter.avg}")
+            pbar.set_description(f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training] | Loss: {train_loss_meter.avg} | KL Loss: {kl_loss_meter.avg} | TS Loss: {ts_loss_meter.avg} | CTX Loss: {ctx_loss_meter.avg} | Pred Loss: {pred_loss_meter.avg}")
         
         scheduler.step()
 

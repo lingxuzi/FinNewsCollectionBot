@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from ai.modules.vae_latent_mean_var import VAELambda
 from ai.embedding.models import register_model
 
 class Attention(nn.Module):
@@ -51,7 +51,7 @@ class SEFusionBlock(nn.Module):
         """
         Args:
             x (Tensor): The fused input tensor of shape [batch_size, input_dim].
-        
+        ts_output_layer
         Returns:
             Tensor: The re-weighted feature tensor of the same shape.
         """
@@ -118,7 +118,7 @@ class MultiModalAutoencoder(nn.Module):
         # --- 分支1: 时序编码器 (LSTM) ---
         self.ts_encoder = nn.LSTM(ts_input_dim, hidden_dim, num_layers, batch_first=True)
         # self.ts_encoder_att = Attention(hidden_dim)
-        self.ts_encoder_fc = nn.Linear(hidden_dim, ts_embedding_dim)
+        self.ts_encoder_fc = VAELambda(hidden_dim, ts_embedding_dim) #nn.Linear(hidden_dim, ts_embedding_dim)
 
         # --- 分支2: 上下文编码器 (MLP) ---
         # 增加 Batch Normalization
