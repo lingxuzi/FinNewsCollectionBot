@@ -212,7 +212,7 @@ def run_training(config):
 
             train_loss_meter.update(total_loss.item())
             #| Pred Loss: {pred_loss_meter.avg}
-            pbar.set_description(f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training] | Loss: {train_loss_meter.avg} | KL Loss: {kl_loss_meter.avg} | TS Loss: {ts_loss_meter.avg} | CTX Loss: {ctx_loss_meter.avg} | Pred Loss: {pred_loss_meter.avg}")
+            pbar.set_description(f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training] | Loss: {train_loss_meter.avg:.4f} | KL Loss: {kl_loss_meter.avg:.4f} | TS Loss: {ts_loss_meter.avg:.4f} | CTX Loss: {ctx_loss_meter.avg:.4f} | Pred Loss: {pred_loss_meter.avg:.4f}")
         
         scheduler.step()
 
