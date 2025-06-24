@@ -19,7 +19,7 @@ class Attention(nn.Module):
         attention_weights = F.softmax(attention_scores, dim=1)
         # attention_weights 的 shape: (batch_size, sequence_length, 1)
         # 将 Attention 权重应用于 LSTM 输出
-        context_vector = torch.sum(attention_weights * lstm_out, dim=1)
+        context_vector = attention_weights * lstm_out
         # context_vector 的 shape: (batch_size, hidden_size)
         return context_vector, attention_weights.squeeze(2) # 去掉最后一维，方便后续使用
 
