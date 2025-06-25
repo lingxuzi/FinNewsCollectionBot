@@ -136,7 +136,7 @@ class StockKlineSynchronizer:
                         self.deque.append(df.to_dict('records'))
                         print(f'{code} queued')
                 except Exception as e:
-                    print(f'Error fetching data for {code}: {e}')
+                    print(f'Error fetching data for {code}.')
                     results.append((False, code))
             return results
     
