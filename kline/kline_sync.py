@@ -110,7 +110,7 @@ class StockKlineSynchronizer:
                         if ret:
                             print('Insert success')
                         else:
-                            print(f'Insert failed')
+                            print(f'Insert failed: {e}')
                     except Exception as e:
                         print(f'Process queue failed')
                 else:
