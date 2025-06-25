@@ -32,13 +32,13 @@ training:
   warmup_epochs: 0
   batch_size: 1024
   num_epochs: 200
-  kl_annealing_steps: 500
-  kl_weight: 1e-4
-  kl_target: 1e-3
+  kl_annealing_steps: 20
+  kl_weight_initial: 0.0001
+  kl_target: 0.001
   model_save_path: "../fin_models/kline_encoder.pth"
   pretrained_path: "../fin_models/kline_pretrained.pth"
   processed_data_cache_path: "../fin_train_cache/"
-  load_pretrained: true
+  load_pretrained: false
 
 # --- 设备配置 ---
 device: "cuda"              # 如果有GPU则使用cuda，否则使用cpu

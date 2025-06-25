@@ -168,8 +168,8 @@ def run_training(config):
         train_iter = DataPrefetcher(train_loader, config['device'], enable_queue=False, num_threads=1)
 
 
-        if (epoch % 20) < config['training']['kl_annealing_steps']:
-            kl_weight = min(config['training']['kl_weight_initial'] + (config['training']['kl_target'] - config['training']['kl_weight_initial']) * (epoch % 20) / config['training']['kl_annealing_steps'], config['training']['kl_target'])
+        if epoch == 0 or epoch % config['training']['kl_annealing_steps'] != 0:
+            kl_weight = min(config['training']['kl_weight_initial'] + (config['training']['kl_target'] - config['training']['kl_weight_initial']) * epoch / config['training']['kl_annealing_steps'], config['training']['kl_target'])
         else:
             kl_weight = config['training']['kl_weight_initial']  # 重启
         
