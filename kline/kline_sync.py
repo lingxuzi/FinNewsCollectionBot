@@ -110,13 +110,13 @@ class StockKlineSynchronizer:
                         if ret:
                             print('Insert success')
                         else:
-                            print(f'Insert failed: {e}')
+                            print(f'Insert failed')
                     except Exception as e:
-                        print(f'Process queue failed: {e}')
+                        print(f'Process queue failed')
                 else:
                     await asyncio.sleep(1)
             except Exception as e:
-                print(f'Process queue failed: {e}')
+                print(f'Process queue failed')
                 await asyncio.sleep(1)
 
     async def get_stock_list(self):
@@ -132,7 +132,7 @@ class StockKlineSynchronizer:
                 try:
                     code = futures[future]
                     df = future.result()
-                    if df is not None:
+                    if df is not None and not df.empty:
                         self.deque.append(df.to_dict('records'))
                         print(f'{code} queued')
                 except Exception as e:
