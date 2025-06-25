@@ -34,8 +34,6 @@ class VWAPFutureStrategy(bt.Strategy):
 
     def next(self):
         current_date = self.datas[0].datetime.date(0)
-        # 1. 更新历史数据
-        self.update_historical_data(current_date)
         # 2. 检查是否有挂起的订单
         if self.order:
             return
@@ -43,6 +41,10 @@ class VWAPFutureStrategy(bt.Strategy):
         if self.position:
             #设置止盈止损
             if self.buyprice:
+                if self.dataclose[0] >= self.datas[0].avg_future_vwap[0]:
+                    self.log(f'SELL CREATE, {self.dataclose[0]:.2f} > {self.datas[0].avg_future_vwap[0]:.2f}')
+                    self.order = self.close()
+                    return
                 pnl = (self.dataclose[0] - self.buyprice) / self.buyprice  # 计算盈亏百分比
                 if pnl <= -self.p.stop_loss:  # 止损
                     self.log("STOP LOSS EXECUTED, closing position")
@@ -51,32 +53,12 @@ class VWAPFutureStrategy(bt.Strategy):
                     self.log("TAKE PROFIT EXECUTED, closing position")
                     self.order = self.close()
             return
-        # 4. 检查是否已经有足够的历史数据
-        if len(self.historical_closes) < self.p.prediction_days:
-            return  # 没有足够的数据进行预测
-        # 5. 更新未来VWAP预测 (模拟，实际中替换为你的模型)
-        if current_date not in self.future_vwap:
-            self.update_future_vwap(current_date)
-        # 6. 生成交易信号
-        if current_date in self.future_vwap:
-            predicted_vwaps = self.future_vwap[current_date]
-            confidences = self.future_vwap_confidence[current_date]
-            # 计算未来N天VWAP的平均值
-            avg_future_vwap = sum(predicted_vwaps) / len(predicted_vwaps)
-            # 判断置信度是否满足阈值
-            valid_predictions = [vwap for i, vwap in enumerate(predicted_vwaps) if confidences[i] >= self.p.confidence_threshold]
-            if not valid_predictions:
-                return  # 没有足够置信度的预测值
-            avg_future_vwap = sum(valid_predictions) / len(valid_predictions) if valid_predictions else 0
-            # 买入信号：如果今天收盘价低于未来平均VWAP
-            if self.dataclose[0] < avg_future_vwap:
-                self.log(f'BUY CREATE, {self.dataclose[0]:.2f} < {avg_future_vwap:.2f}')
+        else:
+            if self.dataclose[0] < self.datas[0].avg_future_vwap[0]:
+                self.log(f'BUY CREATE, {self.dataclose[0]:.2f} < {self.datas[0].avg_future_vwap[0]:.2f}')
                 self.order = self.buy()
                 self.buyprice = self.dataclose[0] #记录买入价格
-            # 卖出信号 (示例，可以根据你的策略调整)
-            elif self.dataclose[0] > avg_future_vwap:
-                self.log(f'SELL CREATE, {self.dataclose[0]:.2f} > {avg_future_vwap:.2f}')
-                self.order = self.sell()
+            return
 
     def update_historical_data(self, current_date):
         #存储历史数据

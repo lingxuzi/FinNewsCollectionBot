@@ -5,6 +5,7 @@ import numpy as np  # 用于数值计算
 import backtrade.strategy
 import ai.embedding.models.base
 from backtrade.decorate import create_strategy
+from backtrade.data.plus import PandasDataPlus
 from db.stock_query import StockQueryEngine
 from datasource.baostock_source import BaoSource
 from ai.embedding.models import create_model, get_model_config
@@ -62,7 +63,7 @@ def prepare_data(config):
     data.set_index('date', inplace=True)
     data, ohlc = normalize(data, config)
 
-    data['avg_future_vwap'] = np.nan
+    ohlc['avg_future_vwap'] = np.nan
     for i in range(config['model']['seq_len'], len(data)):
         ts_seq = data[config['model']['features']].iloc[i - config['model']['seq_len']:i].values
         ctx_seq = data[config['model']['numerical'] + config['model']['categorical']].iloc[i - 1].values
@@ -70,7 +71,11 @@ def prepare_data(config):
         ctx_seq = torch.tensor(ctx_seq, dtype=torch.float32).unsqueeze(0).to(config['model']['device'])
         with torch.no_grad():
             pred, _ = model(ts_seq, ctx_seq)
-        data['avg_future_vwap'].iloc[i] = pred.item().avg()
+        ohlc['avg_future_vwap'].iloc[i-1] = pred.cpu().mean().numpy()
+
+    ohlc.dropna(inplace=True)
+
+    return ohlc
         
 def do_backtrade(config):
     cerebro = bt.Cerebro()
@@ -83,15 +88,16 @@ def do_backtrade(config):
     # 你需要替换成你自己的数据源
     data = prepare_data(config)
     
-    data = bt.feeds.PandasData(
+    data = PandasDataPlus(
         dataname=data,
         datetime=None, 
-        open=1,  # 开盘价所在的列 (索引从 0 开始)
-        high=2,  # 最高价所在的列
-        low=3,  # 最低价所在的列
-        close=4,  # 收盘价所在的列
-        volume=5,  # 成交量所在的列
-        openinterest=-1  # 持仓量 (如果数据中没有，设置为 -1))
+        # open=0,  # 开盘价所在的列 (索引从 0 开始)
+        # high=1,  # 最高价所在的列
+        # low=2,  # 最低价所在的列
+        # close=3,  # 收盘价所在的列
+        # volume=4,  # 成交量所在的列
+        # avg_future_vwap=5,
+        # openinterest=-1  # 持仓量 (如果数据中没有，设置为 -1))
     )
     cerebro.adddata(data)
 

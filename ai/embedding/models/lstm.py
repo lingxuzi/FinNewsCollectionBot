@@ -233,9 +233,9 @@ class MultiModalAutoencoder(nn.Module):
         # ts_last_hidden_state, _ = self.ts_encoder_att(ts_encoder_outputs)
         ts_embedding, ts_mean, ts_logvar = self.ts_encoder_fc(ts_last_hidden_state)
 
-        if self.training:
-            wasserstein_distance = self.compute_wasserstein_loss(ts_embedding)
-            gradient_penalty = self.compute_gradient_penalty(ts_embedding)
+        # if self.training:
+        #     wasserstein_distance = self.compute_wasserstein_loss(ts_embedding)
+        #     gradient_penalty = self.compute_gradient_penalty(ts_embedding)
         
         # 2. 上下文编码
         ctx_embedding = self.ctx_encoder(x_ctx)
@@ -265,7 +265,7 @@ class MultiModalAutoencoder(nn.Module):
 
         if not self.encoder_mode:
             if self.training:
-                return ts_output, ctx_output, predict_output, final_embedding, wasserstein_distance, gradient_penalty
+                return ts_output, ctx_output, predict_output, final_embedding, ts_mean, ts_logvar
             return ts_output, ctx_output, predict_output, final_embedding
         else:
             return predict_output, final_embedding

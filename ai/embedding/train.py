@@ -177,7 +177,7 @@ def run_training(config):
         for _ in pbar:
             ts_sequences, ctx_sequences, y, _, _ = train_iter.next()
             optimizer.zero_grad()
-            ts_reconstructed, ctx_reconstructed, pred, _, wasserstein_distance, gradient_penalty = model(ts_sequences, ctx_sequences)
+            ts_reconstructed, ctx_reconstructed, pred, _, latent_mean, latent_logvar = model(ts_sequences, ctx_sequences)
 
             losses = {}
 
@@ -199,7 +199,7 @@ def run_training(config):
                 pred_loss_meter.update(loss_pred.item())
 
             if 'kl' in config['training']['losses']:
-                _kl_loss = 1 / wasserstein_distance + 10 * gradient_penalty
+                _kl_loss = kl_loss(latent_mean, latent_logvar) #1 / wasserstein_distance + 10 * gradient_penalty
                 kl_loss_meter.update(_kl_loss.item())
                 losses['kl'] = _kl_loss
 
