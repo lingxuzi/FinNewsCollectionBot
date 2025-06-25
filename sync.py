@@ -1,4 +1,4 @@
-from kline_sync.kline_sync import StockKlineSynchronizer
+from kline.kline_sync import StockKlineSynchronizer
 import asyncio
 import warnings
 warnings.filterwarnings("ignore")
