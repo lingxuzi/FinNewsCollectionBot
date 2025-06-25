@@ -176,11 +176,8 @@ def run_training(config):
         pbar = tqdm(range(num_iters_per_epoch(train_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training]")
         for _ in pbar:
             ts_sequences, ctx_sequences, y, _, _ = train_iter.next()
-            # ts_sequences = ts_sequences.to(device)
-            # ctx_sequences = ctx_sequences.to(device)
-            # y = y.to(device)
             optimizer.zero_grad()
-            ts_reconstructed, ctx_reconstructed, pred, _, ts_mean, ts_logvar = model(ts_sequences, ctx_sequences)
+            ts_reconstructed, ctx_reconstructed, pred, _, wasserstein_distance, gradient_penalty = model(ts_sequences, ctx_sequences)
 
             losses = {}
 
@@ -202,7 +199,7 @@ def run_training(config):
                 pred_loss_meter.update(loss_pred.item())
 
             if 'kl' in config['training']['losses']:
-                _kl_loss = kl_loss(ts_mean, ts_logvar)
+                _kl_loss = 1 / wasserstein_distance + 10 * gradient_penalty
                 kl_loss_meter.update(_kl_loss.item())
                 losses['kl'] = _kl_loss
 

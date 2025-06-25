@@ -13,7 +13,10 @@ class VAELambda(nn.Module):
         self.hidden_size = hidden_size
         self.latent_length = latent_length
 
-        self.hidden_to_mean = nn.Linear(self.hidden_size, self.latent_length)
+        self.hidden_to_mean = nn.Sequential(
+            nn.Linear(self.hidden_size, self.latent_length),
+            nn.BatchNorm1d(self.latent_length, affine=False)
+        )
         self.hidden_to_logvar = nn.Linear(self.hidden_size, self.latent_length)
 
         # nn.init.xavier_uniform_(self.hidden_to_mean.weight)

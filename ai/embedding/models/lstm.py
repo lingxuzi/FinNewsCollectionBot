@@ -142,6 +142,12 @@ class MultiModalAutoencoder(nn.Module):
         self.embedding_norm = nn.LayerNorm(self.total_embedding_dim)
         self.fusion_block = SEFusionBlock(input_dim=self.total_embedding_dim, reduction_ratio=8)
 
+        self.discriminator = nn.Sequential(
+            nn.Linear(ts_embedding_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, 1),
+        )
+
         # 初始化预测头
         self.initialize_prediction_head(self.ts_output_layer.p[-1])
         self.initialize_prediction_head(self.ctx_decoder.p[-1])
@@ -170,6 +176,42 @@ class MultiModalAutoencoder(nn.Module):
         else:
             print(f"   -> Module {type(module)} is not a Linear layer, skipping zero-initialization.")
 
+    def compute_wasserstein_loss(self, z):
+        """
+        计算 Wasserstein 距离的估计值。
+        """
+        # 从先验分布中采样 (例如，标准正态分布)
+        z_prior = torch.randn_like(z).to(z.device)
+        # Discriminator 的输出
+        d_real = self.discriminator(z_prior)
+        d_fake = self.discriminator(z)
+        # Wasserstein 距离的估计值
+        wasserstein_distance = torch.abs(torch.mean(d_real) - torch.mean(d_fake))
+        return wasserstein_distance
+    
+    def compute_gradient_penalty(self, z):
+        """
+        计算梯度惩罚。
+        """
+        # 从 z 和 z_prior 之间随机插值
+        alpha = torch.rand(z.size(0), 1).to(z.device)
+        interpolates = (alpha * z + (1 - alpha) * torch.randn_like(z).to(z.device)).requires_grad_(True)
+        # Discriminator 的输出
+        d_interpolates = self.discriminator(interpolates)
+        # 计算梯度
+        grad_outputs = torch.ones(d_interpolates.size()).to(z.device)
+        gradients = torch.autograd.grad(
+            outputs=d_interpolates,
+            inputs=interpolates,
+            grad_outputs=grad_outputs,
+            create_graph=True,
+            retain_graph=True,
+        )[0]
+        # 计算梯度的范数
+        gradients_norm = gradients.norm(2, dim=1)
+        # 计算梯度惩罚
+        gradient_penalty = torch.mean((gradients_norm - 1) ** 2)
+        return gradient_penalty
 
     def forward(self, x_ts, x_ctx):
         if self.training and self.noise_level > 0:
@@ -189,7 +231,11 @@ class MultiModalAutoencoder(nn.Module):
         ts_encoder_outputs, (ts_h_n, ts_c_n) = self.ts_encoder(x_ts)
         ts_last_hidden_state = ts_h_n[-1, :, :]
         # ts_last_hidden_state, _ = self.ts_encoder_att(ts_encoder_outputs)
-        ts_embedding, ts_mean, ts_logvar = self.ts_encoder_fc(ts_last_hidden_state) 
+        ts_embedding, ts_mean, ts_logvar = self.ts_encoder_fc(ts_last_hidden_state)
+
+        if self.training:
+            wasserstein_distance = self.compute_wasserstein_loss(ts_embedding)
+            gradient_penalty = self.compute_gradient_penalty(ts_embedding)
         
         # 2. 上下文编码
         ctx_embedding = self.ctx_encoder(x_ctx)
@@ -211,7 +257,7 @@ class MultiModalAutoencoder(nn.Module):
                 ctx_output = self.ctx_decoder(final_embedding)
 
         # 3. Fused Embedding
-        norm_embedding = self.embedding_norm(final_embedding.detach())
+        norm_embedding = self.embedding_norm(final_embedding)
         norm_embedding = self.fusion_block(norm_embedding)
 
         # --- 3. 预测分支 ---
@@ -219,7 +265,7 @@ class MultiModalAutoencoder(nn.Module):
 
         if not self.encoder_mode:
             if self.training:
-                return ts_output, ctx_output, predict_output, final_embedding, ts_mean, ts_logvar
+                return ts_output, ctx_output, predict_output, final_embedding, wasserstein_distance, gradient_penalty
             return ts_output, ctx_output, predict_output, final_embedding
         else:
             return predict_output, final_embedding
