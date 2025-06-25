@@ -190,7 +190,6 @@ class MultiModalAutoencoder(nn.Module):
         ts_last_hidden_state = ts_h_n[-1, :, :]
         # ts_last_hidden_state, _ = self.ts_encoder_att(ts_encoder_outputs)
         ts_embedding, ts_mean, ts_logvar = self.ts_encoder_fc(ts_last_hidden_state) 
-        ts_embedding = self.ts_encoder_bn(ts_embedding)
         
         # 2. 上下文编码
         ctx_embedding = self.ctx_encoder(x_ctx)
@@ -202,8 +201,7 @@ class MultiModalAutoencoder(nn.Module):
                 ts_decoder_input = self.ts_decoder_fc(ts_embedding)
             else:
                 ts_decoder_input = self.ts_decoder_fc(final_embedding)
-            ts_decoder_input = self.ts_decoder_fc_bn(ts_decoder_input).unsqueeze(1).repeat(1, x_ts.size(1), 1) # 应用 BN
-            ts_reconstructed, _ = self.ts_decoder(ts_decoder_input)
+            ts_reconstructed, _ = self.ts_decoder(ts_decoder_input.unsqueeze(1).repeat(1, x_ts.size(1), 1))
             ts_output = self.ts_output_layer(ts_reconstructed)
         
             # 2. 上下文重构
