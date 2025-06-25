@@ -29,12 +29,12 @@ class VAELambda(nn.Module):
         latent_mean = self.hidden_to_mean(cell_output)
         latent_logvar = self.hidden_to_logvar(cell_output)
 
-        # if self.training:
-        #     std = torch.exp(0.5 * latent_logvar)
-        #     eps = torch.randn_like(std)
-        #     return eps.mul(std).add_(latent_mean), latent_mean, latent_logvar
-        # else:
-        #     return latent_mean, None, None
-        std = torch.exp(0.5 * latent_logvar)
-        eps = torch.randn_like(std)
-        return eps.mul(std).add_(latent_mean), latent_mean, latent_logvar
+        if self.training:
+            std = torch.exp(0.5 * latent_logvar)
+            eps = torch.randn_like(std)
+            return eps.mul(std).add_(latent_mean), latent_mean, latent_logvar
+        else:
+            return latent_mean, None, None
+        # std = torch.exp(0.5 * latent_logvar)
+        # eps = torch.randn_like(std)
+        # return eps.mul(std).add_(latent_mean), latent_mean, latent_logvar

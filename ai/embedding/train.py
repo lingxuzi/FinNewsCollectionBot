@@ -167,10 +167,11 @@ def run_training(config):
         kl_loss_meter = AverageMeter()
         train_iter = DataPrefetcher(train_loader, config['device'], enable_queue=False, num_threads=1)
 
-        # if epoch < config['training']['num_epochs'] // 2:
-        #     kl_weight = epoch / (config['training']['num_epochs']//2) # 线性增加
-        # else:
-        #     kl_weight = 1
+
+        if (epoch % 20) < config['training']['kl_annealing_steps']:
+            kl_weight = min(config['training']['kl_weight_initial'] + (config['training']['kl_target'] - config['training']['kl_weight_initial']) * (epoch % 20) / config['training']['kl_annealing_steps'], config['training']['kl_target'])
+        else:
+            kl_weight = config['training']['kl_weight_initial']  # 重启
         
         # 使用tqdm显示进度条
         pbar = tqdm(range(num_iters_per_epoch(train_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training]")
@@ -198,15 +199,15 @@ def run_training(config):
                 losses['pred'] = loss_pred
                 pred_loss_meter.update(loss_pred.item())
 
-            if 'kl' in config['training']['losses']:
-                _kl_loss = kl_loss(latent_mean, latent_logvar) #1 / wasserstein_distance + 10 * gradient_penalty
-                kl_loss_meter.update(_kl_loss.item())
-                losses['kl'] = _kl_loss
+            _kl_loss = kl_loss(latent_mean, latent_logvar)
+            kl_loss_meter.update(_kl_loss.item())
 
             if config['training']['awl']:
                 total_loss = awl(*list(losses.values))
             else:
                 total_loss = sum([losses[lk] * w for w, lk in zip(config['training']['loss_weights'], config['training']['losses'])])
+
+            total_loss += kl_weight * _kl_loss
             total_loss.backward()
             optimizer.step()
 
