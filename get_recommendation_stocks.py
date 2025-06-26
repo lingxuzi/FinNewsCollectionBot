@@ -15,5 +15,5 @@ if __name__ == '__main__':
     with open(opts.config, 'r') as f:
         config = yaml.safe_load(f)
         manager = StockRecommendationManager(config)
-        results = manager.get_recommendation_stocks(with_klines=True)
-        print(results)
+        outputs = manager.get_recommendation_stocks(with_klines=True)
+        

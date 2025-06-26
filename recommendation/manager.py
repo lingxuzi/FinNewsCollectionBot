@@ -53,19 +53,6 @@ class StockRecommendationManager:
         else:
             return 0
         
-    def calculate_similarity_score(self, similarity):
-        """根据相似度计算相似度评分."""
-        if similarity > 0.9:
-            return 100
-        elif 0.8 <= similarity <= 0.9:
-            return 75
-        elif 0.7 <= similarity < 0.8:
-            return 50
-        elif 0.6 <= similarity < 0.7:
-            return 25
-        else:
-            return 0
-        
     def calculate_historical_return_score(self, average_return):
         """根据平均收益率计算历史收益率评分."""
         if average_return > 0.05:
@@ -79,18 +66,17 @@ class StockRecommendationManager:
         else:
             return 0
 
-    def calculate_overall_score(sekf, vwap_score, similarity_score, historical_return_score, w1=0.5, w2=0.3, w3=0.2):
+    def calculate_overall_score(sekf, vwap_score, similarity_score, historical_return_score, w1=0.7, w3=0.3):
         """计算综合评分."""
-        overall_score = w1 * vwap_score + w2 * similarity_score + w3 * historical_return_score
+        overall_score = w1 * vwap_score + w3 * historical_return_score
         return overall_score
     
-    def crude_stock_rate(self, model_pred, res, ohlc, match_klines):
+    def crude_stock_rate(self, model_pred, res):
         """根据模型预测、相似度、VWAP变化率和历史收益率计算股票评分."""
-        vwap_change = (model_pred[-1] - model_pred[0]) / model_pred[0]
+        vwap_change = (model_pred[0][-1] - model_pred[0][0]) / model_pred[0][0]
         vwap_score = self.calculate_vwap_score(vwap_change)
-        similarity_score = self.calculate_similarity_score(res['distance'].mean())
-        historical_return_score = self.calculate_historical_return_score(match_klines['close'].pct_change()[-5:].mean())
-        overall_score = self.calculate_overall_score(vwap_score, similarity_score, historical_return_score)
+        historical_return_score = self.calculate_historical_return_score(sum([r['entity']['future_5d_return'] * r['distance'] for r in res]) / len(res))
+        overall_score = self.calculate_overall_score(vwap_score, historical_return_score)
         
         return overall_score
 
@@ -113,7 +99,7 @@ class StockRecommendationManager:
             return None
         end_date = datetime.now()
         start_date = (end_date - timedelta(days=180))
-        with ThreadPoolExecutor(max_workers=1) as pool:
+        with ThreadPoolExecutor(max_workers=10) as pool:
             futures = {pool.submit(self.get_kline_data, code['code'], start_date, end_date): code for code in codes}
             results = []
             for future in tqdm(as_completed(futures), total=len(futures), desc='Fetching stock data...', ncols=120):
@@ -134,10 +120,17 @@ class StockRecommendationManager:
         if stock_data is None:
             return
         results = self.vector_search_engine.filter_up_profit_trend_stocks(stock_data, 10)
-        if with_klines:
-            outputs = []
-            for (pred, res, ohlc) in results:
-                matched_klines = self.match_klines(res)
-                score = self.crude_stock_rate(pred, res, ohlc, matched_klines)
-                if score > 80:
-                    outputs.append(pred, res, ohlc, matched_klines)
+        print('Proceeding crude rating...')
+        outputs = []
+        for (code, pred, res, ohlc) in results:
+            score = self.crude_stock_rate(pred, res)
+            if score > 80:
+                if with_klines:
+                    matched_klines = self.match_klines(res)
+                    outputs.append((code, pred, res, ohlc, score, matched_klines))
+                else:
+                    outputs.append((code, pred, res, ohlc, score))
+
+        print('Proceeding Stock Analysis..')
+        
+        

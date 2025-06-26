@@ -157,7 +157,7 @@ class EmbeddingQueryer:
                 try:
                     code = futures[future]
                     pred, res, ohlc = future.result()
-                    outputs.append((pred, res, ohlc))
+                    outputs.append((code, pred, res, ohlc))
                 except Exception as e:
                     print(f"Error fetching data for {code}: {e}")
         return outputs
