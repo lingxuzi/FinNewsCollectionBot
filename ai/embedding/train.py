@@ -157,7 +157,7 @@ def run_training(config):
 
     criterion_ts = nn.HuberLoss(delta=0.3) # 均方误差损失
     criterion_ctx = nn.HuberLoss(delta=0.1) # 均方误差损失
-    criterion_predict = nn.HuberLoss(delta=10) # 均方误差损失
+    criterion_predict = nn.HuberLoss(delta=0.1) # 均方误差损失
     parameters = []
     if config['training']['awl']:
         parameters += [{'params': awl.parameters(), 'weight_decay': 0}]
