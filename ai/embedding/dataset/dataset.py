@@ -135,7 +135,7 @@ class KlineDataset(Dataset):
         label_cols = []
         for i in range(5):
             label_cols.append(f'label_vwap_{i+1}')
-        stock_labels = stock_data[label_cols].to_numpy()
+        stock_labels = np.log1p(stock_data[label_cols].to_numpy())
         featured_stock_data = stock_data[self.features].to_numpy()
         numerical_stock_data = stock_data[self.numerical].to_numpy()
         date = stock_data['date']
