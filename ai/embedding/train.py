@@ -137,10 +137,21 @@ def run_training(config):
     ema = ModelEmaV2(model, decay=0.9999, device=device)
 
     if config['training']['load_pretrained']:
-        state_dict = torch.load(config['training']['pretrained_path'], map_location='cpu')
-        model.load_state_dict(state_dict, strict=False)
-        print('pretrain loaded')
-    
+        try:
+            state_dict = torch.load(config['training']['pretrained_path'], map_location='cpu')
+            model.load_state_dict(state_dict, strict=False)
+            print('pretrain loaded')
+        except Exception as e:
+            print(f'Load pretrained model failed: {e}')
+
+    if config['training']['finetune']:
+        try:
+            state_dict = torch.load(config['training']['model_save_path'], map_location='cpu')
+            model.load_state_dict(state_dict, strict=False)
+            print('finetune model loaded')
+        except Exception as e:
+            print(f'Load finetune model failed: {e}')
+
     model = model.to(device)
 
     criterion_ts = nn.HuberLoss(delta=0.1) # 均方误差损失

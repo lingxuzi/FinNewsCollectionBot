@@ -36,14 +36,14 @@ class AsyncMongoEngine(Singleton):
     def get_db(self, cluster):
         return self.client[cluster]
 
-    async def create_index(self, db, key, index, unique=False):
+    async def create_index(self, db, key, index, unique=False, background=True):
         try:
             if isinstance(db, str):
                 db = self.get_db(db)
             
             await self.create_collection(db, key)
 
-            await db[key].create_index(index, background=True, unique=unique)
+            await db[key].create_index(index, background=background, unique=unique)
             return True
         except Exception as e:
             return False

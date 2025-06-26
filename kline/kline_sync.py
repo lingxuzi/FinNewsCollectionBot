@@ -160,7 +160,7 @@ class StockKlineSynchronizer:
         save_text(','.join(fail_stocks), 'fail_sync.txt')
 
         print('creating index...')
-        await self.db.create_index(self._cluster(), self._kline_daily(), [('code', 1), ('date', 1)], unique=True)
+        await self.db.create_index(self._cluster(), self._kline_daily(), [('code', 1), ('date', 1)], unique=True, background=False)
 
     async def queue_check(self):
         while len(self.deque) > 0:
