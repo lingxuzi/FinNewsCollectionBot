@@ -254,10 +254,6 @@ def run_training(config):
                 y_cpu = y.cpu().numpy()
                 pred_cpu = pred.cpu().numpy()
 
-                mse_sum += root_mean_squared_error(y_cpu, pred_cpu) * len(y_cpu)
-                mae_sum += mean_absolute_error(y_cpu, pred_cpu) * len(y_cpu)
-                mape_sum += mean_absolute_percentage_error(y_cpu, pred_cpu) * len(y_cpu)
-
                 pred_metric.update(y_cpu, pred_cpu)
                 
                 ts_sequences_cpu = ts_sequences.cpu().numpy()
