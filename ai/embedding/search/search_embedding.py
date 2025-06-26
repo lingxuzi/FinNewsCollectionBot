@@ -117,6 +117,8 @@ class EmbeddingQueryer:
                     code = futures[future]
                     df = future.result()
                     if df is not None:
+                        if len(df) < self.config['embedding']['data']['seq_len']:
+                            continue
                         results.append((code, df))
                 except Exception as e:
                     print(f"Error fetching data for {code}: {e}")
@@ -132,6 +134,8 @@ class EmbeddingQueryer:
         return self._query(kline_data, filters, limit, return_kline)
     
     def _query(self, kline_data, filters=None, limit=10, return_kline=False):
+        if len(kline_data) < self.config['embedding']['data']['seq_len']:
+            return None, None, None
         kline_data = self.normalize(kline_data,
             features=self.config['embedding']['data']['features'],
             numerical=self.config['embedding']['data']['numerical'],
@@ -165,7 +169,7 @@ class EmbeddingQueryer:
         stock_data = self.fetch_stock_data(stock_list)
         self.init_model()
         outputs = []
-        with ThreadPoolExecutor(max_workers=10) as pool:
+        with ThreadPoolExecutor(max_workers=2) as pool:
             futures = {pool.submit(self._query, data, None, limit_for_single_stock, True): code for code, data in stock_data}
             for future in tqdm(as_completed(futures), total=len(futures), desc='Filtering stocks...', ncols=120):
                 try:

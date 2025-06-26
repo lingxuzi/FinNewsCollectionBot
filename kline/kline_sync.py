@@ -110,7 +110,13 @@ class StockKlineSynchronizer:
                         if ret:
                             print('Insert success')
                         else:
-                            print(f'Insert failed: {e}')
+                            ret = await self.db.remove_on_query(self._cluster(), self._kline_daily(), {'code': insert_data[0]['code'], 'date': {'$gte': insert_data[0]['date']}})
+                            if ret:
+                                ret, e = await self.db.add_many(self._cluster(), self._kline_daily(), insert_data)
+                                if ret:
+                                    print('Insert success')
+                                else:
+                                    print(f'Insert failed: {e}')
                     except Exception as e:
                         print(f'Process queue failed')
                 else:
