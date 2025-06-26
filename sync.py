@@ -10,5 +10,3 @@ if __name__ == '__main__':
     loop.run_until_complete(synchronizer.connect_async())
     loop.run_until_complete(synchronizer.all_sync())
 
-    loop.run_forever()
-

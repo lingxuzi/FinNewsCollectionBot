@@ -155,6 +155,10 @@ class StockKlineSynchronizer:
 
         print('creating index...')
         await self.db.create_index(self._cluster(), self._kline_daily(), [('code', 1), ('date', 1)], unique=True)
+
+    async def queue_check(self):
+        while len(self.deque) > 0:
+            await asyncio.sleep(1)
     
     async def all_sync(self):
         if len(self.fail_sync_stocks) > 0:
@@ -168,6 +172,7 @@ class StockKlineSynchronizer:
             save_text(','.join(fail_stocks), 'fail_sync.txt')
         await self.fetch_stocks()
         await self.sync_stocks()
+        await self.queue_check()
 
     def run_in_thread(self, coro, loop):
         asyncio.set_event_loop(loop)

@@ -29,8 +29,6 @@ class EmbeddingQueryer:
         self.config = config
         self.client = self.init_indexer(config['embedding']['index_db'])
         self.data_query = BaoSource()
-        self.db_query = StockQueryEngine(config['db']['host'], config['db']['port'], config['db']['username'], config['db']['password'])
-        self.db_query.connect_async()
 
     def init_indexer(self, index_db):
         path = os.path.split(index_db)[0]
@@ -108,26 +106,6 @@ class EmbeddingQueryer:
             return df, ohlc
         return df
 
-    def match_klines(self, index_match_results):
-        matched_klines = {}
-        with ThreadPoolExecutor(max_workers=10) as pool:
-            futures = {}
-            for mr in index_match_results:
-                start_date = datetime.fromtimestamp(mr['start_date'])
-                end_date = datetime.fromtimestamp(mr['end_date']) + timedelta(days=5)
-                
-                future = pool.submit(self.db_query.get_stock_data, mr['code'], start_date, end_date)
-                futures[future] = mr['code']
-            for future in tqdm(as_completed(futures), total=len(futures), desc='Matching klines...', ncols=120):
-                try:
-                    code = futures[future]
-                    df = future.result()
-                    if df is not None:
-                        matched_klines[code] = pd.DataFrame(df)
-                except Exception as e:
-                    print(f"Error fetching data for {code}: {e}")
-        return matched_klines
-
     def fetch_stock_data(self, codes):
         with ProcessPoolExecutor(max_workers=10) as pool:
             end_date = datetime.now().date()
@@ -177,28 +155,23 @@ class EmbeddingQueryer:
             limit=limit,
             filters=filters
         )[0]
-        res = [r for r in res if r['distance'] >= 0.85]
-        matched_klines = self.match_klines(res)
-        
+        res = [r for r in res if r['distance'] >= self.config['match']['similarity_theshold']]
         if return_kline:
-            return pred, res, ohlc[-self.config['embedding']['data']['seq_len']:], matched_klines
+            return pred, res, ohlc[-self.config['embedding']['data']['seq_len']:]
         else:
             return pred, res
 
-    def filter_up_profit_trend_stocks(self, limit_for_single_stock):
-        stock_list = asyncio.run(self.db_query.get_stock_list(all_stocks=False))
-
+    def filter_up_profit_trend_stocks(self, stock_list, limit_for_single_stock):
         stock_data = self.fetch_stock_data(stock_list)
-
-
         self.init_model()
+        outputs = []
         with ThreadPoolExecutor(max_workers=10) as pool:
             futures = {pool.submit(self._query, data, None, limit_for_single_stock, True): code for code, data in stock_data}
             for future in tqdm(as_completed(futures), total=len(futures), desc='Filtering stocks...', ncols=120):
                 try:
                     code = futures[future]
-                    pred, res, ohlc, matched_klines = future.result()
-                    print(res)
+                    pred, res, ohlc = future.result()
+                    outputs.append((pred, res, ohlc))
                 except Exception as e:
                     print(f"Error fetching data for {code}: {e}")
-        
+        return outputs

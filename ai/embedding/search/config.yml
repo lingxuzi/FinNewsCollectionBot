@@ -21,4 +21,6 @@ embedding:
   model: 'lstm-ae'
   model_path: "../fin_models/kline_encoder.pth"
   encoder_only: true
+match:
+  similarity_theshold: 0.85
 
