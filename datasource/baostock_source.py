@@ -2,6 +2,7 @@ import baostock as bs
 import pandas as pd
 import numpy as np
 import os
+import datetime
 from contextlib import redirect_stdout
 from datasource.source import StockSource
 from datetime import timedelta
@@ -28,6 +29,64 @@ class BaoSource(StockSource):
 
     def get_stock_list(self, all_stocks=False):
         return super().get_stock_list(all_stocks)
+
+    def get_nearest_trading_day(self, date=None):
+        """
+        使用 baostock 获取给定日期或今天最近的交易日。
+        Args:
+            date (datetime.date, str, optional): 给定的日期。如果为 None，则使用今天。
+                                                可以是 datetime.date 对象或 'YYYY-MM-DD' 格式的字符串。
+        Returns:
+            datetime.date: 最近的交易日。如果给定日期是交易日，则返回给定日期。
+                        如果给定日期不是交易日，则返回前一个交易日。
+            None: 如果 baostock 初始化或登录失败。
+        """
+        #### 登陆系统 ####
+        lg = bs.login()
+        if lg.error_code != '0':
+            print(f"baostock login failed, error code: {lg.error_code}, error msg: {lg.error_msg}")
+            return None
+        if date is None:
+            date = datetime.datetime.now()
+        elif isinstance(date, str):
+            date = datetime.datetime.strptime(date, '%Y-%m-%d')
+        date_str = date.strftime('%Y-%m-%d')
+        rs = bs.query_trade_dates(start_date=date_str, end_date=date_str)
+        if rs.error_code != '0':
+            print(f"query_trade_dates failed, error code: {rs.error_code}, error msg: {rs.error_msg}")
+            bs.logout()  # 退出系统
+            return None
+        data_list = []
+        while (rs.error_code == '0') & rs.next():
+            data_list.append(rs.get_row_data())
+        bs.logout()  # 退出系统
+        if not data_list:  # 如果没有交易日，则向前查找
+            current_date = date
+            for i in range(365): #最多向前查找一年
+                current_date = current_date - datetime.timedelta(days=1)
+                current_date_str = current_date.strftime('%Y-%m-%d')
+                lg = bs.login() # 重新登录，因为之前的连接已经关闭
+                if lg.error_code != '0':
+                    print(f"baostock login failed, error code: {lg.error_code}, error msg: {lg.error_msg}")
+                    return None
+                rs = bs.query_trade_dates(start_date=current_date_str, end_date=current_date_str)
+                if rs.error_code != '0':
+                    print(f"query_trade_dates failed, error code: {rs.error_code}, error msg: {rs.error_msg}")
+                    bs.logout()
+                    return None
+                data_list = []
+                while (rs.error_code == '0') & rs.next():
+                    data_list.append(rs.get_row_data())
+                bs.logout() # 退出系统
+                if data_list:
+                    trade_date_str = data_list[0][0]  # 获取交易日字符串
+                    nearest_trading_day = datetime.datetime.strptime(trade_date_str, '%Y-%m-%d')
+                    return nearest_trading_day
+            return None  # 如果向前查找一年仍然没有交易日，返回 None
+        else:
+            trade_date_str = data_list[0][0]  # 获取交易日字符串
+            nearest_trading_day = datetime.datetime.strptime(trade_date_str, '%Y-%m-%d')
+            return nearest_trading_day
         
     @cache_decorate
     def get_Kline_basic(self, code, start_date, end_date):

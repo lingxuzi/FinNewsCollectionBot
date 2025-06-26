@@ -3,15 +3,18 @@ from ai.embedding.search.search_embedding import EmbeddingQueryer
 from concurrent.futures import ThreadPoolExecutor, as_completed, ProcessPoolExecutor
 from tqdm import tqdm
 from datetime import datetime, timedelta
+from datasource.baostock_source import BaoSource
 import asyncio
 import pandas as pd
 
+source = BaoSource()
 
 class StockRecommendationManager:
     def __init__(self, embedding_query_config):
         self.db_query = StockQueryEngine(**embedding_query_config['db'])
         self.db_query.connect_async()
         self.vector_search_engine = EmbeddingQueryer(embedding_query_config)
+        self.config = embedding_query_config
 
     def get_stock_list(self):
         stock_list = asyncio.run(self.db_query.get_stock_list(all_stocks=False))
@@ -88,12 +91,49 @@ class StockRecommendationManager:
         similarity_score = self.calculate_similarity_score(res['distance'].mean())
         historical_return_score = self.calculate_historical_return_score(match_klines['close'].pct_change()[-5:].mean())
         overall_score = self.calculate_overall_score(vwap_score, similarity_score, historical_return_score)
-
+        
         return overall_score
+
+    def get_kline_data(self, stock_code, start_date, end_date):
+        kline_data = self.db_query.get_stock_data(stock_code, start_date, end_date)
+        kline_data = pd.DataFrame(kline_data)
+        if kline_data['date'].iloc[-1] < end_date - timedelta(days=5):
+            kline_data = source.get_kline_daily(stock_code, start_date, end_date, include_industry=True, include_profit=False)
+        
+        if kline_data['date'].iloc[-1] >= end_date - timedelta(days=5):
+            kline_data = source.calculate_indicators(kline_data)
+            kline_data = source.post_process(kline_data)
+        
+            return kline_data
+        return None
+    
+    def fetch_stock_data(self, codes):
+        trading_day = source.get_nearest_trading_day()
+        if trading_day + timedelta(days=5) < datetime.now():
+            return None
+        end_date = datetime.now()
+        start_date = (end_date - timedelta(days=180))
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            futures = {pool.submit(self.get_kline_data, code['code'], start_date, end_date): code for code in codes}
+            results = []
+            for future in tqdm(as_completed(futures), total=len(futures), desc='Fetching stock data...', ncols=120):
+                try:
+                    code = futures[future]
+                    df = future.result()
+                    if df is not None:
+                        if len(df) < self.config['embedding']['data']['seq_len']:
+                            continue
+                        results.append((code, df))
+                except Exception as e:
+                    print(f"Error fetching data for {code}: {e}")
+            return results
 
     def get_recommendation_stocks(self, with_klines=False):
         stock_list = self.get_stock_list()
-        results = self.vector_search_engine.filter_up_profit_trend_stocks(stock_list, 10)
+        stock_data = self.fetch_stock_data(stock_list)
+        if stock_data is None:
+            return
+        results = self.vector_search_engine.filter_up_profit_trend_stocks(stock_data, 10)
         if with_klines:
             outputs = []
             for (pred, res, ohlc) in results:

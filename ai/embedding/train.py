@@ -214,7 +214,7 @@ def run_training(config):
             kl_loss_meter.update(_kl_loss.item())
 
             if config['training']['awl']:
-                total_loss = awl(*list(losses.values))
+                total_loss = awl(*list(losses.values()))
             else:
                 total_loss = sum([losses[lk] * w for w, lk in zip(config['training']['loss_weights'], config['training']['losses'])])
 

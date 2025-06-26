@@ -105,24 +105,6 @@ class EmbeddingQueryer:
         if keep_kline:
             return df, ohlc
         return df
-
-    def fetch_stock_data(self, codes):
-        with ProcessPoolExecutor(max_workers=10) as pool:
-            end_date = datetime.now().date()
-            start_date = (end_date - timedelta(days=180))
-            futures = {pool.submit(get_kline_data, code['code'], start_date, end_date): code for code in codes}
-            results = []
-            for future in tqdm(as_completed(futures), total=len(futures), desc='Fetching stock data...', ncols=120):
-                try:
-                    code = futures[future]
-                    df = future.result()
-                    if df is not None:
-                        if len(df) < self.config['embedding']['data']['seq_len']:
-                            continue
-                        results.append((code, df))
-                except Exception as e:
-                    print(f"Error fetching data for {code}: {e}")
-            return results
     
     def query(self, stock_code, filters=None, limit=10, return_kline=False):
         self.init_model()
@@ -165,8 +147,8 @@ class EmbeddingQueryer:
         else:
             return pred, res
 
-    def filter_up_profit_trend_stocks(self, stock_list, limit_for_single_stock):
-        stock_data = self.fetch_stock_data(stock_list)
+    def filter_up_profit_trend_stocks(self, stock_data, limit_for_single_stock):
+        # stock_data = self.fetch_stock_data(stock_list)
         self.init_model()
         outputs = []
         with ThreadPoolExecutor(max_workers=2) as pool:
