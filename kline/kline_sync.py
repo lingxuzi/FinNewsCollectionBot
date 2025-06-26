@@ -158,6 +158,7 @@ class StockKlineSynchronizer:
 
     async def queue_check(self):
         while len(self.deque) > 0:
+            print('queue size: ' + str(len(self.deque)))
             await asyncio.sleep(1)
     
     async def all_sync(self):
