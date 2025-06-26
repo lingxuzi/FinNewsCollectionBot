@@ -6,6 +6,7 @@ import os
 import joblib
 import copy
 import ai.embedding.models.base
+from ai.loss.quantileloss import QuantileLoss
 from ai.embedding.models import create_model, get_model_config
 from sklearn.metrics import r2_score, mean_absolute_error, root_mean_squared_error, mean_absolute_percentage_error
 from torch.utils.data import DataLoader, random_split
@@ -16,7 +17,7 @@ from ai.embedding.dataset.dataset import KlineDataset, generate_scaler_and_encod
 from ai.modules.multiloss import AutomaticWeightedLoss
 from ai.modules.earlystop import EarlyStopping
 from ai.scheduler.sched import *
-from ai.metrics.increment_r2 import IncrementalR2
+from ai.metrics.series_metric import Metric
 from utils.prefetcher import DataPrefetcher
 from utils.common import ModelEmaV2, calculate_r2_components, calculate_r2_components_recon
 
@@ -26,12 +27,6 @@ def num_iters_per_epoch(loader, batch_size):
 
 def kl_loss(latent_mean, latent_logvar):
     return -0.5 * torch.mean(1 + latent_logvar - latent_mean.pow(2) - latent_logvar.exp())
-
-def weighted_huber_loss(y_true, y_pred):
-    epsilon = 1e-6  # 避免分母为0
-    weights = 10 * 1 / (torch.abs(y_true) + epsilon)
-
-    return torch.mean(weights * torch.nn.functional.huber_loss(y_true, y_pred, reduction='none', delta=0.1))
 
 def run_training(config):
     """主训练函数"""
@@ -160,9 +155,9 @@ def run_training(config):
 
     model = model.to(device)
 
-    criterion_ts = nn.MSELoss() # 均方误差损失
-    criterion_ctx = nn.MSELoss() # 均方误差损失
-    criterion_predict = weighted_huber_loss # 均方误差损失
+    criterion_ts = nn.HuberLoss(delta=0.3) # 均方误差损失
+    criterion_ctx = nn.HuberLoss(delta=0.1) # 均方误差损失
+    criterion_predict = nn.HuberLoss(delta=10) # 均方误差损失
     parameters = []
     if config['training']['awl']:
         parameters += [{'params': awl.parameters(), 'weight_decay': 0}]
@@ -244,13 +239,10 @@ def run_training(config):
         _model.eval()
         with torch.no_grad():
             val_iter = DataPrefetcher(val_loader, config['device'], enable_queue=False, num_threads=1)
-            pred_r2_calculator = IncrementalR2()
-            ts_r2_calculator = IncrementalR2()
-            ctx_r2_calculator = IncrementalR2()
+            pred_metric = Metric('vwap')
+            ts_metric = Metric('ts')
+            ctx_metric = Metric('ctx')
 
-            mse_sum = 0.0
-            mae_sum = 0.0
-            mape_sum = 0.0
             for _ in tqdm(range(num_iters_per_epoch(eval_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Validation]"):
                 # ts_sequences = ts_sequences.to(device)
                 # ctx_sequences = ctx_sequences.to(device)
@@ -266,7 +258,7 @@ def run_training(config):
                 mae_sum += mean_absolute_error(y_cpu, pred_cpu) * len(y_cpu)
                 mape_sum += mean_absolute_percentage_error(y_cpu, pred_cpu) * len(y_cpu)
 
-                pred_r2_calculator.update(y_cpu, pred_cpu)
+                pred_metric.update(y_cpu, pred_cpu)
                 
                 ts_sequences_cpu = ts_sequences.cpu().numpy()
                 ts_reconstructed_cpu = ts_reconstructed.cpu().numpy()
@@ -274,21 +266,15 @@ def run_training(config):
                 ctx_reconstructed_cpu = ctx_reconstructed.cpu().numpy()
                 ctx_reconstructed_cpu[:, -1] = np.round(ctx_reconstructed_cpu[:, -1], 2)
 
-                ts_r2_calculator.update(ts_sequences_cpu.reshape(-1, ts_sequences_cpu.shape[-1]), ts_reconstructed_cpu.reshape(-1, ts_reconstructed_cpu.shape[-1]))
-                ctx_r2_calculator.update(ctx_sequences_cpu.reshape(-1, ctx_sequences_cpu.shape[-1]), ctx_reconstructed_cpu.reshape(-1, ctx_reconstructed_cpu.shape[-1]))
+                ts_metric.update(ts_sequences_cpu.reshape(-1, ts_sequences_cpu.shape[-1]), ts_reconstructed_cpu.reshape(-1, ts_reconstructed_cpu.shape[-1]))
+                ctx_metric.update(ctx_sequences_cpu.reshape(-1, ctx_sequences_cpu.shape[-1]), ctx_reconstructed_cpu.reshape(-1, ctx_reconstructed_cpu.shape[-1]))
 
         # --- 计算整体 R² ---
-        r2 = pred_r2_calculator.calculate()
-        r2_recon = ts_r2_calculator.calculate()
-        r2_ctx_recon = ctx_r2_calculator.calculate()
+        _, vwap_score = pred_metric.calculate()
+        _, ts_score = ts_metric.calculate()
+        _, ctx_score = ctx_metric.calculate()
         
-        pred_mse = mse_sum / len(eval_dataset)
-        pred_mae = mae_sum / len(eval_dataset)
-        pred_mape = mape_sum / len(eval_dataset)
-        
-        print(f"Epoch {epoch+1}: R2 Score = {r2} R2 Recon Score = {r2_recon}, R2 CTX Recon Score = {r2_ctx_recon}, MSE = {pred_mse}, MAE = {pred_mae}, MAPE = {pred_mape}")
-        
-        mean_r2 = (r2_ctx_recon + r2_recon + r2) / 3
+        mean_r2 = 1 / (vwap_score + ts_score + ctx_score)
         # --- 6. 保存最佳模型 ---
         # 只保存性能最好的模型，避免存储过多文件
         if mean_r2 > best_val_loss:
@@ -360,13 +346,9 @@ def run_eval(config):
     model.load_state_dict(state_dict, strict=False)
     model.eval()
     
-    pred_r2_calculator = IncrementalR2()
-    ts_r2_calculator = IncrementalR2()
-    ctx_r2_calculator = IncrementalR2()
-
-    mse_sum = 0.0
-    mae_sum = 0.0
-    mape_sum = 0.0
+    pred_metric = Metric('vwap')
+    ts_metric = Metric('ts')
+    ctx_metric = Metric('ctx')
     
     with torch.no_grad():
         test_iter = DataPrefetcher(test_loader, config['device'], enable_queue=False, num_threads=1)
@@ -381,11 +363,7 @@ def run_eval(config):
             y_cpu = y.cpu().numpy()
             pred_cpu = pred.cpu().numpy()
 
-            mse_sum += root_mean_squared_error(y_cpu, pred_cpu) * len(y_cpu)
-            mae_sum += mean_absolute_error(y_cpu, pred_cpu) * len(y_cpu)
-            mape_sum += mean_absolute_percentage_error(y_cpu, pred_cpu) * len(y_cpu)
-
-            pred_r2_calculator.update(y_cpu, pred_cpu)
+            pred_metric.update(y_cpu, pred_cpu)
                 
             ts_sequences_cpu = ts_sequences.cpu().numpy()
             ts_reconstructed_cpu = ts_reconstructed.cpu().numpy()
@@ -393,17 +371,12 @@ def run_eval(config):
             ctx_reconstructed_cpu = ctx_reconstructed.cpu().numpy()
             ctx_reconstructed_cpu[:, -1] = np.round(ctx_reconstructed_cpu[:, -1], 2)
 
-            ts_r2_calculator.update(ts_sequences_cpu.reshape(-1, ts_sequences_cpu.shape[-1]), ts_reconstructed_cpu.reshape(-1, ts_reconstructed_cpu.shape[-1]))
-            ctx_r2_calculator.update(ctx_sequences_cpu.reshape(-1, ctx_sequences_cpu.shape[-1]), ctx_reconstructed_cpu.reshape(-1, ctx_reconstructed_cpu.shape[-1]))
+            ts_metric.update(ts_sequences_cpu.reshape(-1, ts_sequences_cpu.shape[-1]), ts_reconstructed_cpu.reshape(-1, ts_reconstructed_cpu.shape[-1]))
+            ctx_metric.update(ctx_sequences_cpu.reshape(-1, ctx_sequences_cpu.shape[-1]), ctx_reconstructed_cpu.reshape(-1, ctx_reconstructed_cpu.shape[-1]))
 
 
 
         # --- 计算整体 R² ---
-        r2 = pred_r2_calculator.calculate()
-        r2_recon = ts_r2_calculator.calculate()
-        r2_ctx_recon = ctx_r2_calculator.calculate()
-
-        pred_mse = mse_sum / len(test_dataset)
-        pred_mae = mae_sum / len(test_dataset)
-        pred_mape = mape_sum / len(test_dataset)
-        print(f"Test R2 Score = {r2} Test R2 Recon Score = {r2_recon}, R2 CTX Recon Score = {r2_ctx_recon}, Test MSE = {pred_mse}, Test MAE = {pred_mae}, Test MAPE = {pred_mape}")
+        _, vwap_score = pred_metric.calculate()
+        _, ts_score = ts_metric.calculate()
+        _, ctx_score = ctx_metric.calculate()

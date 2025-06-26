@@ -145,8 +145,6 @@ class MultiModalAutoencoder(nn.Module):
         self.initialize_prediction_head(self.ts_output_layer.p[-1])
         self.initialize_prediction_head(self.ctx_decoder.p[-1])
         self.initialize_prediction_head(self.predictor.p[-1])
-        self.ts_encoder.flatten_parameters()
-        self.ts_decoder.flatten_parameters()
 
         if config.get('encoder_only', False):
             self.encoder_only(True)
@@ -170,6 +168,8 @@ class MultiModalAutoencoder(nn.Module):
             print(f"   -> Module {type(module)} is not a Linear layer, skipping zero-initialization.")
 
     def forward(self, x_ts, x_ctx):
+        self.ts_encoder.flatten_parameters()
+        self.ts_decoder.flatten_parameters()
         if self.training and self.noise_level > 0:
             if torch.rand(1).item() < self.noise_prob:
                 # 添加噪声
