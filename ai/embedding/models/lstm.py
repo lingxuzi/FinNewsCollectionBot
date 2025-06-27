@@ -113,6 +113,9 @@ class MultiModalAutoencoder(nn.Module):
         
         self.total_embedding_dim = ts_embedding_dim + ctx_embedding_dim
         self.use_fused_embedding = config['fused_embedding']
+        self.hidden_dim = hidden_dim
+        self.perdict_dim = predict_dim
+        self.dropout_rate = dropout_rate
         self.encoder_mode = False
 
         # --- 分支1: 时序编码器 (LSTM) ---
@@ -135,12 +138,12 @@ class MultiModalAutoencoder(nn.Module):
         # nn.init.xavier_uniform_(self.ts_output_layer.p[-1].weight)
 
         self.ctx_decoder = ResidualMLPBlock(ctx_embedding_dim if not self.use_fused_embedding else self.total_embedding_dim, hidden_dim, ctx_input_dim, dropout_rate=dropout_rate)
-        self.predictor = ResidualMLPBlock(self.total_embedding_dim, int(hidden_dim), predict_dim, dropout_rate=dropout_rate)
+        
 
         self.embedding_norm = nn.LayerNorm(self.total_embedding_dim)
         self.fusion_block = SEFusionBlock(input_dim=self.total_embedding_dim, reduction_ratio=8)
-
-        self.reset_prediction_head()
+        self.predictor = ResidualMLPBlock(self.total_embedding_dim, int(hidden_dim), predict_dim, dropout_rate=dropout_rate)
+        self.init_parameters()
 
         if config.get('encoder_only', False):
             self.encoder_only(True)
@@ -150,13 +153,19 @@ class MultiModalAutoencoder(nn.Module):
             self.eval()
         self.encoder_mode = encoder
 
-    def reset_prediction_head(self, heads=['ts', 'ctx', 'pred']):
+    def init_parameters(self, heads=['ts', 'ctx', 'pred']):
         if 'ts' in heads:
             self.initialize_prediction_head(self.ts_output_layer.p[-1])
         if 'ctx' in heads:
             self.initialize_prediction_head(self.ctx_decoder.p[-1])
         if 'pred' in heads:
             self.initialize_prediction_head(self.predictor.p[-1])
+
+    def reset_prediction_head(self, heads=['pred']):
+        if 'pred' in heads:
+            self.fusion_block = SEFusionBlock(input_dim=self.total_embedding_dim, reduction_ratio=8)
+            self.predictor = ResidualMLPBlock(self.total_embedding_dim, int(self.hidden_dim), self.predict_dim, dropout_rate=self.dropout_rate)
+            self.init_parameters(heads=heads)
 
     def initialize_prediction_head(self, module):
         """

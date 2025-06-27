@@ -67,7 +67,7 @@ class HuberTrendLoss:
     def __call__(self, ytrue, ypred):
         direction_loss = self.directional_consistency_loss(ytrue, ypred)
         reconstruction_loss = nn.functional.huber_loss(ypred, ytrue, delta=self.delta)
-        return direction_loss + reconstruction_loss, 1 - direction_loss.item()
+        return direction_loss * 0.5 + reconstruction_loss, 1 - direction_loss.item()
 
 def run_training(config):
     """主训练函数"""
