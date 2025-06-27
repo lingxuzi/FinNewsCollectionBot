@@ -114,7 +114,7 @@ class MultiModalAutoencoder(nn.Module):
         self.total_embedding_dim = ts_embedding_dim + ctx_embedding_dim
         self.use_fused_embedding = config['fused_embedding']
         self.hidden_dim = hidden_dim
-        self.perdict_dim = predict_dim
+        self.predict_dim = predict_dim
         self.dropout_rate = dropout_rate
         self.encoder_mode = False
 
