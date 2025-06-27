@@ -176,7 +176,6 @@ def run_training(config):
 
     model = create_model(config['training']['model'], model_config)
 
-    ema = ModelEmaV2(model, decay=0.9999, device=device)
 
     if config['training']['load_pretrained']:
         try:
@@ -193,6 +192,12 @@ def run_training(config):
             print('finetune model loaded')
         except Exception as e:
             print(f'Load finetune model failed: {e}')
+
+    if config['training']['reset_heads']:
+        for head in config['training']['reset_heads']:
+            model.reset_prediction_head(head)
+
+    ema = ModelEmaV2(model, decay=0.9999, device=device)
 
     model = model.to(device)
 
