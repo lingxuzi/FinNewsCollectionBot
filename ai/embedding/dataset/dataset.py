@@ -135,7 +135,7 @@ class KlineDataset(Dataset):
         label_cols = []
         for i in range(5):
             label_cols.append(f'label_vwap_{i+1}')
-        stock_labels = np.log1p(stock_data[label_cols].to_numpy())
+        stock_labels = stock_data[label_cols].to_numpy()
         featured_stock_data = stock_data[self.features].to_numpy()
         numerical_stock_data = stock_data[self.numerical].to_numpy()
         date = stock_data['date']
@@ -194,7 +194,7 @@ class KlineDataset(Dataset):
             return (
                 torch.FloatTensor(ts_seq),
                 torch.FloatTensor(ctx_seq),
-                torch.FloatTensor(label),
+                torch.FloatTensor(np.log1p(label)),
                 date_range,
                 code
             )
@@ -216,7 +216,7 @@ class KlineDataset(Dataset):
             return (
                 torch.FloatTensor(ts_seq),
                 torch.FloatTensor(ctx_seq),
-                torch.FloatTensor([label]),
+                torch.FloatTensor(np.log1p(label)),
                 'null',
                 'null'
             )

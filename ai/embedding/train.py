@@ -25,8 +25,49 @@ from utils.common import ModelEmaV2, calculate_r2_components, calculate_r2_compo
 def num_iters_per_epoch(loader, batch_size):
     return len(loader) // batch_size
 
-def kl_loss(latent_mean, latent_logvar):
-    return -0.5 * torch.mean(1 + latent_logvar - latent_mean.pow(2) - latent_logvar.exp())
+def kl_loss(latent_mean, latent_logvar, free_bits=0.5):
+    return torch.clamp(-0.5 * (1 + latent_logvar - latent_mean.pow(2) - latent_logvar.exp()), min=free_bits).mean()
+
+class HuberTrendLoss:
+    def __init__(self, delta=0.1):
+        self.delta = delta
+        self.epsilon = 1e-8
+
+    def directional_consistency_loss(self, y_true, y_pred):
+        """
+        计算方向一致性损失
+        Args:
+            y_true: 真实值 (torch.Tensor)
+            y_pred: 预测值 (torch.Tensor)
+        Returns:
+            方向一致性损失 (torch.Tensor)
+        """
+        diff_pred = y_pred[:, 1:] - y_pred[:, :-1]
+        diff_true = y_true[:, 1:] - y_true[:, :-1]
+        
+        # Reshape to treat the sequence of differences as a single vector for each batch item
+        # Shape becomes (batch_size, (seq_len-1) * features)
+        diff_pred_vec = diff_pred.contiguous().view(diff_pred.size(0), -1)
+        diff_true_vec = diff_true.contiguous().view(diff_true.size(0), -1)
+
+        # 中心化数据 (减去均值)
+        diff_pred_vec_centered = diff_pred_vec - torch.mean(diff_pred_vec, dim=1, keepdim=True)
+        diff_true_vec_centered = diff_true_vec - torch.mean(diff_true_vec, dim=1, keepdim=True)
+
+        # Calculate cosine similarity
+        # F.cosine_similarity handles the dot product and norms internally
+        # It operates on a specified dimension, here dim=1 for batch-wise comparison
+        cosine_sim = nn.functional.cosine_similarity(diff_pred_vec_centered, diff_true_vec_centered, dim=1, eps=self.epsilon)
+
+        # The loss is 1 - cosine_similarity
+        # We take the mean over the batch
+        loss = 1.0 - cosine_sim
+        return torch.mean(loss)
+
+    def __call__(self, ytrue, ypred):
+        direction_loss = self.directional_consistency_loss(ytrue, ypred)
+        reconstruction_loss = nn.functional.huber_loss(ypred, ytrue, delta=self.delta)
+        return direction_loss + reconstruction_loss, 1 - direction_loss.item()
 
 def run_training(config):
     """主训练函数"""
@@ -118,13 +159,13 @@ def run_training(config):
             is_train=False,
             tag='test'
         )
-    train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=True, drop_last=True)
-    val_loader = DataLoader(eval_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=False, drop_last=True)
+    train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], num_workers=2, pin_memory=False, shuffle=True, drop_last=True)
+    val_loader = DataLoader(eval_dataset, batch_size=config['training']['batch_size'], num_workers=2, pin_memory=False, shuffle=False, drop_last=True)
 
     
     print(f"Training data size: {len(train_dataset)}, Validation data size: {len(eval_dataset)}")
     if config['training']['awl']:
-        awl = AutomaticWeightedLoss(len(config['training']['losses']), config['training']['loss_weights'])
+        awl = AutomaticWeightedLoss(len(config['training']['losses']) + 1)
         awl.to(device)
 
     # --- 3. 初始化模型、损失函数和优化器 ---
@@ -155,9 +196,9 @@ def run_training(config):
 
     model = model.to(device)
 
-    criterion_ts = nn.HuberLoss(delta=0.3) # 均方误差损失
+    criterion_ts = HuberTrendLoss(delta=0.1) # 均方误差损失
     criterion_ctx = nn.HuberLoss(delta=0.1) # 均方误差损失
-    criterion_predict = nn.HuberLoss(delta=0.1) # 均方误差损失
+    criterion_predict = HuberTrendLoss(delta=0.1) # 均方误差损失
     parameters = []
     if config['training']['awl']:
         parameters += [{'params': awl.parameters(), 'weight_decay': 0}]
@@ -177,6 +218,10 @@ def run_training(config):
         ctx_loss_meter = AverageMeter()
         pred_loss_meter = AverageMeter()
         kl_loss_meter = AverageMeter()
+        
+        ts_sim_meter = AverageMeter()
+        pred_sim_meter = AverageMeter()
+
         train_iter = DataPrefetcher(train_loader, config['device'], enable_queue=False, num_threads=1)
 
 
@@ -184,7 +229,7 @@ def run_training(config):
             if epoch == 0 or epoch % config['training']['kl_annealing_steps'] != 0:
                 kl_weight = min(config['training']['kl_weight_initial'] + (config['training']['kl_target'] - config['training']['kl_weight_initial']) * epoch / config['training']['kl_annealing_steps'], config['training']['kl_target'])
             else:
-                kl_weight = config['training']['kl_weight_initial']  # 重启
+                kl_weight = config['training']['kl_target']
         else:
             kl_weight = config['training']['kl_target']
         
@@ -198,8 +243,8 @@ def run_training(config):
             losses = {}
 
             if 'ts' in config['training']['losses']:
-                loss_ts = criterion_ts(ts_reconstructed, ts_sequences)
-
+                loss_ts, ts_sim = criterion_ts(ts_reconstructed, ts_sequences)
+                ts_sim_meter.update(ts_sim)
                 ts_loss_meter.update(loss_ts.item())
                 
                 losses['ts'] = loss_ts
@@ -210,19 +255,20 @@ def run_training(config):
                 losses['ctx'] = loss_ctx
             
             if 'pred' in config['training']['losses']:
-                loss_pred = criterion_predict(pred, y)
+                loss_pred, pred_sim = criterion_predict(pred, y)
                 losses['pred'] = loss_pred
                 pred_loss_meter.update(loss_pred.item())
+                pred_sim_meter.update(pred_sim)
+
 
             _kl_loss = kl_loss(latent_mean, latent_logvar)
             kl_loss_meter.update(_kl_loss.item())
 
             if config['training']['awl']:
-                total_loss = awl(*list(losses.values()))
+                total_loss = awl(*(list(losses.values()) + [_kl_loss]))
             else:
-                total_loss = sum([losses[lk] * w for w, lk in zip(config['training']['loss_weights'], config['training']['losses'])])
+                total_loss = sum([losses[lk] * w for w, lk in zip(config['training']['loss_weights'], config['training']['losses'])]) + kl_weight * _kl_loss
 
-            total_loss += kl_weight * _kl_loss
             total_loss.backward()
             optimizer.step()
 
@@ -230,7 +276,7 @@ def run_training(config):
 
             train_loss_meter.update(total_loss.item())
             #| Pred Loss: {pred_loss_meter.avg}
-            pbar.set_description(f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training] | Loss: {train_loss_meter.avg:.4f} | KL Loss: {kl_loss_meter.avg:.4f} | TS Loss: {ts_loss_meter.avg:.4f} | CTX Loss: {ctx_loss_meter.avg:.4f} | Pred Loss: {pred_loss_meter.avg:.4f}")
+            pbar.set_description(f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training] | Loss: {train_loss_meter.avg:.4f} | KL Loss: {kl_loss_meter.avg:.4f} | TS Loss: {ts_loss_meter.avg:.4f} | TS Sim: {ts_sim_meter.avg:.4f} | CTX Loss: {ctx_loss_meter.avg:.4f} | Pred Loss: {pred_loss_meter.avg:.4f} | Pred Sim: {pred_sim_meter.avg:.4f} ")
         
         scheduler.step()
 
@@ -269,8 +315,16 @@ def run_training(config):
         _, vwap_score = pred_metric.calculate()
         _, ts_score = ts_metric.calculate()
         _, ctx_score = ctx_metric.calculate()
+
+        scores = []
+        if 'ts' in config['training']['losses']:
+            scores.append(ts_score)
+        if 'ctx' in config['training']['losses']:
+            scores.append(ctx_score)
+        if 'pred' in config['training']['losses']:
+            scores.append(vwap_score)
         
-        mean_r2 = 1 / (vwap_score + ts_score + ctx_score)
+        mean_r2 = sum(scores)
         # --- 6. 保存最佳模型 ---
         # 只保存性能最好的模型，避免存储过多文件
         if mean_r2 > best_val_loss:

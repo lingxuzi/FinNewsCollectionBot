@@ -119,7 +119,6 @@ class MultiModalAutoencoder(nn.Module):
         self.ts_encoder = nn.LSTM(ts_input_dim, hidden_dim, num_layers, batch_first=True)
         # self.ts_encoder_att = Attention(hidden_dim)
         self.ts_encoder_fc = VAELambda(hidden_dim, ts_embedding_dim) #nn.Linear(hidden_dim, ts_embedding_dim)
-        self.ts_encoder_bn = nn.BatchNorm1d(ts_embedding_dim)  # 添加 BN
 
         # --- 分支2: 上下文编码器 (MLP) ---
         # 增加 Batch Normalization
@@ -141,10 +140,7 @@ class MultiModalAutoencoder(nn.Module):
         self.embedding_norm = nn.LayerNorm(self.total_embedding_dim)
         self.fusion_block = SEFusionBlock(input_dim=self.total_embedding_dim, reduction_ratio=8)
 
-        # 初始化预测头
-        self.initialize_prediction_head(self.ts_output_layer.p[-1])
-        self.initialize_prediction_head(self.ctx_decoder.p[-1])
-        self.initialize_prediction_head(self.predictor.p[-1])
+        self.reset_prediction_head()
 
         if config.get('encoder_only', False):
             self.encoder_only(True)
@@ -153,6 +149,14 @@ class MultiModalAutoencoder(nn.Module):
         if encoder:
             self.eval()
         self.encoder_mode = encoder
+
+    def reset_prediction_head(self, heads=['ts', 'ctx', 'pred']):
+        if 'ts' in heads:
+            self.initialize_prediction_head(self.ts_output_layer.p[-1])
+        if 'ctx' in heads:
+            self.initialize_prediction_head(self.ctx_decoder.p[-1])
+        if 'pred' in heads:
+            self.initialize_prediction_head(self.predictor.p[-1])
 
     def initialize_prediction_head(self, module):
         """
@@ -213,7 +217,7 @@ class MultiModalAutoencoder(nn.Module):
                 ctx_output = self.ctx_decoder(final_embedding)
 
         # 3. Fused Embedding
-        norm_embedding = self.embedding_norm(final_embedding)
+        norm_embedding = self.embedding_norm(final_embedding.detach())
         norm_embedding = self.fusion_block(norm_embedding)
 
         # --- 3. 预测分支 ---
