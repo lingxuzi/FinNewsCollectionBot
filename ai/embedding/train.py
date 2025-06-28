@@ -268,7 +268,7 @@ def run_training(config):
                 pred_sim_meter.update(pred_sim)
 
 
-            _kl_loss = kl_loss(latent_mean, latent_logvar)
+            _kl_loss = kl_loss(latent_mean, latent_logvar, config['training']['kl_freebits'])
             kl_loss_meter.update(_kl_loss.item())
 
             if config['training']['awl']:
