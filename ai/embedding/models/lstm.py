@@ -135,9 +135,6 @@ class MultiModalAutoencoder(nn.Module):
                                   batch_first=True, dropout=dropout_rate)
         self.ts_output_layer = ResidualMLPBlock(hidden_dim, hidden_dim, ts_input_dim, dropout_rate=dropout_rate)
 
-        # nn.init.xavier_uniform_(self.ts_decoder_fc.weight)
-        # nn.init.xavier_uniform_(self.ts_output_layer.p[-1].weight)
-
         self.ctx_decoder = ResidualMLPBlock(ctx_embedding_dim if not self.use_fused_embedding else self.total_embedding_dim, hidden_dim, ctx_input_dim, dropout_rate=dropout_rate)
         
 
@@ -155,12 +152,18 @@ class MultiModalAutoencoder(nn.Module):
         self.encoder_mode = encoder
 
     def init_parameters(self, heads=['ts', 'ctx', 'pred']):
-        if 'ts' in heads:
-            self.initialize_prediction_head(self.ts_output_layer.p[-1])
-        if 'ctx' in heads:
-            self.initialize_prediction_head(self.ctx_decoder.p[-1])
-        if 'pred' in heads:
-            self.initialize_prediction_head(self.predictor.p[-1])
+
+        # if 'ts' in heads:
+        #     self.initialize_prediction_head(self.ts_output_layer.p[-1])
+        # if 'ctx' in heads:
+        #     self.initialize_prediction_head(self.ctx_decoder.p[-1])
+        # if 'pred' in heads:
+        #     self.initialize_prediction_head(self.predictor.p[-1])
+        for name, module in self.named_modules():
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_uniform_(module.weight)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
 
     def reset_prediction_head(self, heads=['pred']):
         if 'pred' in heads:
