@@ -26,7 +26,7 @@ from utils.common import ModelEmaV2, calculate_r2_components, calculate_r2_compo
 def num_iters_per_epoch(loader, batch_size):
     return len(loader) // batch_size
 
-def kl_loss(latent_mean, latent_logvar, free_bits=0.5):
+def kl_loss(latent_mean, latent_logvar, free_bits=5):
     return torch.clamp(-0.5 * (1 + latent_logvar - latent_mean.pow(2) - latent_logvar.exp()), min=free_bits).mean()
 
 class HuberTrendLoss:
