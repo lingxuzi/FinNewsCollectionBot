@@ -235,9 +235,9 @@ def run_training(config):
             if epoch == 0 or epoch % config['training']['kl_annealing_steps'] != 0:
                 kl_weight = min(config['training']['kl_weight_initial'] + (config['training']['kl_target'] - config['training']['kl_weight_initial']) * epoch / config['training']['kl_annealing_steps'], config['training']['kl_target'])
             else:
-                kl_weight = config['training']['kl_target_initial']
+                kl_weight = config['training']['kl_weight_initial']
         else:
-            kl_weight = config['training']['kl_target_initial']
+            kl_weight = config['training']['kl_weight_initial']
         
         # 使用tqdm显示进度条
         pbar = tqdm(range(num_iters_per_epoch(train_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training]")
