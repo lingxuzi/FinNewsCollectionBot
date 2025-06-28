@@ -3,7 +3,7 @@
 data:
   cache: 'diskcache'
   db_path: "train_data/hist/"
-  include_meta: true
+  include_meta: false
   train:
     stock_list_file: "train_stocks.txt"
     hist_data_file: 'fundamental_train.pkl'

@@ -211,7 +211,7 @@ def run_training(config):
     parameters += [{'params': model.parameters(), 'weight_decay': config['training']['weight_decay']}]
     optimizer = torch.optim.AdamW(parameters, lr=config['training']['min_learning_rate'] if config['training']['warmup_epochs'] > 0 else config['training']['learning_rate'])
     
-    early_stopper = EarlyStopping(patience=10, direction='up')
+    early_stopper = EarlyStopping(patience=40, direction='up')
     
     scheduler = CosineWarmupLR(
         optimizer, config['training']['num_epochs'], config['training']['learning_rate'], config['training']['min_learning_rate'], warmup_epochs=config['training']['warmup_epochs'], warmup_lr=config['training']['min_learning_rate'])
@@ -243,7 +243,7 @@ def run_training(config):
         # 使用tqdm显示进度条
         pbar = tqdm(range(num_iters_per_epoch(train_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training]")
         for _ in pbar:
-            ts_sequences, ctx_sequences, y, _, _ = train_iter.next()
+            ts_sequences, ctx_sequences, y = train_iter.next()
             optimizer.zero_grad()
             ts_reconstructed, ctx_reconstructed, pred, _, latent_mean, latent_logvar = model(ts_sequences, ctx_sequences)
 
@@ -303,7 +303,7 @@ def run_training(config):
                 # ts_sequences = ts_sequences.to(device)
                 # ctx_sequences = ctx_sequences.to(device)
                 # y = y.to(device)
-                ts_sequences, ctx_sequences, y, _, _ = val_iter.next()
+                ts_sequences, ctx_sequences, y = val_iter.next()
                 ts_reconstructed, ctx_reconstructed, pred, _ = _model(ts_sequences, ctx_sequences)
 
                 
@@ -417,7 +417,7 @@ def run_eval(config):
             # ctx_sequences = ctx_sequences.to(device)
             # y = y.to(device)
 
-            ts_sequences, ctx_sequences, y, _, code = test_iter.next()
+            ts_sequences, ctx_sequences, y = test_iter.next()
             ts_reconstructed, ctx_reconstructed, pred, _ = model(ts_sequences, ctx_sequences)
             
             y_cpu = y.cpu().numpy()

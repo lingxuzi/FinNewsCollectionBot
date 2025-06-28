@@ -173,24 +173,19 @@ class KlineDataset(Dataset):
         return self.cache.get('total_count')
     
     def __getitem__(self, idx):
-        # t = time.time()
+        ts_seq, ctx_seq, label, date_range, code = self.cache.get(f'seq_{idx}')
+        if self.is_train:
+            if np.random.rand() < 0.5:
+                noise = np.random.normal(0, self.noise_level, ts_seq.shape)
+                ts_seq += noise
+
+            if np.random.rand() < 0.5:
+                noise = np.random.normal(0, self.noise_level, ctx_seq.shape)
+                ctx_seq += noise
+        else:
+            pass
 
         if self.include_meta:
-            # t = time.time()
-            ts_seq, ctx_seq, label, date_range, code = self.cache.get(f'seq_{idx}')
-            # print(f"Cache access time: {time.time() - t:.4f} seconds")
-            if ts_seq is None or ctx_seq is None or label is None:
-                raise IndexError("Index out of range or data not found in cache.")
-            # if self.is_train:
-            #     if np.random.rand() < self.noise_prob:
-                    # noise = np.random.normal(0, self.noise_level, ts_seq.shape)
-            #         ts_seq += noise
-
-            #     if np.random.rand() < self.noise_prob:
-            #         noise = np.random.normal(0, self.noise_level, ctx_seq.shape)
-            #         ctx_seq += noise
-            # else:
-            #     pass
             return (
                 torch.FloatTensor(ts_seq),
                 torch.FloatTensor(ctx_seq),
@@ -199,25 +194,9 @@ class KlineDataset(Dataset):
                 code
             )
         else:
-            ts_seq, ctx_seq, label = self.cache.get(f'seq_{idx}')
-            # print(f"Cache access time: {time.time() - t:.4f} seconds")
-            if ts_seq is None or ctx_seq is None or label is None:
-                raise IndexError("Index out of range or data not found in cache.")
-            # if self.is_train:
-            #     if np.random.rand() < self.noise_prob:
-                    # noise = np.random.normal(0, self.noise_level, ts_seq.shape)
-            #         ts_seq += noise
-
-            #     if np.random.rand() < self.noise_prob:
-            #         noise = np.random.normal(0, self.noise_level, ctx_seq.shape)
-            #         ctx_seq += noise
-            # else:
-            #     pass
             return (
                 torch.FloatTensor(ts_seq),
                 torch.FloatTensor(ctx_seq),
-                torch.FloatTensor(np.log1p(label)),
-                'null',
-                'null'
+                torch.FloatTensor(np.log1p(label))
             )
-        
+    
