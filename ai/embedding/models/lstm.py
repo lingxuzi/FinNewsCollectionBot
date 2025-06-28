@@ -113,6 +113,7 @@ class MultiModalAutoencoder(nn.Module):
         
         self.total_embedding_dim = ts_embedding_dim + ctx_embedding_dim
         self.use_fused_embedding = config['fused_embedding']
+        self.num_layers = num_layers
         self.hidden_dim = hidden_dim
         self.predict_dim = predict_dim
         self.dropout_rate = dropout_rate
@@ -163,7 +164,7 @@ class MultiModalAutoencoder(nn.Module):
 
     def reset_prediction_head(self, heads=['pred']):
         if 'pred' in heads:
-            self.fusion_block = SEFusionBlock(input_dim=self.total_embedding_dim, reduction_ratio=8)
+            # self.fusion_block = SEFusionBlock(input_dim=self.total_embedding_dim, reduction_ratio=8)
             self.predictor = ResidualMLPBlock(self.total_embedding_dim, int(self.hidden_dim), self.predict_dim, dropout_rate=self.dropout_rate)
             self.init_parameters(heads=heads)
 
@@ -213,10 +214,13 @@ class MultiModalAutoencoder(nn.Module):
         final_embedding = torch.cat([ts_embedding, ctx_embedding], dim=1)
         if not self.encoder_mode:
             if not self.use_fused_embedding:
-                ts_decoder_input = self.ts_decoder_fc(ts_embedding)
+                h_state = self.ts_decoder_fc(ts_embedding)
             else:
-                ts_decoder_input = self.ts_decoder_fc(final_embedding)
-            ts_reconstructed, _ = self.ts_decoder(ts_decoder_input.unsqueeze(1).repeat(1, x_ts.size(1), 1))
+                h_state = self.ts_decoder_fc(final_embedding)
+            h_0 = torch.stack([h_state for _ in range(self.num_layers)])
+            zero_input = torch.zeros_like(h_state)
+            c_0 = torch.zeros_like(h_0).to(h_0.device)
+            ts_reconstructed, _ = self.ts_decoder(zero_input.unsqueeze(1).repeat(1, x_ts.size(1), 1), (h_0, c_0))
             ts_output = self.ts_output_layer(ts_reconstructed)
         
             # 2. 上下文重构
@@ -226,7 +230,7 @@ class MultiModalAutoencoder(nn.Module):
                 ctx_output = self.ctx_decoder(final_embedding)
 
         # 3. Fused Embedding
-        norm_embedding = self.embedding_norm(final_embedding.detach())
+        norm_embedding = self.embedding_norm(final_embedding)
         norm_embedding = self.fusion_block(norm_embedding)
 
         # --- 3. 预测分支 ---

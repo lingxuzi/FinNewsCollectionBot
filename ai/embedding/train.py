@@ -16,6 +16,7 @@ from config.base import *
 from ai.embedding.dataset.dataset import KlineDataset, generate_scaler_and_encoder
 from ai.modules.multiloss import AutomaticWeightedLoss
 from ai.modules.earlystop import EarlyStopping
+from ai.modules.gradient import adaptive_clip_grad
 from ai.scheduler.sched import *
 from ai.metrics.series_metric import Metric
 from utils.prefetcher import DataPrefetcher
@@ -67,7 +68,7 @@ class HuberTrendLoss:
     def __call__(self, ytrue, ypred):
         direction_loss = self.directional_consistency_loss(ytrue, ypred)
         reconstruction_loss = nn.functional.huber_loss(ypred, ytrue, delta=self.delta)
-        return direction_loss * 0.5 + reconstruction_loss, 1 - direction_loss.item()
+        return direction_loss * 0.8 + reconstruction_loss, 1 - direction_loss.item()
 
 def run_training(config):
     """主训练函数"""
@@ -209,6 +210,7 @@ def run_training(config):
         parameters += [{'params': awl.parameters(), 'weight_decay': 0}]
     parameters += [{'params': model.parameters(), 'weight_decay': config['training']['weight_decay']}]
     optimizer = torch.optim.AdamW(parameters, lr=config['training']['min_learning_rate'] if config['training']['warmup_epochs'] > 0 else config['training']['learning_rate'])
+    
     early_stopper = EarlyStopping(patience=10, direction='up')
     
     scheduler = CosineWarmupLR(
@@ -276,6 +278,9 @@ def run_training(config):
 
             total_loss.backward()
             optimizer.step()
+
+            if config.get('auto_grad_norm', True):
+                adaptive_clip_grad(model.parameters())
 
             ema.update(model)
 

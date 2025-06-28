@@ -6,6 +6,6 @@ predict_dim: 5            # 预测分支
 attention_dim: 64            # 预测分支
 dropout: 0.
 noise_level: 0.001
-noise_prob: 0.3
+noise_prob: 0.
 ts_masking_ratio: 0.
 fused_embedding: false
