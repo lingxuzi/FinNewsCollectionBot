@@ -211,7 +211,7 @@ def run_training(config):
     criterion_ts = HuberTrendLoss(delta=0.1) # 均方误差损失
     criterion_ctx = nn.HuberLoss(delta=0.1) # 均方误差损失
     criterion_predict = HuberTrendLoss(delta=0.1) # 均方误差损失
-    criterion_trend = nn.BCELoss()
+    criterion_trend = HuberTrendLoss(delta=0.1, sim_weight=0.1)
     criterion_return = HuberTrendLoss(delta=0.1, sim_weight=0.1)
 
     parameters = []
@@ -279,7 +279,7 @@ def run_training(config):
                 pred_sim_meter.update(pred_sim)
             
             if 'trend' in config['training']['losses']:
-                loss_trend = criterion_trend(trend_pred, trend)
+                loss_trend, _ = criterion_trend(trend_pred, trend)
                 losses['trend'] = loss_trend
                 trend_loss_meter.update(loss_trend.item())
 
