@@ -7,11 +7,12 @@ class VAELambda(nn.Module):
     :param hidden_size: hidden size of the encoder
     :param latent_length: latent vector length
     """
-    def __init__(self, hidden_size, latent_length):
+    def __init__(self, hidden_size, latent_length, vae=True):
         super(VAELambda, self).__init__()
 
         self.hidden_size = hidden_size
         self.latent_length = latent_length
+        self.vae = vae
 
         self.hidden_to_mean = nn.Linear(self.hidden_size, self.latent_length)
         self.hidden_to_logvar = nn.Linear(self.hidden_size, self.latent_length)
@@ -27,14 +28,13 @@ class VAELambda(nn.Module):
         """
 
         latent_mean = self.hidden_to_mean(cell_output)
-        latent_logvar = self.hidden_to_logvar(cell_output)
+        if self.vae:
+            latent_logvar = self.hidden_to_logvar(cell_output)
 
-        if self.training:
-            std = torch.exp(0.5 * latent_logvar)
-            eps = torch.randn_like(std)
-            return eps.mul(std).add_(latent_mean), latent_mean, latent_logvar
-        else:
-            return latent_mean, None, None
-        # std = torch.exp(0.5 * latent_logvar)
-        # eps = torch.randn_like(std)
-        # return eps.mul(std).add_(latent_mean), latent_mean, latent_logvar
+            if self.training:
+                std = torch.exp(0.5 * latent_logvar)
+                eps = torch.randn_like(std)
+                return eps.mul(std).add_(latent_mean), latent_mean, latent_logvar
+            else:
+                return latent_mean, None, None
+        return latent_mean, None, None

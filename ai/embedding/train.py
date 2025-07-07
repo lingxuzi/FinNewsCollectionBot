@@ -29,10 +29,25 @@ def num_iters_per_epoch(loader, batch_size):
 def kl_loss(latent_mean, latent_logvar, free_bits=5):
     return torch.clamp(-0.5 * (1 + latent_logvar - latent_mean.pow(2) - latent_logvar.exp()), min=free_bits).mean()
 
+def ale_loss(pred, target, reduction='mean', eps=1e-8, gamma=0):
+    pred = pred.clamp(eps, 1-eps)
+    target = target.clamp(eps, 1-eps)
+    abs_error = torch.abs(pred - target)
+
+    loss = -torch.log(1.0 - abs_error + eps) * torch.pow(torch.maximum(abs_error, torch.tensor(eps).to(abs_error.device)), gamma)
+
+    if reduction == 'sum':
+        return loss.sum()
+    elif reduction == 'mean':
+        return loss.mean()
+
+    return loss
+
 class HuberTrendLoss:
-    def __init__(self, delta=0.1):
+    def __init__(self, delta=0.1, sim_weight=0.1):
         self.delta = delta
         self.epsilon = 1e-8
+        self.sim_weight = sim_weight
 
     def directional_consistency_loss(self, y_true, y_pred):
         """
@@ -43,32 +58,23 @@ class HuberTrendLoss:
         Returns:
             方向一致性损失 (torch.Tensor)
         """
-        diff_pred = y_pred[:, 1:] - y_pred[:, :-1]
-        diff_true = y_true[:, 1:] - y_true[:, :-1]
-        
-        # Reshape to treat the sequence of differences as a single vector for each batch item
-        # Shape becomes (batch_size, (seq_len-1) * features)
-        diff_pred_vec = diff_pred.contiguous().view(diff_pred.size(0), -1)
-        diff_true_vec = diff_true.contiguous().view(diff_true.size(0), -1)
-
-        # 中心化数据 (减去均值)
-        diff_pred_vec_centered = diff_pred_vec - torch.mean(diff_pred_vec, dim=1, keepdim=True)
-        diff_true_vec_centered = diff_true_vec - torch.mean(diff_true_vec, dim=1, keepdim=True)
-
-        # Calculate cosine similarity
-        # F.cosine_similarity handles the dot product and norms internally
-        # It operates on a specified dimension, here dim=1 for batch-wise comparison
-        cosine_sim = nn.functional.cosine_similarity(diff_pred_vec_centered, diff_true_vec_centered, dim=1, eps=self.epsilon)
-
-        # The loss is 1 - cosine_similarity
-        # We take the mean over the batch
-        loss = 1.0 - cosine_sim
+        y_true_mean = torch.mean(y_true, dim=-1, keepdim=True)
+        y_pred_mean = torch.mean(y_pred, dim=-1, keepdim=True)
+        y_true_centered = y_true - y_true_mean
+        y_pred_centered = y_pred - y_pred_mean
+        # 2. 计算分子和分母
+        numerator = torch.sum(y_true_centered * y_pred_centered, dim=-1)
+        denominator = torch.sqrt(torch.sum(y_true_centered ** 2 + self.epsilon, dim=-1) * torch.sum(y_pred_centered ** 2 + self.epsilon, dim=-1))
+        # 3. 计算皮尔逊相关系数
+        pearson_corr = numerator / (denominator + 1e-8)  # 添加一个小的常数以避免除以零
+        # 4. 计算损失
+        loss = 1 - pearson_corr
         return torch.mean(loss)
 
     def __call__(self, ytrue, ypred):
         direction_loss = self.directional_consistency_loss(ytrue, ypred)
         reconstruction_loss = nn.functional.huber_loss(ypred, ytrue, delta=self.delta)
-        return direction_loss * 0.2 + reconstruction_loss, 1 - direction_loss.item()
+        return direction_loss * self.sim_weight + reconstruction_loss, 1 - direction_loss.item()
 
 def run_training(config):
     """主训练函数"""
@@ -160,8 +166,8 @@ def run_training(config):
             is_train=False,
             tag='test'
         )
-    train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], num_workers=2, pin_memory=False, shuffle=True, drop_last=True)
-    val_loader = DataLoader(eval_dataset, batch_size=config['training']['batch_size'], num_workers=2, pin_memory=False, shuffle=False, drop_last=True)
+    train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=True, drop_last=True)
+    val_loader = DataLoader(eval_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=False, drop_last=True)
 
     
     print(f"Training data size: {len(train_dataset)}, Validation data size: {len(eval_dataset)}")
@@ -180,15 +186,15 @@ def run_training(config):
 
     if config['training']['load_pretrained']:
         try:
-            state_dict = torch.load(config['training']['pretrained_path'], map_location='cpu')
-            model.load_state_dict(state_dict, strict=False)
+            state_dict = torch.load(config['training']['pretrained_path'], map_location='cpu', weights_only=True)
+            model.load_state_dict(state_dict, strict=True)
             print('pretrain loaded')
         except Exception as e:
             print(f'Load pretrained model failed: {e}')
 
     if config['training']['finetune']:
         try:
-            state_dict = torch.load(config['training']['model_save_path'], map_location='cpu')
+            state_dict = torch.load(config['training']['model_save_path'], map_location='cpu', weights_only=True)
             model.load_state_dict(state_dict, strict=False)
             print('finetune model loaded')
         except Exception as e:
@@ -205,6 +211,9 @@ def run_training(config):
     criterion_ts = HuberTrendLoss(delta=0.1) # 均方误差损失
     criterion_ctx = nn.HuberLoss(delta=0.1) # 均方误差损失
     criterion_predict = HuberTrendLoss(delta=0.1) # 均方误差损失
+    criterion_trend = nn.BCELoss()
+    criterion_return = HuberTrendLoss(delta=0.1, sim_weight=0.1)
+
     parameters = []
     if config['training']['awl']:
         parameters += [{'params': awl.parameters(), 'weight_decay': 0}]
@@ -224,10 +233,13 @@ def run_training(config):
         ts_loss_meter = AverageMeter()
         ctx_loss_meter = AverageMeter()
         pred_loss_meter = AverageMeter()
+        trend_loss_meter = AverageMeter()
+        return_loss_meter = AverageMeter()
         kl_loss_meter = AverageMeter()
         
         ts_sim_meter = AverageMeter()
         pred_sim_meter = AverageMeter()
+        return_sim_meter = AverageMeter()
 
         train_iter = DataPrefetcher(train_loader, config['device'], enable_queue=False, num_threads=1)
 
@@ -242,50 +254,69 @@ def run_training(config):
         # 使用tqdm显示进度条
         pbar = tqdm(range(num_iters_per_epoch(train_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training]")
         for _ in pbar:
-            ts_sequences, ctx_sequences, y = train_iter.next()
+            ts_sequences, ctx_sequences, y, _return, trend = train_iter.next()
             optimizer.zero_grad()
-            ts_reconstructed, ctx_reconstructed, pred, _, latent_mean, latent_logvar = model(ts_sequences, ctx_sequences)
+            ts_reconstructed, ctx_reconstructed, pred, trend_pred, return_pred, _, latent_mean, latent_logvar = model(ts_sequences, ctx_sequences)
 
             losses = {}
 
             if 'ts' in config['training']['losses']:
-                loss_ts, ts_sim = criterion_ts(ts_reconstructed, ts_sequences)
+                loss_ts, ts_sim = criterion_ts(ts_sequences, ts_reconstructed)
                 ts_sim_meter.update(ts_sim)
                 ts_loss_meter.update(loss_ts.item())
                 
                 losses['ts'] = loss_ts
             
             if 'ctx' in config['training']['losses']:
-                loss_ctx = criterion_ctx(ctx_reconstructed, ctx_sequences)
+                loss_ctx = criterion_ctx(ctx_sequences, ctx_reconstructed)
                 ctx_loss_meter.update(loss_ctx.item())
                 losses['ctx'] = loss_ctx
             
             if 'pred' in config['training']['losses']:
-                loss_pred, pred_sim = criterion_predict(pred, y)
+                loss_pred, pred_sim = criterion_predict(y, pred)
                 losses['pred'] = loss_pred
                 pred_loss_meter.update(loss_pred.item())
                 pred_sim_meter.update(pred_sim)
+            
+            if 'trend' in config['training']['losses']:
+                loss_trend = criterion_trend(trend_pred, trend)
+                losses['trend'] = loss_trend
+                trend_loss_meter.update(loss_trend.item())
 
-
-            _kl_loss = kl_loss(latent_mean, latent_logvar, config['training']['kl_freebits'])
-            kl_loss_meter.update(_kl_loss.item())
+            if 'return' in config['training']['losses']:
+                loss_return, return_sim = criterion_return(_return, return_pred)
+                losses['return'] = loss_return
+                return_loss_meter.update(loss_return.item())
+                return_sim_meter.update(return_sim)
+            
+            if kl_weight > 0:
+                _kl_loss = kl_loss(latent_mean, latent_logvar, config['training']['kl_freebits'])
+                kl_loss_meter.update(_kl_loss.item())
+            
 
             if config['training']['awl']:
-                total_loss = awl(*(list(losses.values()) + [_kl_loss]))
+                losses = list(losses.values())
+                if kl_weight > 0:
+                    losses.append(_kl_loss)
+                total_loss = awl(*losses)
             else:
-                total_loss = sum([losses[lk] * w for w, lk in zip(config['training']['loss_weights'], config['training']['losses'])]) + kl_weight * _kl_loss
+                total_loss = sum([losses[lk] * w for w, lk in zip(config['training']['loss_weights'], config['training']['losses'])])
+                if kl_weight > 0:
+                    total_loss += kl_weight * _kl_loss
 
             total_loss.backward()
-            optimizer.step()
 
             if config.get('auto_grad_norm', True):
                 adaptive_clip_grad(model.parameters())
+            else:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.5)
+            optimizer.step()
 
             ema.update(model)
 
             train_loss_meter.update(total_loss.item())
             #| Pred Loss: {pred_loss_meter.avg}
-            pbar.set_description(f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training] | Loss: {train_loss_meter.avg:.4f} | KL Loss: {kl_loss_meter.avg:.4f} | TS Loss: {ts_loss_meter.avg:.4f} | TS Sim: {ts_sim_meter.avg:.4f} | CTX Loss: {ctx_loss_meter.avg:.4f} | Pred Loss: {pred_loss_meter.avg:.4f} | Pred Sim: {pred_sim_meter.avg:.4f} ")
+            pbar.set_description(f"Total({epoch+1}/{config['training']['num_epochs']}): {train_loss_meter.avg:.4f} | KL: {kl_loss_meter.avg:.4f} | TS: {ts_loss_meter.avg:.4f} | TS Sim: {ts_sim_meter.avg:.4f} | CTX: {ctx_loss_meter.avg:.4f} | Pred: {pred_loss_meter.avg:.4f} | Pred Sim: {pred_sim_meter.avg:.4f} | Trend: {trend_loss_meter.avg:.4f} | Return: {return_loss_meter.avg:.4f} | Return Sim: {return_sim_meter.avg:.4f}")
         
         scheduler.step()
 
@@ -294,22 +325,26 @@ def run_training(config):
         _model.eval()
         with torch.no_grad():
             val_iter = DataPrefetcher(val_loader, config['device'], enable_queue=False, num_threads=1)
-            pred_metric = Metric('vwap')
+            pred_metric = Metric('vwap', appends=True)
             ts_metric = Metric('ts')
             ctx_metric = Metric('ctx')
+            trend_metric = Metric('trend')
+            return_metric = Metric('return')
 
             for _ in tqdm(range(num_iters_per_epoch(eval_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Validation]"):
                 # ts_sequences = ts_sequences.to(device)
                 # ctx_sequences = ctx_sequences.to(device)
                 # y = y.to(device)
-                ts_sequences, ctx_sequences, y = val_iter.next()
-                ts_reconstructed, ctx_reconstructed, pred, _ = _model(ts_sequences, ctx_sequences)
+                ts_sequences, ctx_sequences, y, _return, trend = val_iter.next()
+                ts_reconstructed, ctx_reconstructed, pred, trend_pred, return_pred, _ = _model(ts_sequences, ctx_sequences)
 
                 
                 y_cpu = y.cpu().numpy()
                 pred_cpu = pred.cpu().numpy()
 
                 pred_metric.update(y_cpu, pred_cpu)
+                trend_metric.update(trend.cpu().numpy(), (trend_pred.cpu().numpy() > 0.5).astype(int))
+                return_metric.update(_return.cpu().numpy(), return_pred.cpu().numpy())
                 
                 ts_sequences_cpu = ts_sequences.cpu().numpy()
                 ts_reconstructed_cpu = ts_reconstructed.cpu().numpy()
@@ -324,6 +359,8 @@ def run_training(config):
         _, vwap_score = pred_metric.calculate()
         _, ts_score = ts_metric.calculate()
         _, ctx_score = ctx_metric.calculate()
+        _, trend_score = trend_metric.calculate()
+        _, return_score = return_metric.calculate()
 
         scores = []
         if 'ts' in config['training']['losses']:
@@ -332,8 +369,12 @@ def run_training(config):
             scores.append(ctx_score)
         if 'pred' in config['training']['losses']:
             scores.append(vwap_score)
+        if 'trend' in config['training']['losses']:
+            scores.append(trend_score)
+        if 'return' in config['training']['losses']:
+            scores.append(return_score)
         
-        mean_r2 = sum(scores)
+        mean_r2 = sum(scores) / len(scores)
         # --- 6. 保存最佳模型 ---
         # 只保存性能最好的模型，避免存储过多文件
         if mean_r2 > best_val_loss:
@@ -405,9 +446,11 @@ def run_eval(config):
     model.load_state_dict(state_dict, strict=False)
     model.eval()
     
-    pred_metric = Metric('vwap')
+    pred_metric = Metric('vwap', appends=True)
     ts_metric = Metric('ts')
     ctx_metric = Metric('ctx')
+    trend_metric = Metric('trend')
+    return_metric = Metric('return')
     
     with torch.no_grad():
         test_iter = DataPrefetcher(test_loader, config['device'], enable_queue=False, num_threads=1)
@@ -416,13 +459,17 @@ def run_eval(config):
             # ctx_sequences = ctx_sequences.to(device)
             # y = y.to(device)
 
-            ts_sequences, ctx_sequences, y = test_iter.next()
-            ts_reconstructed, ctx_reconstructed, pred, _ = model(ts_sequences, ctx_sequences)
+            ts_sequences, ctx_sequences, y, trend, _return = test_iter.next()
+            ts_reconstructed, ctx_reconstructed, pred, trend_pred, return_pred, _ = model(ts_sequences, ctx_sequences)
             
             y_cpu = y.cpu().numpy()
             pred_cpu = pred.cpu().numpy()
+            trend_cpu = trend.cpu().numpy()
+            return_cpu = _return.cpu().numpy()
 
             pred_metric.update(y_cpu, pred_cpu)
+            trend_metric.update(trend_cpu, trend_pred.cpu().numpy())
+            return_metric.update(return_cpu, return_pred.cpu().numpy())
                 
             ts_sequences_cpu = ts_sequences.cpu().numpy()
             ts_reconstructed_cpu = ts_reconstructed.cpu().numpy()
@@ -439,3 +486,5 @@ def run_eval(config):
         _, vwap_score = pred_metric.calculate()
         _, ts_score = ts_metric.calculate()
         _, ctx_score = ctx_metric.calculate()
+        _, trend_score = trend_metric.calculate()
+        _, return_score = return_metric.calculate()
