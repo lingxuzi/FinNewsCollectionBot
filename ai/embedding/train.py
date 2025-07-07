@@ -166,8 +166,8 @@ def run_training(config):
             is_train=False,
             tag='test'
         )
-    train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=True, drop_last=True)
-    val_loader = DataLoader(eval_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=False, drop_last=True)
+    train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], num_workers=config['training']['workers'], pin_memory=False, shuffle=True, drop_last=True)
+    val_loader = DataLoader(eval_dataset, batch_size=config['training']['batch_size'], num_workers=config['training']['workers'], pin_memory=False, shuffle=False, drop_last=True)
 
     
     print(f"Training data size: {len(train_dataset)}, Validation data size: {len(eval_dataset)}")
@@ -431,7 +431,7 @@ def run_eval(config):
         is_train=False,
         tag='test'
     )
-    test_loader = DataLoader(test_dataset, batch_size=config['training']['batch_size'], num_workers=4, pin_memory=False, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=config['training']['batch_size'], num_workers=config['training']['workers'], pin_memory=False, shuffle=False)
 
     model_config = get_model_config(config['training']['model'])
     model_config['ts_input_dim'] = len(config['data']['features'])

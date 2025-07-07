@@ -20,6 +20,7 @@ data:
 
 # --- 训练参数 ---
 training:
+  workers: 4
   finetune: false
   model: 'alstm-ae'
   awl: false
@@ -27,7 +28,7 @@ training:
   losses: ['ts', 'ctx', 'pred', 'trend', 'return']
   loss_weights: [1, 0.2, 0.2, 0.2, 0.2]
   sequence_length: 50       # K线序列长度
-  learning_rate: 0.0005
+  learning_rate: 0.0003
   min_learning_rate: 0.00001
   weight_decay: 0.00001
   warmup_epochs: 0
