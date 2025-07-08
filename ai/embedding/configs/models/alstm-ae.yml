@@ -4,7 +4,7 @@ hidden_dim: 64           # LSTM隐藏层维度
 num_layers: 2             # LSTM层数
 predict_dim: 5            # 预测分支
 attention_dim: 64            # 预测分支
-dropout: 0.
+dropout: 0.1
 noise_level: 0.001
 noise_prob: 0.3
 ts_masking_ratio: 0.
