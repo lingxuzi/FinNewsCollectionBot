@@ -200,7 +200,7 @@ class KlineDataset(Dataset):
                 torch.FloatTensor(ts_seq),
                 torch.FloatTensor(ctx_seq),
                 torch.FloatTensor(np.log1p(label)),
-                torch.FloatTensor(np.log1p(_return)),
+                torch.FloatTensor(_return),
                 torch.FloatTensor(trend),
                 date_range,
                 code
@@ -215,7 +215,7 @@ class KlineDataset(Dataset):
                     torch.FloatTensor(ts_seq),
                     torch.FloatTensor(ctx_seq),
                     torch.FloatTensor(np.log1p(label)),
-                    torch.FloatTensor(np.log1p(np.clip(_return, -1 + 1e-8, 1))),
+                    torch.FloatTensor(_return),
                     torch.FloatTensor(trend)
                 )
             except Exception as e:

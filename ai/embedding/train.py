@@ -218,7 +218,7 @@ def run_training(config):
     if config['training']['awl']:
         parameters += [{'params': awl.parameters(), 'weight_decay': 0}]
     parameters += [{'params': model.parameters(), 'weight_decay': config['training']['weight_decay']}]
-    optimizer = AdamW(parameters, lr=config['training']['min_learning_rate'] if config['training']['warmup_epochs'] > 0 else config['training']['learning_rate'], use_gc=True)
+    optimizer = torch.optim.AdamW(parameters, lr=config['training']['min_learning_rate'] if config['training']['warmup_epochs'] > 0 else config['training']['learning_rate'])
     early_stopper = EarlyStopping(patience=40, direction='up')
     
     scheduler = CosineWarmupLR(
