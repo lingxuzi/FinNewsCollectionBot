@@ -186,7 +186,7 @@ def run_training(config):
 
     if config['training']['load_pretrained']:
         try:
-            state_dict = torch.load(config['training']['pretrained_path'], map_location='cpu', weights_only=True)
+            state_dict = torch.load(config['training']['pretrained_path'], map_location='cpu')
             model.load_state_dict(state_dict, strict=True)
             print('pretrain loaded')
         except Exception as e:
@@ -194,7 +194,7 @@ def run_training(config):
 
     if config['training']['finetune']:
         try:
-            state_dict = torch.load(config['training']['model_save_path'], map_location='cpu', weights_only=True)
+            state_dict = torch.load(config['training']['model_save_path'], map_location='cpu')
             model.load_state_dict(state_dict, strict=False)
             print('finetune model loaded')
         except Exception as e:
