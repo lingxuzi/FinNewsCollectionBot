@@ -6,7 +6,6 @@ import os
 import joblib
 import copy
 import ai.embedding.models.base
-from ranger21 import Ranger21
 from ai.loss.quantileloss import QuantileLoss
 from ai.embedding.models import create_model, get_model_config
 from sklearn.metrics import r2_score, mean_absolute_error, root_mean_squared_error, mean_absolute_percentage_error
@@ -220,7 +219,6 @@ def run_training(config):
         parameters += [{'params': awl.parameters(), 'weight_decay': 0}]
     parameters += [{'params': model.parameters(), 'weight_decay': config['training']['weight_decay']}]
     optimizer = torch.optim.AdamW(parameters, lr=config['training']['min_learning_rate'] if config['training']['warmup_epochs'] > 0 else config['training']['learning_rate'])
-    # optimizer = Ranger21(parameters, lr=config['training']['learning_rate'], num_epochs=config['training']['num_epochs'], num_batches_per_epoch=num_iters_per_epoch(train_dataset, config['training']['batch_size']), softplus=False)
     early_stopper = EarlyStopping(patience=40, direction='up')
     
     scheduler = CosineWarmupLR(
