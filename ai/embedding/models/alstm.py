@@ -130,7 +130,7 @@ class ALSTMAutoencoder(nn.Module):
                 ctx_output = self.ctx_decoder(final_embedding)
 
         # 3. Fused Embedding
-        norm_embedding = self.embedding_norm(final_embedding.detach())
+        norm_embedding = self.embedding_norm(final_embedding)
         norm_embedding = self.fusion_block(norm_embedding)
 
         # --- 3. 预测分支 ---
