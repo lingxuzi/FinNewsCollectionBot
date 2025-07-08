@@ -6,7 +6,7 @@ import os
 import joblib
 import copy
 import ai.embedding.models.base
-from ai.loss.quantileloss import QuantileLoss
+from ai.optimizer.gc import AdamW
 from ai.embedding.models import create_model, get_model_config
 from sklearn.metrics import r2_score, mean_absolute_error, root_mean_squared_error, mean_absolute_percentage_error
 from torch.utils.data import DataLoader, random_split
@@ -218,7 +218,7 @@ def run_training(config):
     if config['training']['awl']:
         parameters += [{'params': awl.parameters(), 'weight_decay': 0}]
     parameters += [{'params': model.parameters(), 'weight_decay': config['training']['weight_decay']}]
-    optimizer = torch.optim.AdamW(parameters, lr=config['training']['min_learning_rate'] if config['training']['warmup_epochs'] > 0 else config['training']['learning_rate'])
+    optimizer = AdamW(parameters, lr=config['training']['min_learning_rate'] if config['training']['warmup_epochs'] > 0 else config['training']['learning_rate'], use_gc=True)
     early_stopper = EarlyStopping(patience=40, direction='up')
     
     scheduler = CosineWarmupLR(
