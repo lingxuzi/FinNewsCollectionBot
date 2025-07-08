@@ -6,6 +6,7 @@ import os
 import joblib
 import copy
 import ai.embedding.models.base
+from ranger21 import Ranger21
 from ai.loss.quantileloss import QuantileLoss
 from ai.embedding.models import create_model, get_model_config
 from sklearn.metrics import r2_score, mean_absolute_error, root_mean_squared_error, mean_absolute_percentage_error
@@ -64,9 +65,9 @@ class HuberTrendLoss:
         y_pred_centered = y_pred - y_pred_mean
         # 2. 计算分子和分母
         numerator = torch.sum(y_true_centered * y_pred_centered, dim=-1)
-        denominator = torch.sqrt(torch.sum(y_true_centered ** 2 + self.epsilon, dim=-1) * torch.sum(y_pred_centered ** 2 + self.epsilon, dim=-1))
+        denominator = torch.sqrt(torch.sum(y_true_centered ** 2, dim=-1) * torch.sum(y_pred_centered ** 2, dim=-1) + 1e-12)
         # 3. 计算皮尔逊相关系数
-        pearson_corr = numerator / (denominator + 1e-8)  # 添加一个小的常数以避免除以零
+        pearson_corr = numerator / (denominator)  # 添加一个小的常数以避免除以零
         # 4. 计算损失
         loss = 1 - pearson_corr
         return torch.mean(loss)
@@ -208,10 +209,10 @@ def run_training(config):
 
     model = model.to(device)
 
-    criterion_ts = HuberTrendLoss(delta=0.1) # 均方误差损失
+    criterion_ts = HuberTrendLoss(delta=0.1, sim_weight=0.1) # 均方误差损失
     criterion_ctx = nn.HuberLoss(delta=0.1) # 均方误差损失
-    criterion_predict = HuberTrendLoss(delta=0.1) # 均方误差损失
-    criterion_trend = HuberTrendLoss(delta=0.1, sim_weight=0.1)
+    criterion_predict = HuberTrendLoss(delta=0.1, sim_weight=0.1) # 均方误差损失
+    criterion_trend = HuberTrendLoss(delta=0.1, sim_weight=0.)
     criterion_return = HuberTrendLoss(delta=0.1, sim_weight=0.1)
 
     parameters = []
@@ -219,7 +220,7 @@ def run_training(config):
         parameters += [{'params': awl.parameters(), 'weight_decay': 0}]
     parameters += [{'params': model.parameters(), 'weight_decay': config['training']['weight_decay']}]
     optimizer = torch.optim.AdamW(parameters, lr=config['training']['min_learning_rate'] if config['training']['warmup_epochs'] > 0 else config['training']['learning_rate'])
-    
+    # optimizer = Ranger21(parameters, lr=config['training']['learning_rate'], num_epochs=config['training']['num_epochs'], num_batches_per_epoch=num_iters_per_epoch(train_dataset, config['training']['batch_size']), softplus=False)
     early_stopper = EarlyStopping(patience=40, direction='up')
     
     scheduler = CosineWarmupLR(
@@ -309,7 +310,7 @@ def run_training(config):
             if config.get('auto_grad_norm', True):
                 adaptive_clip_grad(model.parameters())
             else:
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.5)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5)
             optimizer.step()
 
             ema.update(model)

@@ -59,12 +59,13 @@ class ALSTMAutoencoder(nn.Module):
             ResidualMLP(self.total_embedding_dim, int(hidden_dim))
         )
         self.predictor = PredictionHead(hidden_dim, predict_dim, dropout_rate=dropout_rate) #ResidualMLPBlock(self.total_embedding_dim, int(hidden_dim), predict_dim, dropout_rate=dropout_rate)
-        self.return_head = PredictionHead(hidden_dim, predict_dim, dropout_rate=dropout_rate) #ResidualMLPBlock(self.total_embedding_dim, int(hidden_dim), predict_dim, dropout_rate=dropout_rate)
+        self.return_head = NormedPredictionHead(hidden_dim, predict_dim, dropout_rate=dropout_rate) #ResidualMLPBlock(self.total_embedding_dim, int(hidden_dim), predict_dim, dropout_rate=dropout_rate)
         self.trend_head = nn.Sequential(
-            PredictionHead(hidden_dim, predict_dim, dropout_rate=dropout_rate),
+            NormedPredictionHead(hidden_dim, predict_dim, dropout_rate=dropout_rate),
             nn.Sigmoid()
         ) #ResidualMLPBlock(self.total_embedding_dim, int(hidden_dim), predict_dim, dropout_rate=dropout_rate)
         self.init_parameters()
+        self.initialize_prediction_head(self.return_head.p[-1])
 
         if config.get('encoder_only', False):
             self.encoder_only(True)
@@ -129,7 +130,7 @@ class ALSTMAutoencoder(nn.Module):
                 ctx_output = self.ctx_decoder(final_embedding)
 
         # 3. Fused Embedding
-        norm_embedding = self.embedding_norm(final_embedding)
+        norm_embedding = self.embedding_norm(final_embedding.detach())
         norm_embedding = self.fusion_block(norm_embedding)
 
         # --- 3. 预测分支 ---

@@ -24,16 +24,16 @@ training:
   finetune: false
   model: 'alstm-ae'
   awl: false
-  auto_grad_norm: true
-  losses: ['ts', 'ctx', 'pred', 'trend', 'return']
-  loss_weights: [1, 0.2, 0.2, 0.2, 0.2]
+  auto_grad_norm: false
+  losses: ['pred', 'trend', 'return']
+  loss_weights: [1, 1, 1]
   sequence_length: 50       # K线序列长度
-  learning_rate: 0.0003
+  learning_rate: 0.001
   min_learning_rate: 0.00001
   weight_decay: 0.00001
   warmup_epochs: 0
   batch_size: 1024
-  num_epochs: 100
+  num_epochs: 20
   kl_annealing_steps: 5
   kl_weight_initial: 0.00
   kl_target: 0.00
