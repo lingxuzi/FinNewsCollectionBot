@@ -58,10 +58,10 @@ class ALSTMAutoencoder(nn.Module):
             SEFusionBlock(input_dim=self.total_embedding_dim, reduction_ratio=8),
             ResidualMLP(self.total_embedding_dim, int(hidden_dim))
         )
-        self.predictor = PredictionHead(hidden_dim, predict_dim, dropout_rate=dropout_rate) #ResidualMLPBlock(self.total_embedding_dim, int(hidden_dim), predict_dim, dropout_rate=dropout_rate)
-        self.return_head = NormedPredictionHead(hidden_dim, predict_dim, dropout_rate=dropout_rate) #ResidualMLPBlock(self.total_embedding_dim, int(hidden_dim), predict_dim, dropout_rate=dropout_rate)
+        self.predictor = PredictionHead(hidden_dim, predict_dim, act=nn.Tanh, dropout_rate=dropout_rate) #ResidualMLPBlock(self.total_embedding_dim, int(hidden_dim), predict_dim, dropout_rate=dropout_rate)
+        self.return_head = PredictionHead(hidden_dim, predict_dim, act=nn.Tanh, dropout_rate=dropout_rate) #ResidualMLPBlock(self.total_embedding_dim, int(hidden_dim), predict_dim, dropout_rate=dropout_rate)
         self.trend_head = nn.Sequential(
-            NormedPredictionHead(hidden_dim, predict_dim, dropout_rate=dropout_rate),
+            PredictionHead(hidden_dim, predict_dim, act=nn.Tanh, dropout_rate=dropout_rate),
             nn.Sigmoid()
         ) #ResidualMLPBlock(self.total_embedding_dim, int(hidden_dim), predict_dim, dropout_rate=dropout_rate)
         self.init_parameters()
