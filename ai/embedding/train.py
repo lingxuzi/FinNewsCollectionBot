@@ -289,7 +289,7 @@ def run_training(config):
                 trend_loss_meter.update(loss_trend.item())
 
             if 'return' in config['training']['losses']:
-                loss_return = criterion_return(_return, return_pred.unsqueeze(-1))
+                loss_return = criterion_return(return_pred, _return.unsqueeze(-1))
                 losses['return'] = loss_return
                 return_loss_meter.update(loss_return.item())
             
