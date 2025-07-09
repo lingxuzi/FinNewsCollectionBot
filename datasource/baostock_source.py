@@ -180,3 +180,4 @@ class BaoSource(StockSource):
             print(f"Error fetching data for {code}: {e}")
             return None
         
+    

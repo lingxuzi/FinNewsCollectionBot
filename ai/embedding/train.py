@@ -332,6 +332,8 @@ def run_training(config):
             ctx_metric = Metric('ctx')
             trend_metric = Metric('trend')
             return_metric = Metric('return')
+            
+            pred_sim_meter = AverageMeter()
 
             for _ in tqdm(range(num_iters_per_epoch(eval_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Validation]"):
                 # ts_sequences = ts_sequences.to(device)
@@ -343,6 +345,9 @@ def run_training(config):
                 
                 y_cpu = y.cpu().numpy()
                 pred_cpu = pred.cpu().numpy()
+
+                _, pred_sim = criterion_predict(y, pred)
+                pred_sim_meter.update(pred_sim)
 
                 pred_metric.update(y_cpu, pred_cpu)
                 trend_metric.update(trend.cpu().numpy(), trend_pred.cpu().numpy())
@@ -358,6 +363,8 @@ def run_training(config):
                 ctx_metric.update(ctx_sequences_cpu.reshape(-1, ctx_sequences_cpu.shape[-1]), ctx_reconstructed_cpu.reshape(-1, ctx_reconstructed_cpu.shape[-1]))
 
         # --- 计算整体 R² ---
+
+        print(f'VWAP similarity: {pred_sim_meter.avg:.4f}')
 
         scores = []
         if 'ts' in config['training']['losses']:
