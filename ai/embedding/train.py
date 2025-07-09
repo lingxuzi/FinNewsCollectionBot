@@ -359,22 +359,22 @@ def run_training(config):
                 ctx_metric.update(ctx_sequences_cpu.reshape(-1, ctx_sequences_cpu.shape[-1]), ctx_reconstructed_cpu.reshape(-1, ctx_reconstructed_cpu.shape[-1]))
 
         # --- 计算整体 R² ---
-        _, vwap_score = pred_metric.calculate()
-        _, ts_score = ts_metric.calculate()
-        _, ctx_score = ctx_metric.calculate()
-        _, trend_score = trend_metric.calculate()
-        _, return_score = return_metric.calculate()
 
         scores = []
         if 'ts' in config['training']['losses']:
+            _, ts_score = ts_metric.calculate()
             scores.append(ts_score)
         if 'ctx' in config['training']['losses']:
+            _, ctx_score = ctx_metric.calculate()
             scores.append(ctx_score)
         if 'pred' in config['training']['losses']:
+            _, vwap_score = pred_metric.calculate()
             scores.append(vwap_score)
         if 'trend' in config['training']['losses']:
+            _, trend_score = trend_metric.calculate()
             scores.append(trend_score)
         if 'return' in config['training']['losses']:
+            _, return_score = return_metric.calculate()
             scores.append(return_score)
         
         mean_r2 = sum(scores) / len(scores)
