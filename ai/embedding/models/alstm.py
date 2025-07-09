@@ -85,7 +85,7 @@ class ALSTMAutoencoder(nn.Module):
     def init_parameters(self, m):
         for name, module in m.named_modules():
             if isinstance(module, nn.Linear):
-                nn.init.xavier_normal_(module.weight)
+                # nn.init.xavier_normal_(module.weight)
                 if module.bias is not None:
                     nn.init.zeros_(module.bias)
 
