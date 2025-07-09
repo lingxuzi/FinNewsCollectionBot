@@ -285,12 +285,12 @@ def run_training(config):
                 pred_sim_meter.update(pred_sim)
             
             if 'trend' in config['training']['losses']:
-                loss_trend, _ = criterion_trend(trend_pred, trend)
+                loss_trend = criterion_trend(trend_pred, trend)
                 losses['trend'] = loss_trend
                 trend_loss_meter.update(loss_trend.item())
 
             if 'return' in config['training']['losses']:
-                loss_return, return_sim = criterion_return(_return, return_pred)
+                loss_return = criterion_return(_return, return_pred)
                 losses['return'] = loss_return
                 return_loss_meter.update(loss_return.item())
                 return_sim_meter.update(return_sim)
@@ -322,7 +322,7 @@ def run_training(config):
 
             train_loss_meter.update(total_loss.item())
             #| Pred Loss: {pred_loss_meter.avg}
-            pbar.set_description(f"Total({epoch+1}/{config['training']['num_epochs']}): {train_loss_meter.avg:.4f} | KL: {kl_loss_meter.avg:.4f} | TS: {ts_loss_meter.avg:.4f} | TS Sim: {ts_sim_meter.avg:.4f} | CTX: {ctx_loss_meter.avg:.4f} | Pred: {pred_loss_meter.avg:.4f} | Pred Sim: {pred_sim_meter.avg:.4f} | Trend: {trend_loss_meter.avg:.4f} | Return: {return_loss_meter.avg:.4f} | Return Sim: {return_sim_meter.avg:.4f}")
+            pbar.set_description(f"Total({epoch+1}/{config['training']['num_epochs']}): {train_loss_meter.avg:.4f} | KL: {kl_loss_meter.avg:.4f} | TS: {ts_loss_meter.avg:.4f} | TS Sim: {ts_sim_meter.avg:.4f} | CTX: {ctx_loss_meter.avg:.4f} | Pred: {pred_loss_meter.avg:.4f} | Pred Sim: {pred_sim_meter.avg:.4f} | Trend: {trend_loss_meter.avg:.4f} | Return: {return_loss_meter.avg:.4f}")
         
         scheduler.step()
 
