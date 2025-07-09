@@ -245,7 +245,6 @@ def run_training(config):
         
         ts_sim_meter = AverageMeter()
         pred_sim_meter = AverageMeter()
-        return_sim_meter = AverageMeter()
 
         train_iter = DataPrefetcher(train_loader, config['device'], enable_queue=False, num_threads=1)
 
@@ -293,7 +292,6 @@ def run_training(config):
                 loss_return = criterion_return(_return, return_pred)
                 losses['return'] = loss_return
                 return_loss_meter.update(loss_return.item())
-                return_sim_meter.update(return_sim)
             
             if kl_weight > 0:
                 _kl_loss = kl_loss(latent_mean, latent_logvar, config['training']['kl_freebits'])
