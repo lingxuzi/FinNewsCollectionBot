@@ -330,6 +330,7 @@ def run_training(config):
             return_metric = Metric('return')
             
             pred_sim_meter = AverageMeter()
+            ts_sim_meter = AverageMeter()
 
             for _ in tqdm(range(num_iters_per_epoch(eval_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Validation]"):
                 # ts_sequences = ts_sequences.to(device)
@@ -338,6 +339,8 @@ def run_training(config):
                 ts_sequences, ctx_sequences, y, _return, trend = val_iter.next()
                 ts_reconstructed, ctx_reconstructed, pred, trend_pred, return_pred, _ = _model(ts_sequences, ctx_sequences)
 
+                _, ts_sim = criterion_ts(ts_sequences, ts_reconstructed)
+                ts_sim_meter.update(ts_sim)
                 
                 y_cpu = y.cpu().numpy()
                 pred_cpu = pred.cpu().numpy()
@@ -355,22 +358,24 @@ def run_training(config):
                 ctx_reconstructed_cpu = ctx_reconstructed.cpu().numpy()
                 ctx_reconstructed_cpu[:, -1] = np.round(ctx_reconstructed_cpu[:, -1], 2)
 
+
+
                 ts_metric.update(ts_sequences_cpu.reshape(-1, ts_sequences_cpu.shape[-1]), ts_reconstructed_cpu.reshape(-1, ts_reconstructed_cpu.shape[-1]))
                 ctx_metric.update(ctx_sequences_cpu.reshape(-1, ctx_sequences_cpu.shape[-1]), ctx_reconstructed_cpu.reshape(-1, ctx_reconstructed_cpu.shape[-1]))
 
-        # --- 计算整体 R² ---
-
-        print(f'VWAP similarity: {pred_sim_meter.avg:.4f}')
+        # --- 计算整体 R² --
 
         scores = []
         if 'ts' in config['training']['losses']:
             _, ts_score = ts_metric.calculate()
             scores.append(ts_score)
+            print(f'TS similarity: {ts_score:.4f}')
         if 'ctx' in config['training']['losses']:
             _, ctx_score = ctx_metric.calculate()
             scores.append(ctx_score)
         if 'pred' in config['training']['losses']:
             _, vwap_score = pred_metric.calculate()
+            print(f'VWAP similarity: {pred_sim_meter.avg:.4f}')
             scores.append(vwap_score)
         if 'trend' in config['training']['losses']:
             _, trend_score = trend_metric.calculate()
