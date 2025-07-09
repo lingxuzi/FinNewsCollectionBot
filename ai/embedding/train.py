@@ -81,7 +81,7 @@ class HuberTrendLoss:
         with torch.no_grad():
             similarity = self._similarity(ytrue, ypred)
         
-        return direction_loss * self.sim_weight + reconstruction_loss, similarity.item()
+        return direction_loss * self.sim_weight + reconstruction_loss, similarity.mean().item()
 
 def run_training(config):
     """主训练函数"""
