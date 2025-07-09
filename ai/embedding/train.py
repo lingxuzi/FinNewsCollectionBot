@@ -76,11 +76,13 @@ class HuberTrendLoss:
         return torch.mean(loss)
 
     def __call__(self, ytrue, ypred):
-        # direction_loss = tildeq_loss(ypred, ytrue)
-        reconstruction_loss = nn.functional.huber_loss(ypred, ytrue, delta=self.delta)
-        sim_loss = self.directional_consistency_loss(ytrue, ypred)
+        direction_loss = tildeq_loss(ypred, ytrue)
+        # reconstruction_loss = nn.functional.huber_loss(ypred, ytrue, delta=self.delta)
+        # sim_loss = self.directional_consistency_loss(ytrue, ypred)
+        with torch.no_grad():
+            sim = self._similarity(ytrue, ypred)
         
-        return sim_loss * self.sim_weight + reconstruction_loss, 1 - sim_loss #similarity.mean().item()
+        return direction_loss, sim.mean().item()
 
 def run_training(config):
     """主训练函数"""
