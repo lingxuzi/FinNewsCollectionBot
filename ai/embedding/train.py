@@ -284,12 +284,12 @@ def run_training(config):
                 pred_sim_meter.update(pred_sim)
             
             if 'trend' in config['training']['losses']:
-                loss_trend = criterion_trend(trend_pred, trend)
+                loss_trend = criterion_trend(trend_pred, trend.unsqueeze(-1))
                 losses['trend'] = loss_trend
                 trend_loss_meter.update(loss_trend.item())
 
             if 'return' in config['training']['losses']:
-                loss_return = criterion_return(_return, return_pred)
+                loss_return = criterion_return(_return, return_pred.unsqueeze(-1))
                 losses['return'] = loss_return
                 return_loss_meter.update(loss_return.item())
             
