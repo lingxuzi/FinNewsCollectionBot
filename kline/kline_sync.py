@@ -113,7 +113,7 @@ class StockKlineSynchronizer:
         data = await self.db.aggregate('latest_sync', self._cluster(), self._financial_data(), aggregate_builder.result())
 
         data = {
-            d['_id']: d['max_date']
+            d['_id']: d['max_yearq']
             for d in data
         }
 
