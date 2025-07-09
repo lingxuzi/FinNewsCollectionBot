@@ -57,7 +57,7 @@ def phase_loss(outputs, targets):
     return phase_loss
 
 
-def tildeq_loss(outputs, targets, alpha = .5, gamma = 1, beta = .5):
+def tildeq_loss(outputs, targets, alpha = .5, gamma = 0.5, beta = .5):
     if len(outputs.shape) == 2:
         outputs = outputs.unsqueeze(-1)
         targets = targets.unsqueeze(-1)
