@@ -71,18 +71,11 @@ class HuberTrendLoss:
         loss = 1 - pearson_corr
         return torch.mean(loss)
 
-    def sign_similarity(self, y_true, y_pred):
-        predicted_trend = torch.sign(y_pred - y_true) #将actual_prices转换为浮点数
-        actual_trend = torch.sign(y_true)
-        trend_loss = torch.mean((predicted_trend - actual_trend)**2)  # 平方误差, 鼓励方向一致
-
-        return trend_loss
-
     def __call__(self, ytrue, ypred):
         direction_loss = self.directional_consistency_loss(ytrue, ypred)
-        reconstruction_loss = nn.functional.huber_loss(ypred, ytrue, delta=self.delta) if self.delta > 0 else nn.functional.mse_loss(ypred, ytrue)
-        sign_loss = self.sign_similarity(ytrue, ypred)
-        return direction_loss * self.sim_weight + reconstruction_loss + sign_loss, 1 - direction_loss.item()
+        reconstruction_loss = nn.functional.huber_loss(ypred, ytrue, delta=self.delta) if self.delta > 0 else tildeq_loss(ypred, ytrue) #nn.functional.mse_loss(ypred, ytrue)
+        
+        return direction_loss * self.sim_weight + reconstruction_loss, 1 - direction_loss.item()
 
 def run_training(config):
     """主训练函数"""
@@ -215,9 +208,9 @@ def run_training(config):
 
     model = model.to(device)
 
-    criterion_ts = HuberTrendLoss(delta=40, sim_weight=0.1) # 均方误差损失
+    criterion_ts = HuberTrendLoss(delta=0, sim_weight=0.) # 均方误差损失
     criterion_ctx = nn.HuberLoss(delta=0.1) # 均方误差损失
-    criterion_predict = HuberTrendLoss(delta=0.6, sim_weight=0.1) # 均方误差损失
+    criterion_predict = HuberTrendLoss(delta=0, sim_weight=0.) # 均方误差损失
     criterion_trend = nn.HuberLoss(delta=0.1) #HuberTrendLoss(delta=0.1, sim_weight=0.)
     criterion_return = nn.HuberLoss(delta=0.1) #HuberTrendLoss(delta=0.1, sim_weight=0.1)
 

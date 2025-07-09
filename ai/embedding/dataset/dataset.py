@@ -158,7 +158,7 @@ class KlineDataset(Dataset):
         numerical_stock_data = stock_data[self.numerical].to_numpy()
         date = stock_data['date']
         if len(stock_data) < self.seq_length:
-            return None, None, None, None, None
+            return None, None, None, None, None, None, None
         for i in range(0, len(stock_data) - self.seq_length + 1, 2):
             ts_seq = featured_stock_data[i:i + self.seq_length]
             if len(ts_seq) < self.seq_length:
@@ -221,7 +221,7 @@ class KlineDataset(Dataset):
                     torch.FloatTensor(ts_seq),
                     torch.FloatTensor(ctx_seq),
                     torch.FloatTensor(label),
-                    torch.FloatTensor(np.asarray(acu_return)).clamp_(-1+1e-4, 1-1e-4),
+                    torch.FloatTensor(np.asarray(acu_return)).clamp_(-1+1e-4, 1-1e-4) * 100,
                     torch.FloatTensor(np.asarray(trend)).clamp_(1e-4, 1-1e-4)
                 )
             except Exception as e:
