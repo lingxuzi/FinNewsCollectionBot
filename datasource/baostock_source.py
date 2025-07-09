@@ -179,5 +179,127 @@ class BaoSource(StockSource):
         except Exception as e:
             print(f"Error fetching data for {code}: {e}")
             return None
-        
-    
+            
+    @cache_decorate
+    def get_quarter_stock_financial_info(self, code, year=2007, quarter=1):
+        try:
+            self._login_baostock()
+            print(f"Fetching profit data for {code} in {year}Q{quarter}")
+            rs = bs.query_profit_data(code=self._format_code(code), year=year, quarter=quarter)
+            if rs.error_code != '0':
+                raise Exception(rs.error_msg)
+            profit_list = []
+            while (rs.error_code == '0') & rs.next():
+                profit_list.append(rs.get_row_data())
+            profit = pd.DataFrame(profit_list, columns=rs.fields)
+            profit.drop(columns=['pubDate', 'statDate'], inplace=True)
+            # profit.replace('', np.nan, inplace=True)
+            # profit.dropna(axis=1, how='any', inplace=True)
+            
+            print(f"Fetching operation data for {code} in {year}Q{quarter}")
+            rs = bs.query_operation_data(code=self._format_code(code), year=year, quarter=quarter)
+            if rs.error_code != '0':
+                raise Exception(rs.error_msg)
+            operation_list = []
+            while (rs.error_code == '0') & rs.next():
+                operation_list.append(rs.get_row_data())
+            operation = pd.DataFrame(operation_list, columns=rs.fields)
+            operation.drop(columns=['pubDate', 'statDate'], inplace=True)
+            # operation.replace('', np.nan, inplace=True)
+            # operation.dropna(axis=1, how='any', inplace=True)
+
+            print(f"Fetching growth data for {code} in {year}Q{quarter}")
+            rs = bs.query_growth_data(code=self._format_code(code), year=year, quarter=quarter)
+            if rs.error_code != '0':
+                raise Exception(rs.error_msg)
+            growth_list = []
+            while (rs.error_code == '0') & rs.next():
+                growth_list.append(rs.get_row_data())
+            growth = pd.DataFrame(growth_list, columns=rs.fields)
+            growth.drop(columns=['pubDate', 'statDate'], inplace=True)
+            # growth.replace('', np.nan, inplace=True)
+            # growth.dropna(axis=1, how='any', inplace=True)
+
+            print(f"Fetching balance data for {code} in {year}Q{quarter}")
+            rs = bs.query_balance_data(code=self._format_code(code), year=year, quarter=quarter)
+            if rs.error_code != '0':
+                raise Exception(rs.error_msg)
+            balance_list = []
+            while (rs.error_code == '0') & rs.next():
+                balance_list.append(rs.get_row_data())
+            balance = pd.DataFrame(balance_list, columns=rs.fields)
+            balance.drop(columns=['pubDate', 'statDate'], inplace=True)
+            # balance.replace('', np.nan, inplace=True)
+            # balance.dropna(axis=1, how='any', inplace=True)
+
+            print(f"Fetching cashflow data for {code} in {year}Q{quarter}")
+            rs = bs.query_cash_flow_data(code=self._format_code(code), year=year, quarter=quarter)
+            if rs.error_code != '0':
+                raise Exception(rs.error_msg)
+            cashflow_list = []
+            while (rs.error_code == '0') & rs.next():
+                cashflow_list.append(rs.get_row_data())
+            cashflow = pd.DataFrame(cashflow_list, columns=rs.fields)
+            cashflow.drop(columns=['pubDate', 'statDate'], inplace=True)
+            # cashflow.replace('', np.nan, inplace=True)
+            # cashflow.dropna(axis=1, how='any', inplace=True)
+
+            print(f"Fetching dupont data for {code} in {year}Q{quarter}")
+            rs = bs.query_dupont_data(code=self._format_code(code), year=year, quarter=quarter)
+            if rs.error_code != '0':
+                raise Exception(rs.error_msg)
+            dupont_list = []
+            while (rs.error_code == '0') & rs.next():
+                dupont_list.append(rs.get_row_data())
+            dupont = pd.DataFrame(dupont_list, columns=rs.fields)
+            dupont.drop(columns=['pubDate', 'statDate'], inplace=True)
+
+            # merge all data
+            result = pd.merge(
+                left=profit,
+                right=operation,
+                on='code',
+                how='left'
+            )
+            result = pd.merge(
+                left=result,
+                right=growth,
+                on='code',
+                how='left'
+            )
+            result = pd.merge(
+                left=result,
+                right=balance,
+                on='code',
+                how='left'
+            )
+            result = pd.merge(
+                left=result,
+                right=cashflow,
+                on='code',
+                how='left'
+            )
+            result = pd.merge(
+                left=result,
+                right=dupont,
+                on='code',
+                how='left'
+            )
+
+            return result
+        except Exception as e:
+            print(f"Error fetching data for {code}: {e}")
+            return None
+
+    def get_stock_financial_data(self, code, yearfrom, yearto):
+        result = pd.DataFrame()
+        for i in range(yearfrom, yearto+1):
+            for j in range(1, 5):
+                quarter_df = self.get_quarter_stock_financial_info(code, i, j)
+                if quarter_df is not None:
+                    quarter_df['year'] = i
+                    quarter_df['quarter'] = j
+                    quarter_df['yearq'] = int(f"{i}{j}")
+                    result = pd.concat([result, quarter_df], axis=0)
+
+        return result

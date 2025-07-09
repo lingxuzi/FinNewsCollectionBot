@@ -73,17 +73,35 @@ def build_historical_stock_db(task, opts):
     stock_df.to_parquet(task_path)
     save_text(','.join(codes), stocks_path)
 
+def build_historical_stock_financial_info(opts):
+    stock_list = source.get_stock_list()
+    stock_df = []
+    codes = []
+    with ProcessPoolExecutor(max_workers=opts.workers) as executor:
+        futures = {executor.submit(source.get_stock_financial_data, code, 2007, 2025): code for code in stock_list['code']}
+        for future in tqdm(as_completed(futures), total=len(futures), desc='获取股票财务数据', ncols=120):
+            try:
+                result = future.result()
+                if result is not None and not result.empty:
+                    result = source.post_process(result)
+                    stock_df.append(result)
+                    codes.append(result['code'].iloc[0])
+            except Exception as e:
+                print(f"处理时发生错误: {e}")
+
 def parse_args():
     import argparse
     parser = argparse.ArgumentParser(description='Prepare historical stock data for training, evaluation, and testing.')
-    parser.add_argument('--workers', type=int, default=16, help='Number of worker threads to use for data processing.')
+    parser.add_argument('--workers', type=int, default=1, help='Number of worker threads to use for data processing.')
     parser.add_argument('--runs', type=str, default='finetune', help='Number of runs to perform.')
+    parser.add_argument('--mode', type=str, default='financial', help='kline or financial')
     return parser.parse_args()
 
 if __name__ == '__main__':
     opts = parse_args()
-    runs = opts.runs.split(',')
-    for run in runs:
-        build_historical_stock_db(run, opts)
-        # build_historical_stock_db('eval', opts)
-        # build_historical_stock_db('test', opts)
+    if opts.mode == 'kline':
+        runs = opts.runs.split(',')
+        for run in runs:
+            build_historical_stock_db(run, opts)
+    elif opts.mode == 'financial':
+        build_historical_stock_financial_info(opts)

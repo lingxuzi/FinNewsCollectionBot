@@ -45,10 +45,14 @@ class StockKlineSynchronizer:
     
     def _kline_daily(self):
         return 'kline_daily'
+    
+    def _financial_data(self):
+        return 'financial_data'
 
     async def connect_async(self):
         await self.db.connect_async()
         await self._init_latest_sync_date()
+        await self._init_financial_latest_sync_year_and_quater()
 
     async def fetch_stocks(self):
         print('start syncing stock list...')
@@ -100,23 +104,46 @@ class StockKlineSynchronizer:
 
         self.latest_sync_time = data
 
+    async def _init_financial_latest_sync_year_and_quater(self):
+        aggregate_builder = AggregationBuilder()
+        aggregate_builder.groupby('code', {'max_yearq': {'$max': '$yearq'}}).sort({
+            'max_yearq':-1
+        })
+
+        data = await self.db.aggregate('latest_sync', self._cluster(), self._financial_data(), aggregate_builder.result())
+
+        data = {
+            d['_id']: d['max_date']
+            for d in data
+        }
+
+        self.latest_financial_sync_time = data
+
     async def _process_queue(self):
         while True:
             try:
                 if len(self.deque) > 0:
                     try:
                         insert_data = self.deque.popleft()
-                        ret, e = await self.db.add_many(self._cluster(), self._kline_daily(), insert_data)
-                        if ret:
-                            print('Insert success')
-                        else:
-                            ret = await self.db.remove_on_query(self._cluster(), self._kline_daily(), {'code': insert_data[0]['code'], 'date': {'$gte': insert_data[0]['date']}})
+                        if insert_data['type'] == 'kline':
+                            ret, e = await self.db.add_many(self._cluster(), self._kline_daily(), insert_data['data'])
                             if ret:
-                                ret, e = await self.db.add_many(self._cluster(), self._kline_daily(), insert_data)
+                                print('Kline Insert success')
+                            else:
+                                ret = await self.db.remove_on_query(self._cluster(), self._kline_daily(), {'code': insert_data[0]['code'], 'date': {'$gte': insert_data[0]['date']}})
                                 if ret:
-                                    print('Insert success')
-                                else:
-                                    print(f'Insert failed: {e}')
+                                    ret, e = await self.db.add_many(self._cluster(), self._kline_daily(), insert_data)
+                                    if ret:
+                                        print('Kline Insert success')
+                                    else:
+                                        print(f'Kline Insert failed: {e}')
+                        else:
+                            ret, e = await self.db.add_many(self._cluster(), self._financial_data(), insert_data['data'])
+                            if ret:
+                                print('Financial Insert success')
+                            else:
+                                print(f'Financial Insert failed: {e}')
+                        
                     except Exception as e:
                         print(f'Process queue failed')
                 else:
@@ -139,18 +166,43 @@ class StockKlineSynchronizer:
                     code = futures[future]
                     df = future.result()
                     if df is not None and not df.empty:
-                        self.deque.append(df.to_dict('records'))
+                        self.deque.append({
+                            'type': 'kline',
+                            'data': df.to_dict('records')
+                        })
                         print(f'{code} queued')
                 except Exception as e:
                     print(f'Error fetching data for {code}.')
                     results.append((False, code))
             return results
     
+    def _sync_stock_financial_data(self, stock_list):
+        results = []
+        year_now = datetime.now().year
+        with ProcessPoolExecutor(max_workers=10) as pool:
+            futures = {pool.submit(self.datasource.get_stock_financial_data, code, self.latest_financial_sync_time.get(self.datasource._format_code(code).lower(), 2007), year_now): code for code in stock_list}
+            for future in tqdm(as_completed(futures), total=len(futures), desc='Processing Financial Data...', ncols=120):
+                try:
+                    code = futures[future]
+                    df = future.result()
+                    if df is not None and not df.empty:
+                        self.deque.append({
+                            'type': 'financial',
+                            'data': df.to_dict('records')
+                        })
+                        print(f'{code} queued')
+                except Exception as e:
+                    print(f'Error fetching data for {code}.')
+                    results.append((False, code))
+            return results
+
     async def sync_stocks(self):
         stock_list = await self.get_stock_list()
         stock_list = [s['code'] for s in stock_list]
 
         results = self._sync_stocks(stock_list)
+        
+        save_text(','.join(fail_stocks), 'financial_fail_sync.txt')
         fail_stocks = []
         for result in results:
             ret, code = result
@@ -166,6 +218,19 @@ class StockKlineSynchronizer:
         while len(self.deque) > 0:
             print('queue size: ' + str(len(self.deque)))
             await asyncio.sleep(1)
+
+    async def sync_stock_financial_data(self):
+        stock_list = await self.get_stock_list()
+        stock_list = [s['code'] for s in stock_list]
+
+        results = self._sync_stock_financial_data(stock_list)
+        fail_stocks = []
+        for result in results:
+            ret, code = result
+            if not ret:
+                fail_stocks.append(code)
+        
+        save_text(','.join(fail_stocks), 'financial_fail_sync.txt')
     
     async def all_sync(self):
         if len(self.fail_sync_stocks) > 0:
@@ -178,7 +243,8 @@ class StockKlineSynchronizer:
             
             save_text(','.join(fail_stocks), 'fail_sync.txt')
         await self.fetch_stocks()
-        await self.sync_stocks()
+        # await self.sync_stocks()
+        await self.sync_stock_financial_data()
         await self.queue_check()
 
     def run_in_thread(self, coro, loop):
