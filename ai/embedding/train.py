@@ -49,6 +49,18 @@ class HuberTrendLoss:
         self.epsilon = 1e-8
         self.sim_weight = sim_weight
 
+    def _similarity(self, y_true, y_pred):
+        y_true_mean = torch.mean(y_true, dim=-1, keepdim=True)
+        y_pred_mean = torch.mean(y_pred, dim=-1, keepdim=True)
+        y_true_centered = y_true - y_true_mean
+        y_pred_centered = y_pred - y_pred_mean
+        # 2. 计算分子和分母
+        numerator = torch.sum(y_true_centered * y_pred_centered, dim=-1)
+        denominator = torch.sqrt(torch.sum(y_true_centered ** 2, dim=-1) * torch.sum(y_pred_centered ** 2, dim=-1) + self.epsilon)
+        # 3. 计算皮尔逊相关系数
+        pearson_corr = numerator / (denominator)  # 添加一个小的常数以避免除以零
+        return pearson_corr
+
     def directional_consistency_loss(self, y_true, y_pred):
         """
         计算方向一致性损失
@@ -58,24 +70,18 @@ class HuberTrendLoss:
         Returns:
             方向一致性损失 (torch.Tensor)
         """
-        y_true_mean = torch.mean(y_true, dim=-1, keepdim=True)
-        y_pred_mean = torch.mean(y_pred, dim=-1, keepdim=True)
-        y_true_centered = y_true - y_true_mean
-        y_pred_centered = y_pred - y_pred_mean
-        # 2. 计算分子和分母
-        numerator = torch.sum(y_true_centered * y_pred_centered, dim=-1)
-        denominator = torch.sqrt(torch.sum(y_true_centered ** 2, dim=-1) * torch.sum(y_pred_centered ** 2, dim=-1) + 1e-12)
-        # 3. 计算皮尔逊相关系数
-        pearson_corr = numerator / (denominator)  # 添加一个小的常数以避免除以零
+        pearson_corr = self._similarity(y_true, y_pred)
         # 4. 计算损失
         loss = 1 - pearson_corr
         return torch.mean(loss)
 
     def __call__(self, ytrue, ypred):
-        direction_loss = self.directional_consistency_loss(ytrue, ypred)
-        reconstruction_loss = nn.functional.huber_loss(ypred, ytrue, delta=self.delta) if self.delta > 0 else tildeq_loss(ypred, ytrue) #nn.functional.mse_loss(ypred, ytrue)
+        direction_loss = tildeq_loss(ypred, ytrue) #self.directional_consistency_loss(ytrue, ypred)
+        reconstruction_loss = nn.functional.huber_loss(ypred, ytrue, delta=self.delta)
+        with torch.no_grad():
+            similarity = self._similarity(ytrue, ypred)
         
-        return direction_loss * self.sim_weight + reconstruction_loss, 1 - direction_loss.item()
+        return direction_loss * self.sim_weight + reconstruction_loss, similarity.item()
 
 def run_training(config):
     """主训练函数"""
@@ -208,9 +214,9 @@ def run_training(config):
 
     model = model.to(device)
 
-    criterion_ts = HuberTrendLoss(delta=0, sim_weight=0.) # 均方误差损失
+    criterion_ts = HuberTrendLoss(delta=0.1, sim_weight=0.1) # 均方误差损失
     criterion_ctx = nn.HuberLoss(delta=0.1) # 均方误差损失
-    criterion_predict = HuberTrendLoss(delta=0, sim_weight=0.) # 均方误差损失
+    criterion_predict = HuberTrendLoss(delta=0, sim_weight=0.1) # 均方误差损失
     criterion_trend = nn.HuberLoss(delta=0.1) #HuberTrendLoss(delta=0.1, sim_weight=0.)
     criterion_return = nn.HuberLoss(delta=0.1) #HuberTrendLoss(delta=0.1, sim_weight=0.1)
 
