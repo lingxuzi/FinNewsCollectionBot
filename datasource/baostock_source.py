@@ -94,6 +94,17 @@ class BaoSource(StockSource):
         #     retrived_start_date = start_date - timedelta(days=self.max_rolling_days)
         # else:
         #     retrived_start_date = start_date
+
+        if isinstance(start_date, str):
+            if '-' in start_date:
+                start_date = datetime.datetime.strptime(start_date, '%Y-%m-%d')
+            else:
+                start_date = datetime.datetime.strptime(start_date, '%Y%m%d')
+        if isinstance(end_date, str):
+            if '-' in end_date:
+                end_date = datetime.datetime.strptime(end_date, '%Y-%m-%d')
+            else:
+                end_date = datetime.datetime.strptime(end_date, '%Y%m%d')
         rs = bs.query_history_k_data_plus(self._format_code(code),
             "date,code,open,high,low,close,volume,amount,turn,tradestatus,peTTM,psTTM,pcfNcfTTM,pbMRQ",
             start_date=self._format_date(start_date), end_date=self._format_date(end_date),

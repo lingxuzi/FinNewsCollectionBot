@@ -27,6 +27,10 @@ def build_historical_stock_db(task, opts):
         'test': {
             'start_date': TEST_FUNDAMENTAL_DATA_START_DATE,
             'end_date': TEST_FUNDAMENTAL_DATA_END_DATE
+        },
+        'finetune': {
+            'start_date': FINETUNE_FUNDAMENTAL_DATA_START_DATE,
+            'end_date': FINETUNE_FUNDAMENTAL_DATA_END_DATE
         }
     }
     hist_db_path = DATA_DIR('hist')
@@ -42,7 +46,7 @@ def build_historical_stock_db(task, opts):
                 result = future.result()
                 if result is not None and not result.empty and len(result) >= 200:
                     result = source.calculate_indicators(result)
-                    result = source.generate_predict_labels(result)
+                    # result = source.generate_predict_labels(result)
                     result = source.post_process(result)
                     stock_df.append(result)
                     codes.append(result['code'].iloc[0])
@@ -73,7 +77,7 @@ def parse_args():
     import argparse
     parser = argparse.ArgumentParser(description='Prepare historical stock data for training, evaluation, and testing.')
     parser.add_argument('--workers', type=int, default=16, help='Number of worker threads to use for data processing.')
-    parser.add_argument('--runs', type=str, default='train,eval,test', help='Number of runs to perform.')
+    parser.add_argument('--runs', type=str, default='finetune', help='Number of runs to perform.')
     return parser.parse_args()
 
 if __name__ == '__main__':

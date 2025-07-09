@@ -10,8 +10,8 @@ class VWAPFutureStrategy(bt.Strategy):
     params = (
         ('vwap_window', 5),  # 使用未来VWAP的天数
         ('confidence_threshold', 0.5),  # 置信度阈值
-        ('stop_loss', 0.02),  # 止损比例
-        ('take_profit', 0.05),  # 止盈比例
+        ('stop_loss', 0.05),  # 止损比例
+        ('take_profit', 0.10),  # 止盈比例
         ('prediction_days', 50), #用于预测的history data的天数
     )
 
@@ -41,8 +41,9 @@ class VWAPFutureStrategy(bt.Strategy):
         if self.position:
             #设置止盈止损
             if self.buyprice:
-                if self.dataclose[0] >= self.datas[0].avg_future_vwap[0]:
-                    self.log(f'SELL CREATE, {self.dataclose[0]:.2f} > {self.datas[0].avg_future_vwap[0]:.2f}')
+                # if self.data_sent_price[0] >= self.datas[0].future_vwap[0] * (1 + self.p.take_profit) and self.datas[0].vwap_trend[0] == 0:
+                if self.datas[0].vwap_trend[0] == 0 and self.datas[0].future_return[0] < 0:
+                    self.log(f'SELL CREATE, {self.data_sent_price[0]:.2f} > {self.datas[0].future_vwap[0]:.2f}')
                     self.order = self.close()
                     return
                 pnl = (self.dataclose[0] - self.buyprice) / self.buyprice  # 计算盈亏百分比
@@ -54,8 +55,10 @@ class VWAPFutureStrategy(bt.Strategy):
                     self.order = self.close()
             return
         else:
-            if self.dataclose[0] < self.datas[0].avg_future_vwap[0]:
-                self.log(f'BUY CREATE, {self.dataclose[0]:.2f} < {self.datas[0].avg_future_vwap[0]:.2f}')
+            # 4. 检查是否准备好进行交易
+            # if self.data_sent_price[0] < self.datas[0].future_vwap[0] * (1 - self.p.take_profit) and self.datas[0].vwap_trend[0] == 1:
+            if self.datas[0].vwap_trend[0] == 1 and self.datas[0].future_return[0] > 0:
+                self.log(f'BUY CREATE, {self.data_sent_price[0]:.2f} < {self.datas[0].future_vwap[0]:.2f}')
                 self.order = self.buy()
                 self.buyprice = self.dataclose[0] #记录买入价格
             return

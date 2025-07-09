@@ -58,25 +58,32 @@ class ALSTMAutoencoder(nn.Module):
             SEFusionBlock(input_dim=self.total_embedding_dim, reduction_ratio=8),
             ResidualMLP(self.total_embedding_dim, int(hidden_dim))
         )
-        self.predictor = PredictionHead(hidden_dim, predict_dim, act=nn.ReLU, dropout_rate=dropout_rate) #ResidualMLPBlock(self.total_embedding_dim, int(hidden_dim), predict_dim, dropout_rate=dropout_rate)
-        self.return_head = PredictionHead(hidden_dim, predict_dim, act=nn.ReLU, dropout_rate=dropout_rate) #ResidualMLPBlock(self.total_embedding_dim, int(hidden_dim), predict_dim, dropout_rate=dropout_rate)
-        self.trend_head = nn.Sequential(
-            PredictionHead(hidden_dim, predict_dim, act=nn.ReLU, dropout_rate=dropout_rate),
-            nn.Sigmoid()
-        ) #ResidualMLPBlock(self.total_embedding_dim, int(hidden_dim), predict_dim, dropout_rate=dropout_rate)
-        self.init_parameters()
-        self.initialize_prediction_head(self.return_head.p[-1])
+        self.init_parameters(self)
+
+        self.build_head()
 
         if config.get('encoder_only', False):
             self.encoder_only(True)
+
+    def build_head(self):
+        self.predictor = PredictionHead(self.hidden_dim, self.predict_dim, act=nn.ReLU, dropout_rate=self.dropout_rate)
+        self.return_head = PredictionHead(self.hidden_dim, 1, act=nn.ReLU, dropout_rate=self.dropout_rate)
+        self.trend_head = nn.Sequential(
+            PredictionHead(self.hidden_dim, 1, act=nn.ReLU, dropout_rate=self.dropout_rate),
+            nn.Sigmoid()
+        )
+
+        self.init_parameters(self.predictor)
+        self.init_parameters(self.return_head)
+        self.init_parameters(self.trend_head)
 
     def encoder_only(self, encoder=True):
         if encoder:
             self.eval()
         self.encoder_mode = encoder
 
-    def init_parameters(self, heads=['ts', 'ctx', 'pred']):
-        for name, module in self.named_modules():
+    def init_parameters(self, m):
+        for name, module in m.named_modules():
             if isinstance(module, nn.Linear):
                 nn.init.xavier_normal_(module.weight)
                 if module.bias is not None:

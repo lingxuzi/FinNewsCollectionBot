@@ -12,6 +12,7 @@ from ai.embedding.models import create_model, get_model_config
 import joblib
 import asyncio
 import torch
+import talib
 
 def build_model(config):
     model_config = get_model_config(config['model']['name'])
@@ -22,7 +23,7 @@ def build_model(config):
     device = torch.device(config['model']['device'] if torch.cuda.is_available() else "cpu")
     print('Loading model from:', config['model']['path'])
     ckpt = torch.load(config['model']['path'], map_location='cpu')
-    model.load_state_dict(ckpt, strict=False)
+    model.load_state_dict(ckpt, strict=True)
     model.to(device)
     return model
 
@@ -36,7 +37,7 @@ def normalize(df, config):
     df.dropna(inplace=True)
     
     price_cols = ['open', 'high', 'low', 'close']
-    ohlcv_cols = ['open', 'high', 'low', 'close', 'volume']
+    ohlcv_cols = ['open', 'high', 'low', 'close', 'volume', 'vwap', 'return']
     ohlc = df[ohlcv_cols].copy()
     for col in price_cols:
         df[col] = (df[col] / df['prev_close']) - 1
@@ -51,6 +52,10 @@ def normalize(df, config):
 
     return df, ohlc
 
+def is_vwap_increasing(vwap_series) -> bool:
+    coe = np.polyfit(range(len(vwap_series)), vwap_series, 1)
+    return coe[0] > 0
+
 def prepare_data(config):
     source = BaoSource()
     stock_query_engine = StockQueryEngine('10.26.0.8', '2000', 'hmcz', 'Hmcz_12345678')
@@ -62,16 +67,22 @@ def prepare_data(config):
     data = source.post_process(data)
     data.set_index('date', inplace=True)
     data, ohlc = normalize(data, config)
-
-    ohlc['avg_future_vwap'] = np.nan
+    ohlc['sent_price'] = (ohlc['close'].values + ohlc['high'].values + ohlc['low'].values) / 3
+    ohlc['future_vwap'] = np.nan
+    ohlc['vwap_trend'] = np.nan
+    ohlc['future_return'] = np.nan
     for i in range(config['model']['seq_len'], len(data)):
         ts_seq = data[config['model']['features']].iloc[i - config['model']['seq_len']:i].values
-        ctx_seq = data[config['model']['numerical'] + config['model']['categorical']].iloc[i - 1].values
+        ctx_seq = data[config['model']['numerical'] + config['model']['categorical']].iloc[i-1].values
         ts_seq = torch.tensor(ts_seq, dtype=torch.float32).unsqueeze(0).to(config['model']['device'])
         ctx_seq = torch.tensor(ctx_seq, dtype=torch.float32).unsqueeze(0).to(config['model']['device'])
         with torch.no_grad():
-            pred, _ = model(ts_seq, ctx_seq)
-        ohlc['avg_future_vwap'].iloc[i-1] = pred.cpu().mean().numpy()
+            predict_output, trend_output, return_output, final_embedding = model(ts_seq, ctx_seq)
+        ori_vwap = np.expm1(predict_output.cpu().numpy())
+        ohlc['future_vwap'].iloc[i-1] = ori_vwap.mean()
+        ohlc['vwap_trend'].iloc[i-1] = int(is_vwap_increasing(ori_vwap[0]))
+        ohlc['future_return'].iloc[i-1] = np.expm1(np.sum(np.log1p(return_output.cpu().numpy())))
+
 
     ohlc.dropna(inplace=True)
 

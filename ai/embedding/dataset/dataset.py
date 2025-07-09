@@ -15,6 +15,8 @@ from diskcache import FanoutCache
 
 def normalize(df, features, numerical):
     df['prev_close'] = df.groupby('code')['close'].shift(1)
+    df['ori_vwap'] = df['vwap'].copy()
+    df['ori_close'] = df['close'].copy()
     if 'MBRevenue' in df.columns:
         df.drop(columns=['MBRevenue'], axis=1, inplace=True)
     df.dropna(inplace=True)
@@ -147,6 +149,8 @@ class KlineDataset(Dataset):
             label_cols.append(f'label_vwap_{i+1}')
             label_return_cols.append(f'label_return_{i+1}')
             label_trend_cols.append(f'label_trend_{i+1}')
+        
+        stock_ori_close = stock_data['ori_close'].to_numpy()
         stock_labels = stock_data[label_cols].to_numpy()
         stock_returns = stock_data[label_return_cols].to_numpy()
         stock_trends = stock_data[label_trend_cols].to_numpy()
@@ -155,7 +159,7 @@ class KlineDataset(Dataset):
         date = stock_data['date']
         if len(stock_data) < self.seq_length:
             return None, None, None, None, None
-        for i in range(0, len(stock_data) - self.seq_length + 1, 5):
+        for i in range(0, len(stock_data) - self.seq_length + 1, 2):
             ts_seq = featured_stock_data[i:i + self.seq_length]
             if len(ts_seq) < self.seq_length:
                 break
@@ -169,7 +173,7 @@ class KlineDataset(Dataset):
             date_range.append((str(date.iloc[i].date()), str(date.iloc[i + self.seq_length - 1].date())))
             # self.ctx_sequences.append(context_numerical)
 
-            labels.append(stock_labels[i + self.seq_length - 1])
+            labels.append(stock_labels[i + self.seq_length - 1] / stock_ori_close[i + self.seq_length - 1])
             trends.append(stock_trends[i + self.seq_length - 1].astype(np.int32))
             returns.append(stock_returns[i + self.seq_length - 1])
         return ts_sequences, ctx_sequences, labels, trends, returns, date_range, [code] * len(ts_sequences)
@@ -191,32 +195,34 @@ class KlineDataset(Dataset):
     def safe_log(self, x):
         x = x + 1
         return np.log(np.clip(x, 1e-8, x.max()))
+
+    def accumulative_return(self, returns):
+        return np.expm1(np.log1p(returns).sum())
     
     def __getitem__(self, idx):
         ts_seq, ctx_seq, label, trend, _return, date_range, code = self.cache.get(f'seq_{idx}')
+
+        acu_return = self.accumulative_return(_return)
+        trend = float(acu_return > 0)
 
         if self.include_meta:
             return (
                 torch.FloatTensor(ts_seq),
                 torch.FloatTensor(ctx_seq),
-                torch.FloatTensor(np.log1p(label)),
-                torch.FloatTensor(_return),
-                torch.FloatTensor(trend),
+                torch.FloatTensor(label),
+                torch.FloatTensor(np.asarray(acu_return)),
+                torch.FloatTensor(np.asarray(trend)),
                 date_range,
                 code
             )
         else:
             try:
-                #检查输入是否合法
-                if not np.isfinite(ts_seq).all() or not np.isfinite(ctx_seq).all() or not np.isfinite(label).all() or not np.isfinite(_return).all():
-                    print(f"Warning: Invalid values in sequence {idx}")
-                    return None
                 return (
                     torch.FloatTensor(ts_seq),
                     torch.FloatTensor(ctx_seq),
-                    torch.FloatTensor(np.log1p(label)),
-                    torch.FloatTensor(_return),
-                    torch.FloatTensor(trend)
+                    torch.FloatTensor(label),
+                    torch.FloatTensor(np.asarray(acu_return)).clamp_(-1+1e-4, 1-1e-4),
+                    torch.FloatTensor(np.asarray(trend)).clamp_(1e-4, 1-1e-4)
                 )
             except Exception as e:
                 print(f"Error processing item {idx}: {e}")

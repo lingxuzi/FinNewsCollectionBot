@@ -6,7 +6,7 @@ import os
 import joblib
 import copy
 import ai.embedding.models.base
-from ai.optimizer.gc import AdamW
+from ai.loss.tildeq import tildeq_loss
 from ai.embedding.models import create_model, get_model_config
 from sklearn.metrics import r2_score, mean_absolute_error, root_mean_squared_error, mean_absolute_percentage_error
 from torch.utils.data import DataLoader, random_split
@@ -71,10 +71,18 @@ class HuberTrendLoss:
         loss = 1 - pearson_corr
         return torch.mean(loss)
 
+    def sign_similarity(self, y_true, y_pred):
+        predicted_trend = torch.sign(y_pred - y_true) #将actual_prices转换为浮点数
+        actual_trend = torch.sign(y_true)
+        trend_loss = torch.mean((predicted_trend - actual_trend)**2)  # 平方误差, 鼓励方向一致
+
+        return trend_loss
+
     def __call__(self, ytrue, ypred):
         direction_loss = self.directional_consistency_loss(ytrue, ypred)
-        reconstruction_loss = nn.functional.huber_loss(ypred, ytrue, delta=self.delta)
-        return direction_loss * self.sim_weight + reconstruction_loss, 1 - direction_loss.item()
+        reconstruction_loss = nn.functional.huber_loss(ypred, ytrue, delta=self.delta) if self.delta > 0 else nn.functional.mse_loss(ypred, ytrue)
+        sign_loss = self.sign_similarity(ytrue, ypred)
+        return direction_loss * self.sim_weight + reconstruction_loss + sign_loss, 1 - direction_loss.item()
 
 def run_training(config):
     """主训练函数"""
@@ -201,18 +209,17 @@ def run_training(config):
             print(f'Load finetune model failed: {e}')
 
     if config['training']['reset_heads']:
-        for head in config['training']['reset_heads']:
-            model.reset_prediction_head(head)
+        model.build_head()
 
     ema = ModelEmaV2(model, decay=0.9999, device=device)
 
     model = model.to(device)
 
-    criterion_ts = HuberTrendLoss(delta=0.1, sim_weight=0.1) # 均方误差损失
+    criterion_ts = HuberTrendLoss(delta=40, sim_weight=0.1) # 均方误差损失
     criterion_ctx = nn.HuberLoss(delta=0.1) # 均方误差损失
-    criterion_predict = HuberTrendLoss(delta=1, sim_weight=0.1) # 均方误差损失
-    criterion_trend = HuberTrendLoss(delta=0.1, sim_weight=0.)
-    criterion_return = HuberTrendLoss(delta=0.1, sim_weight=0.1)
+    criterion_predict = HuberTrendLoss(delta=0.6, sim_weight=0.1) # 均方误差损失
+    criterion_trend = nn.HuberLoss(delta=0.1) #HuberTrendLoss(delta=0.1, sim_weight=0.)
+    criterion_return = nn.HuberLoss(delta=0.1) #HuberTrendLoss(delta=0.1, sim_weight=0.1)
 
     parameters = []
     if config['training']['awl']:
@@ -342,8 +349,8 @@ def run_training(config):
                 pred_cpu = pred.cpu().numpy()
 
                 pred_metric.update(y_cpu, pred_cpu)
-                trend_metric.update(trend.cpu().numpy(), (trend_pred.cpu().numpy() > 0.5).astype(int))
-                return_metric.update(_return.cpu().numpy(), return_pred.cpu().numpy())
+                trend_metric.update(trend.cpu().numpy(), trend_pred.cpu().numpy())
+                return_metric.update(_return.cpu().numpy() + 1, return_pred.cpu().numpy() + 1)
                 
                 ts_sequences_cpu = ts_sequences.cpu().numpy()
                 ts_reconstructed_cpu = ts_reconstructed.cpu().numpy()
@@ -442,7 +449,10 @@ def run_eval(config):
 
     device = torch.device(config['device'] if torch.cuda.is_available() else "cpu")
     state_dict = torch.load(config['training']['model_save_path'], map_location=device)
-    model.load_state_dict(state_dict, strict=False)
+    try:
+        model.load_state_dict(state_dict, strict=False)
+    except Exception as e:
+        print(f"Error loading model state dict: {e}")
     model.eval()
     
     pred_metric = Metric('vwap', appends=True)
@@ -468,7 +478,7 @@ def run_eval(config):
 
             pred_metric.update(y_cpu, pred_cpu)
             trend_metric.update(trend_cpu, trend_pred.cpu().numpy())
-            return_metric.update(return_cpu, return_pred.cpu().numpy())
+            return_metric.update(return_cpu + 1, return_pred.cpu().numpy() + 1)
                 
             ts_sequences_cpu = ts_sequences.cpu().numpy()
             ts_reconstructed_cpu = ts_reconstructed.cpu().numpy()
