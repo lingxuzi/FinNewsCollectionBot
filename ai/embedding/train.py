@@ -44,8 +44,9 @@ def ale_loss(pred, target, reduction='mean', eps=1e-8, gamma=0):
     return loss
 
 class HuberTrendLoss:
-    def __init__(self, delta=0.1, sim_weight=0.1):
+    def __init__(self, delta=0.1, sim_weight=0.1, tildeq=False):
         self.delta = delta
+        self.tildeq = tildeq
         self.epsilon = 1e-8
         self.sim_weight = sim_weight
 
@@ -73,13 +74,13 @@ class HuberTrendLoss:
         return torch.mean(loss)
 
     def __call__(self, ytrue, ypred):
-        direction_loss = tildeq_loss(ypred, ytrue)
-        # reconstruction_loss = nn.functional.huber_loss(ypred, ytrue, delta=self.delta)
-        # sim_loss = self.directional_consistency_loss(ytrue, ypred)
-        with torch.no_grad():
-            sim = self._similarity(ytrue, ypred)
+        direction_loss = tildeq_loss(ypred, ytrue) if self.tildeq else nn.functional.huber_loss(ypred, ytrue, delta=self.delta)
+        sim_loss = self.directional_consistency_loss(ytrue, ypred)
+        # with torch.no_grad():
+        #     sim = self._similarity(ytrue, ypred)
+
         
-        return direction_loss, sim.mean().item()
+        return direction_loss + self.sim_weight * sim_loss, (1 - sim_loss).item()
 
 def run_training(config):
     """主训练函数"""
@@ -214,7 +215,7 @@ def run_training(config):
 
     criterion_ts = HuberTrendLoss(delta=0.1) # 均方误差损失
     criterion_ctx = nn.HuberLoss(delta=0.1) # 均方误差损失
-    criterion_predict = HuberTrendLoss(delta=0.1) # 均方误差损失
+    criterion_predict = HuberTrendLoss(delta=0.1, tildeq=True) # 均方误差损失
     criterion_trend = nn.HuberLoss(delta=0.1) #HuberTrendLoss(delta=0.1, sim_weight=0.)
     criterion_return = nn.HuberLoss(delta=0.1) #HuberTrendLoss(delta=0.1, sim_weight=0.1)
 
