@@ -243,7 +243,7 @@ class StockKlineSynchronizer:
             
             save_text(','.join(fail_stocks), 'fail_sync.txt')
         await self.fetch_stocks()
-        # await self.sync_stocks()
+        await self.sync_stocks()
         await self.sync_stock_financial_data()
         await self.queue_check()
 
