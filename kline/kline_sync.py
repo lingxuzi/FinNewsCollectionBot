@@ -103,7 +103,7 @@ class StockKlineSynchronizer:
             for d in data
         }
 
-        self.latest_sync_time = [d.date() for d in data]
+        self.latest_sync_time = {s:d.date() for s, d in data.items()}
 
     async def _init_financial_latest_sync_year_and_quater(self):
         aggregate_builder = AggregationBuilder()
@@ -118,7 +118,7 @@ class StockKlineSynchronizer:
             for d in data
         }
 
-        self.latest_financial_sync_time = [d.date() for d in data]
+        self.latest_financial_sync_time = {s:(int(str(d)[:4]), int(str(d)[-1:])) for s, d in data.items()}
 
     async def _process_queue(self):
         while True:
@@ -178,13 +178,18 @@ class StockKlineSynchronizer:
                     print(f'Error fetching data for {code}.')
                     results.append((False, code))
             return results
+        
+    def __financial_syncable(self, code):
+        year_now = datetime.now().year
+        current_quarter = datetime.now().month // 3 + 1
+        year, quarter = self.latest_financial_sync_time.get(self.datasource._format_code(code).lower(), (2007, 1))
+        return year < year_now or (year == year_now and quarter < current_quarter)
     
     def _sync_stock_financial_data(self, stock_list):
         results = []
-        year_now = datetime.now().year
         with ProcessPoolExecutor(max_workers=self.workers) as pool:
-            stock_list = [code for code in stock_list if self.latest_financial_sync_time.get(self.datasource._format_code(code).lower(), 2007) < year_now]
-            futures = {pool.submit(self.datasource.get_stock_financial_data, code, self.latest_financial_sync_time.get(self.datasource._format_code(code).lower(), 2007), year_now): code for code in stock_list}
+            stock_list = [code for code in stock_list if self.__financial_syncable(code)]
+            futures = {pool.submit(self.datasource.get_stock_financial_data, code, self.latest_financial_sync_time.get(self.datasource._format_code(code).lower(), (2007, 1))[0], datetime.now().year): code for code in stock_list}
             for future in tqdm(as_completed(futures), total=len(futures), desc='Processing Financial Data...', ncols=120):
                 try:
                     code = futures[future]

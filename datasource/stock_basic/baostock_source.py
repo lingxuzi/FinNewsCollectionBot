@@ -292,9 +292,13 @@ class BaoSource(StockSource):
             return None
 
     def get_stock_financial_data(self, code, yearfrom, yearto):
+        yearnow = datetime.datetime.now().year
+        current_quarter = datetime.datetime.now().month // 3 + 1
         result = pd.DataFrame()
         for i in range(yearfrom, yearto+1):
             for j in range(1, 5):
+                if i == yearnow and j > current_quarter:
+                    continue
                 quarter_df = self.get_quarter_stock_financial_info(code, i, j)
                 if quarter_df is not None:
                     quarter_df['year'] = i
