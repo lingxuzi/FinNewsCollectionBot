@@ -78,7 +78,7 @@ class ALSTMAutoencoder(nn.Module):
         self.init_parameters(self.trend_head)
         self.init_parameters(self.predictor.p[-1])
         self.init_parameters(self.return_head.p[-1])
-        self.init_parameters(self.trend_head.p[-1])
+        self.init_parameters(self.trend_head[0].p[-1])
 
     def encoder_only(self, encoder=True):
         if encoder:
