@@ -145,11 +145,11 @@ class StockKlineSynchronizer:
                                 print(f'Financial Insert failed: {e}')
                         
                     except Exception as e:
-                        print(f'Process queue failed')
+                        print(f'Process queue failed: {e}')
                 else:
                     await asyncio.sleep(1)
             except Exception as e:
-                print(f'Process queue failed')
+                print(f'Process queue failed: {e}')
                 await asyncio.sleep(1)
 
     async def get_stock_list(self):
