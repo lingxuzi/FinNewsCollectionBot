@@ -201,8 +201,6 @@ class StockKlineSynchronizer:
         stock_list = [s['code'] for s in stock_list]
 
         results = self._sync_stocks(stock_list)
-        
-        save_text(','.join(fail_stocks), 'financial_fail_sync.txt')
         fail_stocks = []
         for result in results:
             ret, code = result
