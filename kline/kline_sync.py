@@ -103,7 +103,7 @@ class StockKlineSynchronizer:
             for d in data
         }
 
-        self.latest_sync_time = data
+        self.latest_sync_time = [d.date() for d in data]
 
     async def _init_financial_latest_sync_year_and_quater(self):
         aggregate_builder = AggregationBuilder()
@@ -118,7 +118,7 @@ class StockKlineSynchronizer:
             for d in data
         }
 
-        self.latest_financial_sync_time = data
+        self.latest_financial_sync_time = [d.date() for d in data]
 
     async def _process_queue(self):
         while True:
@@ -162,6 +162,7 @@ class StockKlineSynchronizer:
     def _sync_stocks(self, stock_list):
         results = []
         with ProcessPoolExecutor(max_workers=self.workers) as pool:
+            stock_list = [code for code in stock_list if self.latest_sync_time.get(self.datasource._format_code(code).lower(), self.start_date) < datetime.now().date()]
             futures = {pool.submit(self.datasource.get_kline_daily, code, self.latest_sync_time.get(self.datasource._format_code(code).lower(), self.start_date), datetime.now().date(), True, False): code for code in stock_list}
             for future in tqdm(as_completed(futures), total=len(futures), desc='Processing Klines...', ncols=120):
                 try:
