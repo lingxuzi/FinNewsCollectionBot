@@ -82,7 +82,7 @@ class HuberTrendLoss:
             sim_loss = self.directional_consistency_loss(ytrue, ypred)
             similarity = (1 - sim_loss).item()
         else:
-            sim_loss = 0
+            sim_loss = nn.functional.huber_loss(ypred, ytrue, delta=self.delta)
             with torch.no_grad():
                 similarity = self._similarity(ytrue, ypred).mean().item()
         return direction_loss + sim_loss * self.sim_weight, similarity
