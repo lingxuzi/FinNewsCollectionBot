@@ -16,10 +16,11 @@ import multiprocessing
 multiprocessing.set_start_method('spawn', force=True)
 
 class StockKlineSynchronizer:
-    def __init__(self, host, port, username, password, queue_path):
+    def __init__(self, host, port, username, password, queue_path, workers=2):
         self.db = AsyncMongoEngine(host, port, username, password)
         self.datasource = BaoSource()
         self.start_date = datetime(2018, 1, 1).date()
+        self.workers = workers
         rmtree(queue_path, ignore_errors=True)
         os.makedirs(queue_path, exist_ok=True) 
         self.deque = Deque(directory=queue_path)
@@ -124,9 +125,10 @@ class StockKlineSynchronizer:
             try:
                 if len(self.deque) > 0:
                     try:
-                        insert_data = self.deque.popleft()
-                        if insert_data['type'] == 'kline':
-                            ret, e = await self.db.add_many(self._cluster(), self._kline_daily(), insert_data['data'])
+                        item = self.deque.popleft()
+                        insert_data = item['data']
+                        if item['type'] == 'kline':
+                            ret, e = await self.db.add_many(self._cluster(), self._kline_daily(), insert_data)
                             if ret:
                                 print('Kline Insert success')
                             else:
@@ -137,8 +139,8 @@ class StockKlineSynchronizer:
                                         print('Kline Insert success')
                                     else:
                                         print(f'Kline Insert failed: {e}')
-                        else:
-                            ret, e = await self.db.add_many(self._cluster(), self._financial_data(), insert_data['data'])
+                        elif item['type'] == 'financial':
+                            ret, e = await self.db.add_many(self._cluster(), self._financial_data(), insert_data)
                             if ret:
                                 print('Financial Insert success')
                             else:
@@ -159,7 +161,7 @@ class StockKlineSynchronizer:
     
     def _sync_stocks(self, stock_list):
         results = []
-        with ProcessPoolExecutor(max_workers=2) as pool:
+        with ProcessPoolExecutor(max_workers=self.workers) as pool:
             futures = {pool.submit(self.datasource.get_kline_daily, code, self.latest_sync_time.get(self.datasource._format_code(code).lower(), self.start_date), datetime.now().date(), True, False): code for code in stock_list}
             for future in tqdm(as_completed(futures), total=len(futures), desc='Processing Klines...', ncols=120):
                 try:
@@ -179,7 +181,7 @@ class StockKlineSynchronizer:
     def _sync_stock_financial_data(self, stock_list):
         results = []
         year_now = datetime.now().year
-        with ProcessPoolExecutor(max_workers=2) as pool:
+        with ProcessPoolExecutor(max_workers=self.workers) as pool:
             futures = {pool.submit(self.datasource.get_stock_financial_data, code, self.latest_financial_sync_time.get(self.datasource._format_code(code).lower(), 2007), year_now): code for code in stock_list}
             for future in tqdm(as_completed(futures), total=len(futures), desc='Processing Financial Data...', ncols=120):
                 try:
@@ -230,7 +232,7 @@ class StockKlineSynchronizer:
         
         save_text(','.join(fail_stocks), 'financial_fail_sync.txt')
     
-    async def all_sync(self):
+    async def kline_sync(self):
         if len(self.fail_sync_stocks) > 0:
             results = self._sync_stocks(self.fail_sync_stocks)
             fail_stocks = []
@@ -242,6 +244,9 @@ class StockKlineSynchronizer:
             save_text(','.join(fail_stocks), 'fail_sync.txt')
         await self.fetch_stocks()
         await self.sync_stocks()
+        await self.queue_check()
+
+    async def financial_sync(self):
         await self.sync_stock_financial_data()
         await self.queue_check()
 
