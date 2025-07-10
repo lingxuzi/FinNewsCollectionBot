@@ -1,8 +1,9 @@
 from utils.async_mongo import AsyncMongoEngine
 from datetime import datetime
+from utils.singleton_wrapper import Singleton
 import asyncio
 
-class StockQueryEngine:
+class StockQueryEngine(Singleton):
     def __init__(self, host, port, username, password):
         self.db = AsyncMongoEngine(host, port, username, password)
 

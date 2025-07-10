@@ -159,7 +159,7 @@ class StockKlineSynchronizer:
     
     def _sync_stocks(self, stock_list):
         results = []
-        with ProcessPoolExecutor(max_workers=10) as pool:
+        with ProcessPoolExecutor(max_workers=2) as pool:
             futures = {pool.submit(self.datasource.get_kline_daily, code, self.latest_sync_time.get(self.datasource._format_code(code).lower(), self.start_date), datetime.now().date(), True, False): code for code in stock_list}
             for future in tqdm(as_completed(futures), total=len(futures), desc='Processing Klines...', ncols=120):
                 try:
@@ -179,7 +179,7 @@ class StockKlineSynchronizer:
     def _sync_stock_financial_data(self, stock_list):
         results = []
         year_now = datetime.now().year
-        with ProcessPoolExecutor(max_workers=10) as pool:
+        with ProcessPoolExecutor(max_workers=2) as pool:
             futures = {pool.submit(self.datasource.get_stock_financial_data, code, self.latest_financial_sync_time.get(self.datasource._format_code(code).lower(), 2007), year_now): code for code in stock_list}
             for future in tqdm(as_completed(futures), total=len(futures), desc='Processing Financial Data...', ncols=120):
                 try:
