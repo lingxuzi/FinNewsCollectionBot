@@ -14,6 +14,9 @@ class StockQueryEngine:
     
     def _kline_daily(self):
         return 'kline_daily'
+    
+    def _financial_info(self):
+        return 'financial_data'
 
     def connect_async(self):
         asyncio.run(self.db.connect_async())
@@ -101,3 +104,16 @@ class StockQueryEngine:
         }
         stock_data = asyncio.run(self.db.query_and_sort(self._cluster(), self._kline_daily(), query))
         return stock_data
+    
+    def get_stock_financial_info(self, code, year, quarter):
+        code = self._format_code(code)
+        query = {
+            'code': code,
+            'year': year,
+            'quarter': quarter
+        }
+        financial_info = asyncio.run(self.db.query_and_sort(self._cluster(), self._financial_info(), query))
+        return financial_info
+    
+    def get_stock_latest_financial_info(self, code):
+        pass
