@@ -183,6 +183,7 @@ class StockKlineSynchronizer:
         results = []
         year_now = datetime.now().year
         with ProcessPoolExecutor(max_workers=self.workers) as pool:
+            stock_list = [code for code in stock_list if self.latest_financial_sync_time.get(self.datasource._format_code(code).lower(), 2007) < year_now]
             futures = {pool.submit(self.datasource.get_stock_financial_data, code, self.latest_financial_sync_time.get(self.datasource._format_code(code).lower(), 2007), year_now): code for code in stock_list}
             for future in tqdm(as_completed(futures), total=len(futures), desc='Processing Financial Data...', ncols=120):
                 try:
