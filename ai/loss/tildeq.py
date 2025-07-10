@@ -57,7 +57,7 @@ def phase_loss(outputs, targets):
     return phase_loss
 
 
-def tildeq_loss(outputs, targets, alpha = .2, gamma = 0.7, beta = .5):
+def tildeq_loss(outputs, targets, alpha = .5, gamma = 0., beta = .5):
     if len(outputs.shape) == 2:
         outputs = outputs.unsqueeze(-1)
         targets = targets.unsqueeze(-1)
@@ -67,9 +67,9 @@ def tildeq_loss(outputs, targets, alpha = .2, gamma = 0.7, beta = .5):
     assert not torch.isinf(outputs).any(), "Inf value detected!"
     B,_, T = outputs.shape
     l_ashift = ashift_loss(outputs, targets)
-    l_amp = amp_loss(outputs, targets)
+    # l_amp = amp_loss(outputs, targets)
     l_phase = phase_loss(outputs, targets)
-    loss = alpha * l_ashift + (1 - alpha) * l_phase + gamma * l_amp
+    loss = alpha * l_ashift + (1 - alpha) * l_phase #+ gamma * l_amp
 
     assert loss == loss, "Loss Nan!"
     return loss

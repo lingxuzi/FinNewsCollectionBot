@@ -21,11 +21,11 @@ data:
 # --- 训练参数 ---
 training:
   workers: 4
-  finetune: false
+  finetune: true
   model: 'alstm-ae'
   awl: false
   auto_grad_norm: false
-  losses: ['ts', 'ctx']
+  losses: ['ts', 'ctx', 'pred']
   loss_weights: [1, 1, 1]
   sequence_length: 50       # K线序列长度
   learning_rate: 0.0003
