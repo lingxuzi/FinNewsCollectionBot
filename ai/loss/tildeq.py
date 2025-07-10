@@ -39,14 +39,14 @@ def phase_loss(outputs, targets):
     tgt_fourier = torch.fft.fft(targets, dim = -1)
     tgt_fourier_sq = (tgt_fourier.real ** 2 + tgt_fourier.imag ** 2)
     mask = (tgt_fourier_sq > (T)).float()
-    topk_indices = tgt_fourier_sq.topk(k = int(T**0.5), dim = -1).indices
+    topk_indices = tgt_fourier_sq.topk(k = int(T * 0.1), dim = -1).indices
     mask = mask.scatter_(-1, topk_indices, 1.)
     mask[...,0] = 1.
     mask = torch.where(mask > 0, 1., 0.)
     mask = mask.bool()
     not_mask = (~mask).float()
     not_mask /= torch.mean(not_mask)
-    out_fourier_sq = (torch.abs(out_fourier.real) + torch.abs(out_fourier.imag))
+    # out_fourier_sq = (torch.abs(out_fourier.real) + torch.abs(out_fourier.imag))
     zero_error = torch.abs(out_fourier) * not_mask
     zero_error = torch.where(torch.isnan(zero_error), torch.zeros_like(zero_error), zero_error)
     mask = mask.float()
@@ -57,7 +57,7 @@ def phase_loss(outputs, targets):
     return phase_loss
 
 
-def tildeq_loss(outputs, targets, alpha = .5, gamma = 0.5, beta = .5):
+def tildeq_loss(outputs, targets, alpha = .2, gamma = 0.7, beta = .5):
     if len(outputs.shape) == 2:
         outputs = outputs.unsqueeze(-1)
         targets = targets.unsqueeze(-1)

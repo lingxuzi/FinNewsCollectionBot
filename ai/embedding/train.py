@@ -51,13 +51,16 @@ class HuberTrendLoss:
         self.sim_weight = sim_weight
 
     def _similarity(self, y_true, y_pred):
-        mu_x = torch.mean(y_true)
-        mu_y = torch.mean(y_pred)
-        sigma_x = torch.var(y_true)
-        sigma_y = torch.var(y_pred)
-        sigma_xy = torch.mean((y_true - mu_x) * (y_pred - mu_y))
-        ccc = 2 * sigma_xy / (sigma_x + sigma_y + (mu_x - mu_y)**2)
-        return ccc
+        y_true_mean = torch.mean(y_true, dim=-1, keepdim=True)
+        y_pred_mean = torch.mean(y_pred, dim=-1, keepdim=True)
+        y_true_centered = y_true - y_true_mean
+        y_pred_centered = y_pred - y_pred_mean
+        # 2. 计算分子和分母
+        numerator = torch.sum(y_true_centered * y_pred_centered, dim=-1)
+        denominator = torch.sqrt(torch.sum(y_true_centered ** 2, dim=-1) * torch.sum(y_pred_centered ** 2, dim=-1) + 1e-12)
+        # 3. 计算皮尔逊相关系数
+        pearson_corr = numerator / (denominator)  # 添加一个小的常数以避免除以零
+        return pearson_corr
 
     def directional_consistency_loss(self, y_true, y_pred):
         """
@@ -76,7 +79,7 @@ class HuberTrendLoss:
     def __call__(self, ytrue, ypred):
         direction_loss = tildeq_loss(ypred, ytrue) if self.tildeq else nn.functional.huber_loss(ypred, ytrue, delta=self.delta)
         sim_loss = self.directional_consistency_loss(ytrue, ypred)
-        return direction_loss + self.sim_weight * sim_loss, (1 - sim_loss).item()
+        return direction_loss + sim_loss * self.sim_weight, (1 - sim_loss).item()
 
 def run_training(config):
     """主训练函数"""
