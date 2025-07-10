@@ -212,7 +212,7 @@ def run_training(config):
 
     model = model.to(device)
 
-    criterion_ts = HuberTrendLoss(delta=0.1) # 均方误差损失
+    criterion_ts = HuberTrendLoss(delta=0.1, tildeq=True) # 均方误差损失
     criterion_ctx = nn.HuberLoss(delta=0.3) # 均方误差损失
     criterion_predict = HuberTrendLoss(delta=0.1, tildeq=True) # 均方误差损失
     criterion_trend = nn.HuberLoss(delta=0.1) #HuberTrendLoss(delta=0.1, sim_weight=0.)

@@ -112,8 +112,15 @@ class StockQueryEngine:
             'year': year,
             'quarter': quarter
         }
-        financial_info = asyncio.run(self.db.query_and_sort(self._cluster(), self._financial_info(), query))
+        financial_info = asyncio.run(self.db.query_one(self._cluster(), self._financial_info(), query))
         return financial_info
     
     def get_stock_latest_financial_info(self, code):
-        pass
+        code = self._format_code(code)
+        query = {
+            'code': code,
+        }
+        financial_info = asyncio.run(self.db.query_and_sort(self._cluster(), self._financial_info(), query, sort_key='yearq', sort_order=-1, skip=0, limit=1))
+        if financial_info:
+            financial_info = financial_info[0]
+        return financial_info
