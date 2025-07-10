@@ -3,7 +3,7 @@ from ai.embedding.search.search_embedding import EmbeddingQueryer
 from concurrent.futures import ThreadPoolExecutor, as_completed, ProcessPoolExecutor
 from tqdm import tqdm
 from datetime import datetime, timedelta
-from datasource.baostock_source import BaoSource
+from datasource.stock_basic.baostock_source import BaoSource
 import asyncio
 import pandas as pd
 

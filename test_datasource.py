@@ -1,4 +1,4 @@
-from datasource.baostock_source import BaoSource
+from datasource.stock_basic.baostock_source import BaoSource
 from config.base import *
 import datetime
 

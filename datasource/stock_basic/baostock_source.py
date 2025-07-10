@@ -4,7 +4,7 @@ import numpy as np
 import os
 import datetime
 from contextlib import redirect_stdout
-from datasource.source import StockSource
+from datasource.stock_basic.baostock_source import StockSource
 from datetime import timedelta
 from utils.cache import run_with_cache, cache_decorate
 

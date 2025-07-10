@@ -7,7 +7,7 @@ import ai.embedding.models.base
 from backtrade.decorate import create_strategy
 from backtrade.data.plus import PandasDataPlus
 from db.stock_query import StockQueryEngine
-from datasource.baostock_source import BaoSource
+from datasource.stock_basic.baostock_source import BaoSource
 from ai.embedding.models import create_model, get_model_config
 import joblib
 import asyncio

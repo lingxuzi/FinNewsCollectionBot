@@ -1,5 +1,5 @@
 #-*- coding : utf-8-*-
-from datasource.baostock_source import BaoSource
+from datasource.stock_basic.baostock_source import BaoSource
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 from config.base import *

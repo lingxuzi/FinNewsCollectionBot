@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 from utils.cache import run_with_cache
-from datasource.computations import calculate_hurst, vwap
+from datasource.stock_basic.computations import calculate_hurst, vwap
 
 class StockSource:
     def __init__(self, max_rolling_days=100):

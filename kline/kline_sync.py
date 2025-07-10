@@ -1,4 +1,4 @@
-from datasource.baostock_source import BaoSource
+from datasource.stock_basic.baostock_source import BaoSource
 from utils.async_mongo import AsyncMongoEngine
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pymongo import ReturnDocument, UpdateOne, InsertOne, UpdateMany, DeleteMany, ReplaceOne, WriteConcern

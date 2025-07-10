@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 from datetime import datetime, timedelta
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from concurrent.futures import ThreadPoolExecutor, as_completed, ProcessPoolExecutor
-from datasource.baostock_source import BaoSource
+from datasource.stock_basic.baostock_source import BaoSource
 from db.stock_query import StockQueryEngine
 from pymilvus import MilvusClient
 from tqdm import tqdm
