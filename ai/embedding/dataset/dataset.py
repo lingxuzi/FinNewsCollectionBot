@@ -199,19 +199,34 @@ class KlineDataset(Dataset):
     def accumulative_return(self, returns):
         return np.expm1(np.log1p(returns).sum())
     
-    def __getitem__(self, idx):
+    def trend_classes(self):
+        return 4
+
+    def parse_item(self, idx):
         ts_seq, ctx_seq, label, trend, _return, date_range, code = self.cache.get(f'seq_{idx}')
 
-        acu_return = self.accumulative_return(_return)
-        trend = float(acu_return > 0)
+        acu_return = float(self.accumulative_return(_return))
+        if acu_return > 0.1:
+            _trend = 3
+        elif 0.05 < acu_return <= 0.1:
+            _trend = 2
+        elif -0.05 < acu_return <= 0.05:
+            _trend = 1
+        elif acu_return <= -0.05:
+            _trend = 0
+
+        return ts_seq, ctx_seq, label, _trend, acu_return, date_range, code
+    
+    def __getitem__(self, idx):
+        ts_seq, ctx_seq, label, trend, acu_return, date_range, code = self.parse_item(idx)
 
         if self.include_meta:
             return (
                 torch.FloatTensor(ts_seq),
                 torch.FloatTensor(ctx_seq),
                 torch.FloatTensor(label),
-                torch.FloatTensor(np.asarray(acu_return)),
-                torch.FloatTensor(np.asarray(trend)),
+                torch.LongTensor([trend]),
+                torch.FloatTensor([acu_return]),
                 date_range,
                 code
             )
@@ -221,8 +236,8 @@ class KlineDataset(Dataset):
                     torch.FloatTensor(ts_seq),
                     torch.FloatTensor(ctx_seq),
                     torch.FloatTensor(label),
-                    torch.FloatTensor(np.asarray(acu_return)).clamp_(-1+1e-4, 1-1e-4) * 100,
-                    torch.FloatTensor(np.asarray(trend)).clamp_(1e-4, 1-1e-4)
+                    torch.LongTensor([trend]),
+                    torch.FloatTensor([acu_return]).clamp_(-1+1e-4, 1-1e-4) * 100
                 )
             except Exception as e:
                 print(f"Error processing item {idx}: {e}")

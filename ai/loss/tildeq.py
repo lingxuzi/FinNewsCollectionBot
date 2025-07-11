@@ -39,7 +39,7 @@ def phase_loss(outputs, targets):
     tgt_fourier = torch.fft.fft(targets, dim = -1)
     tgt_fourier_sq = (tgt_fourier.real ** 2 + tgt_fourier.imag ** 2)
     mask = (tgt_fourier_sq > (T)).float()
-    topk_indices = tgt_fourier_sq.topk(k = int(T * 0.1), dim = -1).indices
+    topk_indices = tgt_fourier_sq.topk(k = int(T ** 0.5), dim = -1).indices
     mask = mask.scatter_(-1, topk_indices, 1.)
     mask[...,0] = 1.
     mask = torch.where(mask > 0, 1., 0.)
@@ -57,7 +57,7 @@ def phase_loss(outputs, targets):
     return phase_loss
 
 
-def tildeq_loss(outputs, targets, alpha = .5, gamma = 0., beta = .5):
+def tildeq_loss(outputs, targets, alpha = .5, gamma = 1, beta = .5):
     if len(outputs.shape) == 2:
         outputs = outputs.unsqueeze(-1)
         targets = targets.unsqueeze(-1)
@@ -67,9 +67,9 @@ def tildeq_loss(outputs, targets, alpha = .5, gamma = 0., beta = .5):
     assert not torch.isinf(outputs).any(), "Inf value detected!"
     B,_, T = outputs.shape
     l_ashift = ashift_loss(outputs, targets)
-    # l_amp = amp_loss(outputs, targets)
+    l_amp = amp_loss(outputs, targets)
     l_phase = phase_loss(outputs, targets)
-    loss = alpha * l_ashift + (1 - alpha) * l_phase #+ gamma * l_amp
+    loss = alpha * l_ashift + (1 - alpha) * l_phase + gamma * l_amp
 
     assert loss == loss, "Loss Nan!"
     return loss

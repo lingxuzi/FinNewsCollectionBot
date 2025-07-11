@@ -6,9 +6,11 @@ import os
 import joblib
 import copy
 import ai.embedding.models.base
+from ai.embedding.samplers.trend_sampler import TrendSampler
+from autoclip.torch import QuantileClip
 from ai.loss.tildeq import tildeq_loss
 from ai.embedding.models import create_model, get_model_config
-from sklearn.metrics import r2_score, mean_absolute_error, root_mean_squared_error, mean_absolute_percentage_error
+from sklearn.metrics import f1_score
 from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm # 提供优雅的进度条
 from utils.common import AverageMeter
@@ -18,7 +20,7 @@ from ai.modules.multiloss import AutomaticWeightedLoss
 from ai.modules.earlystop import EarlyStopping
 from ai.modules.gradient import adaptive_clip_grad
 from ai.scheduler.sched import *
-from ai.metrics.series_metric import Metric
+from ai.metrics import *
 from utils.prefetcher import DataPrefetcher
 from utils.common import ModelEmaV2, calculate_r2_components, calculate_r2_components_recon
 
@@ -34,7 +36,7 @@ def ale_loss(pred, target, reduction='mean', eps=1e-8, gamma=0):
     target = target.clamp(eps, 1-eps)
     abs_error = torch.abs(pred - target)
 
-    loss = -torch.log(1.0 - abs_error + eps) * torch.pow(torch.maximum(abs_error, torch.tensor(eps).to(abs_error.device)), gamma)
+    loss = -torch.log(1.0 - abs_error + eps) * torch.pow(torch.maximum(abs_erroDataLoadr, torch.tensor(eps).to(abs_error.device)), gamma)
 
     if reduction == 'sum':
         return loss.sum()
@@ -62,7 +64,32 @@ class HuberTrendLoss:
         pearson_corr = numerator / (denominator)  # 添加一个小的常数以避免除以零
         return pearson_corr
 
-    def directional_consistency_loss(self, y_true, y_pred):
+    def _ccc_similarity(self, y_true, y_pred):
+        y_true = y_true.view(-1)
+        y_pred = y_pred.view(-1)
+        
+        # 步骤 2: 计算均值
+        mean_true = torch.mean(y_true)
+        mean_pred = torch.mean(y_pred)
+        
+        # 步骤 3: 计算方差
+        var_true = torch.var(y_true, unbiased=False)  # 使用总体方差 (n)
+        var_pred = torch.var(y_pred, unbiased=False) # 使用总体方差 (n)
+        
+        # 步骤 4: 计算协方差
+        # Cov(X, Y) = E[(X - E[X])(Y - E[Y])] = E[XY] - E[X]E[Y]
+        cov = torch.mean((y_true - mean_true) * (y_pred - mean_pred))
+        
+        # 步骤 5: 组装 CCC 公式
+        numerator = 2 * cov
+        denominator = var_true + var_pred + (mean_true - mean_pred)**2
+        
+        # 添加 epsilon 防止除以零
+        ccc = numerator / (denominator + self.epsilon)
+        
+        return ccc
+
+    def directional_consistency_loss(self, y_true, y_pred, type='pearson'):
         """
         计算方向一致性损失
         Args:
@@ -71,9 +98,9 @@ class HuberTrendLoss:
         Returns:
             方向一致性损失 (torch.Tensor)
         """
-        pearson_corr = self._similarity(y_true, y_pred)
+        corr = self._similarity(y_true, y_pred) if type == 'pearson' else self._ccc_similarity(y_true, y_pred)
         # 4. 计算损失
-        loss = 1 - pearson_corr
+        loss = 1 - corr
         return torch.mean(loss)
 
     def __call__(self, ytrue, ypred):
@@ -83,10 +110,11 @@ class HuberTrendLoss:
             similarity = (1 - sim_loss).item()
             return direction_loss + sim_loss * self.sim_weight, similarity
         else:
-            sim_loss = nn.functional.huber_loss(ypred, ytrue, delta=self.delta)
+            # sim_loss = nn.functional.huber_loss(ypred, ytrue, delta=self.delta)
             with torch.no_grad():
-                similarity = self._similarity(ytrue, ypred).mean().item()
-            return 0.5 * direction_loss + sim_loss * 0.5, similarity
+                similarity = self._ccc_similarity(ytrue, ypred).mean().item()
+            # corr_loss = self.directional_consistency_loss(ytrue, ypred, type='ccc')
+            return direction_loss, similarity
         
 
 def run_training(config):
@@ -179,7 +207,9 @@ def run_training(config):
             is_train=False,
             tag='test'
         )
-    train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], num_workers=config['training']['workers'], pin_memory=False, shuffle=True, drop_last=True)
+
+    train_sampler = TrendSampler(train_dataset, config['training']['batch_size'])
+    train_loader = DataLoader(train_dataset, num_workers=config['training']['workers'], pin_memory=False, shuffle=False, drop_last=False, batch_sampler=train_sampler)
     val_loader = DataLoader(eval_dataset, batch_size=config['training']['batch_size'], num_workers=config['training']['workers'], pin_memory=False, shuffle=False, drop_last=True)
 
     
@@ -193,9 +223,9 @@ def run_training(config):
     model_config = get_model_config(config['training']['model'])
     model_config['ts_input_dim'] = len(config['data']['features'])
     model_config['ctx_input_dim'] = len(config['data']['numerical'] + config['data']['categorical'])
+    model_config['trend_classes'] = train_dataset.trend_classes()
 
     model = create_model(config['training']['model'], model_config)
-
 
     if config['training']['load_pretrained']:
         try:
@@ -214,7 +244,7 @@ def run_training(config):
             print(f'Load finetune model failed: {e}')
 
     if config['training']['reset_heads']:
-        model.build_head()
+        model.build_head(train_dataset.trend_classes())
 
     ema = ModelEmaV2(model, decay=0.9999, device=device)
 
@@ -223,7 +253,7 @@ def run_training(config):
     criterion_ts = HuberTrendLoss(delta=0.1, tildeq=True) # 均方误差损失
     criterion_ctx = nn.HuberLoss(delta=0.3) # 均方误差损失
     criterion_predict = HuberTrendLoss(delta=0.1, tildeq=True) # 均方误差损失
-    criterion_trend = nn.HuberLoss(delta=0.1) #HuberTrendLoss(delta=0.1, sim_weight=0.)
+    criterion_trend = nn.CrossEntropyLoss() #HuberTrendLoss(delta=0.1, sim_weight=0.)
     criterion_return = nn.HuberLoss(delta=0.1) #HuberTrendLoss(delta=0.1, sim_weight=0.1)
 
     parameters = []
@@ -231,13 +261,16 @@ def run_training(config):
         parameters += [{'params': awl.parameters(), 'weight_decay': 0}]
     parameters += [{'params': model.parameters(), 'weight_decay': config['training']['weight_decay']}]
     optimizer = torch.optim.AdamW(parameters, lr=config['training']['min_learning_rate'] if config['training']['warmup_epochs'] > 0 else config['training']['learning_rate'])
+    if config['training']['auto_grad_norm']:
+        optimizer = QuantileClip.as_optimizer(optimizer=optimizer, quantile=0.9, history_length=1000)
     early_stopper = EarlyStopping(patience=40, direction='up')
     
     scheduler = CosineWarmupLR(
-        optimizer, config['training']['num_epochs'], config['training']['learning_rate'], config['training']['min_learning_rate'], warmup_epochs=config['training']['warmup_epochs'], warmup_lr=config['training']['min_learning_rate'])
+        optimizer, config['training']['num_epochs']*num_iters_per_epoch(train_dataset, config['training']['batch_size']), config['training']['learning_rate'], config['training']['min_learning_rate'], warmup_epochs=config['training']['warmup_epochs'] * num_iters_per_epoch(train_dataset, config['training']['batch_size']), warmup_lr=config['training']['min_learning_rate'])
 
     # --- 4. 训练循环 ---
     best_val_loss = float('inf') if early_stopper.direction == 'down' else -float('inf')
+    train_iter = DataPrefetcher(train_loader, config['device'], enable_queue=False, num_threads=1)
     for epoch in range(config['training']['num_epochs']):
         model.train()
         train_loss_meter = AverageMeter()
@@ -251,7 +284,6 @@ def run_training(config):
         ts_sim_meter = AverageMeter()
         pred_sim_meter = AverageMeter()
 
-        train_iter = DataPrefetcher(train_loader, config['device'], enable_queue=False, num_threads=1)
 
         if not config['training']['awl']:
             if epoch == 0 or epoch % config['training']['kl_annealing_steps'] != 0:
@@ -264,7 +296,7 @@ def run_training(config):
         # 使用tqdm显示进度条
         pbar = tqdm(range(num_iters_per_epoch(train_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training]")
         for _ in pbar:
-            ts_sequences, ctx_sequences, y, _return, trend = train_iter.next()
+            ts_sequences, ctx_sequences, y, trend, _return = train_iter.next()
             optimizer.zero_grad()
             ts_reconstructed, ctx_reconstructed, pred, trend_pred, return_pred, _, latent_mean, latent_logvar = model(ts_sequences, ctx_sequences)
 
@@ -289,12 +321,12 @@ def run_training(config):
                 pred_sim_meter.update(pred_sim)
             
             if 'trend' in config['training']['losses']:
-                loss_trend = criterion_trend(trend_pred, trend.unsqueeze(-1))
+                loss_trend = criterion_trend(trend_pred, trend.squeeze())
                 losses['trend'] = loss_trend
                 trend_loss_meter.update(loss_trend.item())
 
             if 'return' in config['training']['losses']:
-                loss_return = criterion_return(return_pred, _return.unsqueeze(-1))
+                loss_return = criterion_return(return_pred, _return)
                 losses['return'] = loss_return
                 return_loss_meter.update(loss_return.item())
             
@@ -315,19 +347,17 @@ def run_training(config):
 
             total_loss.backward()
 
-            if config.get('auto_grad_norm', True):
-                adaptive_clip_grad(model.parameters())
-            else:
+            if not config.get('auto_grad_norm', True):
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5)
             optimizer.step()
+            scheduler.step()
 
             ema.update(model)
 
             train_loss_meter.update(total_loss.item())
             #| Pred Loss: {pred_loss_meter.avg}
-            pbar.set_description(f"Total({epoch+1}/{config['training']['num_epochs']}): {train_loss_meter.avg:.4f} | KL: {kl_loss_meter.avg:.4f} | TS: {ts_loss_meter.avg:.4f} | TS Sim: {ts_sim_meter.avg:.4f} | CTX: {ctx_loss_meter.avg:.4f} | Pred: {pred_loss_meter.avg:.4f} | Pred Sim: {pred_sim_meter.avg:.4f} | Trend: {trend_loss_meter.avg:.4f} | Return: {return_loss_meter.avg:.4f}")
+            pbar.set_description(f"({epoch+1}/{config['training']['num_epochs']})LR: {scheduler.learning_rate[0]:.4f} | Total: {train_loss_meter.avg:.4f} | KL: {kl_loss_meter.avg:.4f} | TS: {ts_loss_meter.avg:.4f} | TS Sim: {ts_sim_meter.avg:.4f} | CTX: {ctx_loss_meter.avg:.4f} | Pred: {pred_loss_meter.avg:.4f} | Pred Sim: {pred_sim_meter.avg:.4f} | Trend: {trend_loss_meter.avg:.4f} | Return: {return_loss_meter.avg:.4f}")
         
-        scheduler.step()
 
         # --- 5. 验证循环 ---
         _model = copy.deepcopy(ema.module)
@@ -337,21 +367,21 @@ def run_training(config):
             pred_metric = Metric('vwap', appends=True)
             ts_metric = Metric('ts')
             ctx_metric = Metric('ctx')
-            trend_metric = Metric('trend')
+            trend_metric = ClsMetric('trend')
             return_metric = Metric('return')
 
             for _ in tqdm(range(num_iters_per_epoch(eval_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Validation]"):
                 # ts_sequences = ts_sequences.to(device)
                 # ctx_sequences = ctx_sequences.to(device)
                 # y = y.to(device)
-                ts_sequences, ctx_sequences, y, _return, trend = val_iter.next()
+                ts_sequences, ctx_sequences, y, trend, _return = val_iter.next()
                 ts_reconstructed, ctx_reconstructed, pred, trend_pred, return_pred, _ = _model(ts_sequences, ctx_sequences)
                 
                 y_cpu = y.cpu().numpy()
                 pred_cpu = pred.cpu().numpy()
 
                 pred_metric.update(y_cpu, pred_cpu)
-                trend_metric.update(trend.cpu().numpy(), trend_pred.cpu().numpy())
+                trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred.cpu().numpy())
                 return_metric.update(_return.cpu().numpy() + 1, return_pred.cpu().numpy() + 1)
                 
                 ts_sequences_cpu = ts_sequences.cpu().numpy()
@@ -444,6 +474,7 @@ def run_eval(config):
     model_config = get_model_config(config['training']['model'])
     model_config['ts_input_dim'] = len(config['data']['features'])
     model_config['ctx_input_dim'] = len(config['data']['numerical'] + config['data']['categorical'])
+    model_config['trend_classes'] = test_dataset.trend_classes()
 
     model = create_model(config['training']['model'], model_config)
     
@@ -460,7 +491,7 @@ def run_eval(config):
     pred_metric = Metric('vwap', appends=True)
     ts_metric = Metric('ts')
     ctx_metric = Metric('ctx')
-    trend_metric = Metric('trend')
+    trend_metric = ClsMetric('trend')
     return_metric = Metric('return')
     
     with torch.no_grad():
@@ -479,7 +510,7 @@ def run_eval(config):
             return_cpu = _return.cpu().numpy()
 
             pred_metric.update(y_cpu, pred_cpu)
-            trend_metric.update(trend_cpu, trend_pred.cpu().numpy())
+            trend_metric.update(trend_cpu.squeeze(), trend_pred.cpu().numpy())
             return_metric.update(return_cpu + 1, return_pred.cpu().numpy() + 1)
                 
             ts_sequences_cpu = ts_sequences.cpu().numpy()

@@ -60,25 +60,22 @@ class ALSTMAutoencoder(nn.Module):
         )
         self.init_parameters(self)
 
-        self.build_head()
+        self.build_head(config['trend_classes'])
 
         if config.get('encoder_only', False):
             self.encoder_only(True)
 
-    def build_head(self):
+    def build_head(self, trend_classes):
         self.predictor = PredictionHead(self.hidden_dim, self.predict_dim, act=nn.ReLU, dropout_rate=self.dropout_rate)
         self.return_head = PredictionHead(self.hidden_dim, 1, act=nn.ReLU, dropout_rate=self.dropout_rate)
-        self.trend_head = nn.Sequential(
-            PredictionHead(self.hidden_dim, 1, act=nn.ReLU, dropout_rate=self.dropout_rate),
-            nn.Sigmoid()
-        )
+        self.trend_head = PredictionHead(self.hidden_dim, trend_classes, act=nn.ReLU, dropout_rate=self.dropout_rate)
 
         self.init_parameters(self.predictor)
         self.init_parameters(self.return_head)
         self.init_parameters(self.trend_head)
         self.init_parameters(self.predictor.p[-1])
         self.init_parameters(self.return_head.p[-1])
-        self.init_parameters(self.trend_head[0].p[-1])
+        self.init_parameters(self.trend_head.p[-1])
 
     def encoder_only(self, encoder=True):
         if encoder:

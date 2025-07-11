@@ -686,14 +686,14 @@ class CosineWarmupLR(object):
             self.learning_rate = self.warmup_lr + (self.baselr - self.warmup_lr) * \
                                  self.last_iter / self.warmup_iters
             
-            print("warming up @ lr: {} @ epoch: {}".format(self.learning_rate, self.last_iter))
+            # print("warming up @ lr: {} @ epoch: {}".format(self.learning_rate, self.last_iter))
 
         else:
             self.learning_rate = self.targetlr + (self.baselr - self.targetlr) * \
                                  (1 + cos(pi * (self.last_iter - self.warmup_iters) /
                                           (self.niters - self.warmup_iters))) / 2
                                           
-            print("warming up @ lr: {} @ epoch: {}".format(self.learning_rate, self.last_iter))
+            # print("warming up @ lr: {} @ epoch: {}".format(self.learning_rate, self.last_iter))
 
     def step(self, iteration=None):
         """Update status of lr.
