@@ -18,6 +18,9 @@ class StockQueryEngine(Singleton):
     
     def _financial_info(self):
         return 'financial_data'
+    
+    def _stock_rates(self):
+        return 'rates'
 
     def connect_async(self):
         asyncio.run(self.db.connect_async())
@@ -117,11 +120,27 @@ class StockQueryEngine(Singleton):
         return financial_info
     
     def get_stock_latest_financial_info(self, code):
+        financial_info = self.get_stock_financial_info_batch(code, batch=1)
+        if financial_info:
+            financial_info = financial_info[0]
+        return financial_info
+    
+    def get_stock_financial_info_batch(self, code, batch=2):
         code = self._format_code(code)
         query = {
             'code': code,
         }
-        financial_info = asyncio.run(self.db.query_and_sort(self._cluster(), self._financial_info(), query, sort_key='yearq', sort_order=-1, skip=0, limit=1))
-        if financial_info:
-            financial_info = financial_info[0]
+        financial_info = asyncio.run(self.db.query_and_sort(self._cluster(), self._financial_info(), query, sort_key='yearq', sort_order=-1, skip=0, limit=batch))
         return financial_info
+    
+    def update_stock_rates(self, rates):
+        """
+            {
+                stock_code: ,
+                rate: '',
+                yearq: 
+            }
+        """
+
+        ret, e = asyncio.run(self.db.add_many(self._cluster(), self._stock_rates(), rates))
+        return ret

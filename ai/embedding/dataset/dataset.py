@@ -205,7 +205,7 @@ class KlineDataset(Dataset):
     def parse_item(self, idx):
         ts_seq, ctx_seq, label, trend, _return, date_range, code = self.cache.get(f'seq_{idx}')
 
-        acu_return = float(self.accumulative_return(_return))
+        acu_return = (label - 1).mean() #float(self.accumulative_return(_return))
         if acu_return > 0.1:
             _trend = 3
         elif 0.05 < acu_return <= 0.1:
@@ -214,6 +214,8 @@ class KlineDataset(Dataset):
             _trend = 1
         elif acu_return <= -0.05:
             _trend = 0
+
+        label = label[0]
 
         return ts_seq, ctx_seq, label, _trend, acu_return, date_range, code
     

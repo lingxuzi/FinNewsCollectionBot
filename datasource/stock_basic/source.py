@@ -136,7 +136,31 @@ class StockSource:
 
         # df['hurst'] = calculate_hurst(df['close'], 20, range(2, 20))
 
-        df['vwap'] = ((df['high'] + df['low'] + df['close']) / 3 * df['volume']).cumsum() / df['volume'].cumsum()
+        # df['vwap'] = ((df['high'] + df['low'] + df['close']) / 3 * df['volume']).cumsum() / df['volume'].cumsum()
+
+        df['typical_price'] = (df['high'] + df['low'] + df['close']) / 3
+        df['tpv'] = df['typical_price'] * df['volume']
+        monthly_start_dates = df['date'].dt.to_period('M').drop_duplicates().dt.to_timestamp().tolist()
+ 
+        # 3. 初始化 VWAP 列
+        df['vwap'] = np.nan
+ 
+        # 4. 循环计算每个月的 VWAP
+        for i in range(len(monthly_start_dates)):
+            start_date = monthly_start_dates[i]
+            if i < len(monthly_start_dates) - 1:
+                end_date = monthly_start_dates[i+1]
+            else:
+                end_date = df['date'].max()  # 到最后一天
+ 
+            # 筛选出当月的数据
+            monthly_data = df[(df['date'] >= start_date) & (df['date'] <= end_date)].copy()
+ 
+            # 计算当月的 VWAP
+            df.loc[(df['date'] >= start_date) & (df['date'] <= end_date), 'vwap'] = (monthly_data['tpv'].cumsum() / monthly_data['volume'].cumsum()).values
+ 
+        # 5. 使用前向填充，处理1号之前的数据
+        df['vwap'] = df['vwap'].fillna(method='ffill')
 
         # 计算每日VWAP变化率
         df['vwap_change'] = df['vwap'].pct_change()

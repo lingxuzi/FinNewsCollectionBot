@@ -1,7 +1,7 @@
 strategy: 'vwap_future'
-code: '000952'
-start_date: '20240101'
-end_date: '20250701'
+code: '600789'
+start_date: '20250101'
+end_date: '20250712'
 cash: 10000.0
 comission: 0.006
 model:

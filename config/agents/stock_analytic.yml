@@ -35,17 +35,17 @@ llm:
   model: 'gemini-2.0-flash'
   temperature: 0.1
   api_key: 'AIzaSyDmA_tI1pMgm-eOdsGIIoRtkORVQLISq2k'
-  base_url: 'https://openai.hamuna.club'
+  base_url: 'https://openai.hamuna.club/v1'
   max_tokens: 1024
   timeout: 30
 tools:
   duckduck:
     search_type: 'web'
-  # tavily:
-  #   api_key: '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'
-  # financial:
-  #   db:
-  #     host: '10.26.0.8'
-  #     port: '2000'
-  #     username: 'hmcz'
-  #     password: 'Hmcz_12345678'
+  tavily:
+    api_key: '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'
+  financial:
+    db:
+      host: '10.26.0.8'
+      port: '2000'
+      username: 'hmcz'
+      password: 'Hmcz_12345678'

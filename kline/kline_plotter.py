@@ -34,18 +34,19 @@ def generate_stocks_data(num_stocks=3, days=60):
     
     return stocks_data
 
-def convert_df_to_stocks_data(df):
+def convert_df_to_stocks_data(df, indicators):
     output = {}
     output['dates'] = df['date'].dt.strftime('%Y-%m-%d').tolist()
     output['ohlc'] = df[['open', 'close', 'low', 'high']].values.tolist()
-    output['ma5'] = df['close'].rolling(window=5).mean().tolist()
-    output['ma10'] = df['close'].rolling(window=10).mean().tolist()
     output['volumes'] = df['volume'].tolist()
+    
+    for indicator in indicators:
+        output[indicator] = df[indicator].values.tolist()
 
     return output
 
 # 创建单只股票的 K 线图
-def create_stock_chart(stock_name, stock_data):
+def create_stock_chart(stock_name, stock_data, indicators):
     markline_opt = None
     # 检查数据天数是否足够，以避免错误
     if len(stock_data['dates']) >= 50:
@@ -84,12 +85,18 @@ def create_stock_chart(stock_name, stock_data):
         )
     )
     
-    line = (
-        Line()
-        .add_xaxis(stock_data['dates'])
-        .add_yaxis("MA5", stock_data['ma5'], is_smooth=True, label_opts=opts.LabelOpts(is_show=False))
-        .add_yaxis("MA10", stock_data['ma10'], is_smooth=True, label_opts=opts.LabelOpts(is_show=False))
-    )
+    # line = (
+    #     Line()
+    #     .add_xaxis(stock_data['dates'])
+    #     .add_yaxis("MA5", stock_data['ma5'], is_smooth=True, label_opts=opts.LabelOpts(is_show=False))
+    #     .add_yaxis("MA10", stock_data['ma10'], is_smooth=True, label_opts=opts.LabelOpts(is_show=False))
+    # )
+
+    line = Line().add_xaxis(stock_data['dates'])
+    for indicator in indicators:
+        line.add_yaxis(indicator, stock_data[indicator], is_smooth=True, label_opts=opts.LabelOpts(is_show=False))
+    
+    line = (line)
     
     bar = (
         Bar()
@@ -119,17 +126,12 @@ def create_stock_chart(stock_name, stock_data):
     return grid
 
 # 创建多股票对比图表
-def create_multi_stocks_chart(raw_stock, stocks_data):
+def create_multi_stocks_chart(stocks_data, indicators):
     tab = Tab()
-
-    raw_stock['data'] = convert_df_to_stocks_data(raw_stock['data'])
-
-    chart = create_stock_chart(raw_stock['code'], raw_stock['data'])
-    tab.add(chart, raw_stock['code'])
     
     for code, stock_data in stocks_data.items():
-        stock_data = convert_df_to_stocks_data(stock_data)
-        chart = create_stock_chart(code, stock_data)
+        stock_data = convert_df_to_stocks_data(stock_data, indicators)
+        chart = create_stock_chart(code, stock_data, indicators)
         tab.add(chart, code)
     
     tab.render("multi_stocks_kline.html")

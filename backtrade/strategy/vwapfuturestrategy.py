@@ -42,7 +42,7 @@ class VWAPFutureStrategy(bt.Strategy):
             #设置止盈止损
             if self.buyprice:
                 # if self.data_sent_price[0] >= self.datas[0].future_vwap[0] * (1 + self.p.take_profit) and self.datas[0].vwap_trend[0] == 0:
-                if self.datas[0].vwap_trend[0] == 0 and self.datas[0].future_return[0] < 0:
+                if self.datas[0].vwap_trend[0] < 2:
                     self.log(f'SELL CREATE, {self.data_sent_price[0]:.2f} > {self.datas[0].future_vwap[0]:.2f}')
                     self.order = self.close()
                     return
@@ -57,7 +57,7 @@ class VWAPFutureStrategy(bt.Strategy):
         else:
             # 4. 检查是否准备好进行交易
             # if self.data_sent_price[0] < self.datas[0].future_vwap[0] * (1 - self.p.take_profit) and self.datas[0].vwap_trend[0] == 1:
-            if self.datas[0].vwap_trend[0] == 1 and self.datas[0].future_return[0] > 0:
+            if self.datas[0].vwap_trend[0] >= 2:
                 self.log(f'BUY CREATE, {self.data_sent_price[0]:.2f} < {self.datas[0].future_vwap[0]:.2f}')
                 self.order = self.buy()
                 self.buyprice = self.dataclose[0] #记录买入价格

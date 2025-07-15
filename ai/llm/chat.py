@@ -1,5 +1,6 @@
 from agno.agent import Agent
 from agno.models.openai import OpenAILike, OpenAIChat
+from agno.models.google.gemini import Gemini
 from agno.tools.tavily import TavilyTools
 from agno.tools.duckduckgo import DuckDuckGoTools
 
@@ -12,14 +13,15 @@ class LLMChatAgent:
         tools = self.__build_tools(config['tools'])
         self._agent = Agent(
             name=config['name'],
-            model= OpenAILike(config['llm']['model'],  api_key=config['llm']['api_key'], base_url=config['llm']['base_url'], temperature=config['llm']['temperature'], max_tokens=config['llm']['max_tokens'], timeout=config['llm']['timeout']),
+            model= OpenAILike(config['llm']['model'], api_key=config['llm']['api_key'], base_url=config['llm']['base_url'], temperature=config['llm']['temperature'], max_tokens=config['llm']['max_tokens'], timeout=config['llm']['timeout']),
             tools=tools,
             system_message_role=config['system_message_role'],
             markdown=config['markdown'],
             description=config['description'],
             instructions=config['instructions'],
             goal=config['goal'],
-            show_tool_calls=True
+            show_tool_calls=True,
+            debug_mode=True
         )
 
     def __build_tools(self, config):

@@ -105,18 +105,26 @@ class ResidualMLP(nn.Module):
         return out + residual
 
 class PredictionHead(nn.Module):
-    def __init__(self, input_dim, output_dim, dropout_rate, act=nn.ReLU):
+    def __init__(self, input_dim, output_dim, dropout_rate, act=nn.ReLU, confidence=False):
         super().__init__()
+        self.confidence = confidence
         self.p = nn.Sequential(
             nn.Linear(input_dim, input_dim),
             act(),
-            nn.Dropout(dropout_rate) if dropout_rate > 0 else nn.Identity(),
-            nn.Linear(input_dim, output_dim)
+            nn.Dropout(dropout_rate) if dropout_rate > 0 else nn.Identity()
         )
 
+        self.head_fc = nn.Linear(input_dim, output_dim)
+        if confidence:
+            self.head_logvar = nn.Linear(input_dim, output_dim)
+
     def forward(self, x):
-        out = self.p(x)
-        return out
+        x = self.p(x)
+        x = self.head_fc(x)
+        if self.confidence:
+            logvar = self.head_logvar(x)
+            return x, logvar
+        return x
     
 class NormedPredictionHead(nn.Module):
     def __init__(self, input_dim, output_dim, dropout_rate, act=nn.ReLU):

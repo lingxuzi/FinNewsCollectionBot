@@ -19,6 +19,7 @@ def build_model(config):
     model_config['ts_input_dim'] = len(config['model']['features'])
     model_config['ctx_input_dim'] = len(config['model']['numerical'] + config['model']['categorical'])
     model_config['encoder_only'] = config['model']['encoder_only']
+    model_config['trend_classes'] = 4
     model = create_model(config['model']['name'], model_config)
     device = torch.device(config['model']['device'] if torch.cuda.is_available() else "cpu")
     print('Loading model from:', config['model']['path'])
@@ -68,9 +69,9 @@ def prepare_data(config):
     data.set_index('date', inplace=True)
     data, ohlc = normalize(data, config)
     ohlc['sent_price'] = (ohlc['close'].values + ohlc['high'].values + ohlc['low'].values) / 3
-    ohlc['future_vwap'] = np.nan
+    ohlc['future_vwap_change'] = np.nan
     ohlc['vwap_trend'] = np.nan
-    ohlc['future_return'] = np.nan
+    # ohlc['future_return'] = np.nan
     for i in range(config['model']['seq_len'], len(data)):
         ts_seq = data[config['model']['features']].iloc[i - config['model']['seq_len']:i].values
         ctx_seq = data[config['model']['numerical'] + config['model']['categorical']].iloc[i-1].values
@@ -78,10 +79,12 @@ def prepare_data(config):
         ctx_seq = torch.tensor(ctx_seq, dtype=torch.float32).unsqueeze(0).to(config['model']['device'])
         with torch.no_grad():
             predict_output, trend_output, return_output, final_embedding = model(ts_seq, ctx_seq)
-        ori_vwap = np.expm1(predict_output.cpu().numpy())
-        ohlc['future_vwap'].iloc[i-1] = ori_vwap.mean()
-        ohlc['vwap_trend'].iloc[i-1] = int(is_vwap_increasing(ori_vwap[0]))
-        ohlc['future_return'].iloc[i-1] = np.expm1(np.sum(np.log1p(return_output.cpu().numpy())))
+        # ori_vwap = np.expm1(predict_output.cpu().numpy())
+        predict_output = predict_output.cpu().numpy()
+        ohlc['future_vwap_change'].iloc[i-1] = predict_output.mean()
+        trend = trend_output.cpu().numpy().argmax(axis=1)
+        ohlc['vwap_trend'].iloc[i-1] = trend[0]
+        # ohlc['future_return'].iloc[i-1] = np.expm1(np.sum(np.log1p(return_output.cpu().numpy())))
 
 
     ohlc.dropna(inplace=True)
