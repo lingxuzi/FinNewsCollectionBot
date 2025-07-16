@@ -250,9 +250,9 @@ def run_training(config):
 
     model = model.to(device)
 
-    criterion_ts = HuberTrendLoss(delta=0.1, tildeq=False) # 均方误差损失
+    criterion_ts = HuberTrendLoss(delta=0.6, tildeq=True) # 均方误差损失
     criterion_ctx = nn.HuberLoss(delta=0.3) # 均方误差损失
-    criterion_predict = HuberTrendLoss(delta=0.1, tildeq=False) # 均方误差损失
+    criterion_predict = HuberTrendLoss(delta=0.6, tildeq=True) # 均方误差损失
     criterion_trend = nn.CrossEntropyLoss() #HuberTrendLoss(delta=0.1, sim_weight=0.)
     criterion_return = nn.HuberLoss(delta=0.1) #HuberTrendLoss(delta=0.1, sim_weight=0.1)
 
@@ -266,7 +266,7 @@ def run_training(config):
     early_stopper = EarlyStopping(patience=40, direction='up')
     
     scheduler = CosineWarmupLR(
-        optimizer, config['training']['num_epochs']*num_iters_per_epoch(train_dataset, config['training']['batch_size']), config['training']['learning_rate'], config['training']['min_learning_rate'], warmup_epochs=config['training']['warmup_epochs'] * num_iters_per_epoch(train_dataset, config['training']['batch_size']), warmup_lr=config['training']['min_learning_rate'])
+        optimizer, config['training']['num_epochs'], config['training']['learning_rate'], config['training']['min_learning_rate'], warmup_epochs=config['training']['warmup_epochs'], warmup_lr=config['training']['min_learning_rate'])
 
     # --- 4. 训练循环 ---
     best_val_loss = float('inf') if early_stopper.direction == 'down' else -float('inf')
@@ -350,14 +350,14 @@ def run_training(config):
             if not config.get('auto_grad_norm', True):
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5)
             optimizer.step()
-            scheduler.step()
 
             ema.update(model)
 
             train_loss_meter.update(total_loss.item())
             #| Pred Loss: {pred_loss_meter.avg}
-            pbar.set_description(f"({epoch+1}/{config['training']['num_epochs']})LR: {scheduler.learning_rate[0]:.4f} | Total: {train_loss_meter.avg:.4f} | KL: {kl_loss_meter.avg:.4f} | TS: {ts_loss_meter.avg:.4f} | TS Sim: {ts_sim_meter.avg:.4f} | CTX: {ctx_loss_meter.avg:.4f} | Pred: {pred_loss_meter.avg:.4f} | Pred Sim: {pred_sim_meter.avg:.4f} | Trend: {trend_loss_meter.avg:.4f} | Return: {return_loss_meter.avg:.4f}")
+            pbar.set_description(f"Total({epoch+1}/{config['training']['num_epochs']}): {train_loss_meter.avg:.4f} | KL: {kl_loss_meter.avg:.4f} | TS: {ts_loss_meter.avg:.4f} | TS Sim: {ts_sim_meter.avg:.4f} | CTX: {ctx_loss_meter.avg:.4f} | Pred: {pred_loss_meter.avg:.4f} | Pred Sim: {pred_sim_meter.avg:.4f} | Trend: {trend_loss_meter.avg:.4f} | Return: {return_loss_meter.avg:.4f}")
         
+        scheduler.step()
 
         # --- 5. 验证循环 ---
         _model = copy.deepcopy(ema.module)

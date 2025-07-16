@@ -22,6 +22,9 @@ class StockQueryEngine(Singleton):
     def _stock_rates(self):
         return 'rates'
 
+    def _news(self):
+        return 'news'
+
     def connect_async(self):
         asyncio.run(self.db.connect_async())
 
@@ -157,3 +160,7 @@ class StockQueryEngine(Singleton):
             'rate': 1
         } , sort_key='rate', sort_order=-1))
         return stock_list
+
+    def insert_news(self, news):
+        ret, e = asyncio.run(self.db.add_many(self._cluster(), self._news(), news))
+        return ret

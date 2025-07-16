@@ -1,0 +1,15 @@
+workers: 4
+queue_path: '../rss_queue'
+rss_pool:
+  macro_rss_pool: [
+    'https://www.chinanews.com.cn/rss/china.xml',
+    'https://www.chinanews.com.cn/rss/importnews.xml'
+  ]
+  finance_rss_pool: [
+    'https://www.chinanews.com.cn/rss/finance.xml',
+    'https://cn.investing.com/rss/news_25.rss',
+    'https://cn.investing.com/rss/market_overview_Technical.rss',
+    'https://cn.investing.com/rss/news_356.rss',
+    'https://cn.investing.com/rss/news_95.rss',
+    'https://cn.investing.com/rss/news_285.rss'
+  ]

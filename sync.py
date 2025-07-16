@@ -1,6 +1,8 @@
 from kline.kline_sync import StockKlineSynchronizer
+from datasource.news import do_parse_news
 import asyncio
 import warnings
+import yaml
 import argparse
 warnings.filterwarnings("ignore")
 
@@ -21,4 +23,8 @@ if __name__ == '__main__':
         loop.run_until_complete(synchronizer.kline_sync())
     elif opts.mode == 'financial':
         loop.run_until_complete(synchronizer.financial_sync())
+    elif opts.mode == 'news':
+        with open('config/news/rss.yml', 'r') as f:
+            config = yaml.safe_load(f)
+        do_parse_news(config)
 
