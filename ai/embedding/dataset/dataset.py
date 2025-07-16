@@ -150,7 +150,7 @@ class KlineDataset(Dataset):
             label_return_cols.append(f'label_return_{i+1}')
             label_trend_cols.append(f'label_trend_{i+1}')
         
-        stock_ori_close = stock_data['ori_close'].to_numpy()
+        stock_ori_close = stock_data['ori_vwap'].to_numpy()
         stock_labels = stock_data[label_cols].to_numpy()
         stock_returns = stock_data[label_return_cols].to_numpy()
         stock_trends = stock_data[label_trend_cols].to_numpy()
@@ -214,8 +214,6 @@ class KlineDataset(Dataset):
             _trend = 1
         elif acu_return <= -0.05:
             _trend = 0
-
-        label = label[0]
 
         return ts_seq, ctx_seq, label, _trend, acu_return, date_range, code
     

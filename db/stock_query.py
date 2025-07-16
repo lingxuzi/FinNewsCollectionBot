@@ -144,3 +144,16 @@ class StockQueryEngine(Singleton):
 
         ret, e = asyncio.run(self.db.add_many(self._cluster(), self._stock_rates(), rates))
         return ret
+
+    def stock_list_with_rate_range(self, rate_from, rate_to):
+        query = {
+            'rate': {
+                '$gte': rate_from,
+                '$lte': rate_to
+            }
+        }
+        stock_list = asyncio.run(self.db.query_and_sort(self._cluster(), self._stock_rates(), query, project={
+            'stock_code': 1,
+            'rate': 1
+        } , sort_key='rate', sort_order=-1))
+        return stock_list

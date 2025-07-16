@@ -1,6 +1,7 @@
 #-*- coding : utf-8-*-
 from datasource.stock_basic.baostock_source import BaoSource
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from db.stock_query import StockQueryEngine
 from tqdm import tqdm
 from config.base import *
 from utils.common import save_text
@@ -36,17 +37,19 @@ def build_historical_stock_db(task, opts):
     hist_db_path = DATA_DIR('hist')
     stock_df = []
     codes = []
-    
-    stock_list = source.get_stock_list()
-    # stock_list = stock_list[:100]
+
+    engine = StockQueryEngine(host='10.26.0.8', port=2000, username='hmcz', password='Hmcz_12345678')
+    engine.connect_async()
+    stock_list = engine.stock_list_with_rate_range(3, 8)
+    stock_list = [s['stock_code'] for s in stock_list]
     with ProcessPoolExecutor(max_workers=opts.workers) as executor:
-        futures = {executor.submit(source.get_kline_daily, code, task_map[task]['start_date'], task_map[task]['end_date'], True, False): code for code in stock_list['code']}
+        futures = {executor.submit(source.get_kline_daily, code['code'], task_map[task]['start_date'], task_map[task]['end_date'], True, False): code for code in stock_list}
         for future in tqdm(as_completed(futures), total=len(futures), desc='获取股票数据', ncols=120):
             try:
                 result = future.result()
                 if result is not None and not result.empty and len(result) >= 200:
                     result = source.calculate_indicators(result)
-                    # result = source.generate_predict_labels(result)
+                    result = source.generate_predict_labels(result)
                     result = source.post_process(result)
                     stock_df.append(result)
                     codes.append(result['code'].iloc[0])
@@ -92,8 +95,8 @@ def build_historical_stock_financial_info(opts):
 def parse_args():
     import argparse
     parser = argparse.ArgumentParser(description='Prepare historical stock data for training, evaluation, and testing.')
-    parser.add_argument('--workers', type=int, default=1, help='Number of worker threads to use for data processing.')
-    parser.add_argument('--runs', type=str, default='finetune', help='Number of runs to perform.')
+    parser.add_argument('--workers', type=int, default=10, help='Number of worker threads to use for data processing.')
+    parser.add_argument('--runs', type=str, default='train,eval,test,finetune', help='Number of runs to perform.')
     parser.add_argument('--mode', type=str, default='kline', help='kline or financial')
     return parser.parse_args()
 
