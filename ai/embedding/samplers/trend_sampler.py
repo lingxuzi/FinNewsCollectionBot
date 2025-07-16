@@ -24,6 +24,9 @@ class TrendSampler(torch.utils.data.sampler.Sampler):
             
             self._cache.set('trend_cls_indices', cls_indices)
         self.cls_indices = cls_indices
+        for _cls, indices in self.cls_indices.items():
+            print(f'{_cls}: {len(indices)}')
+
         self.samples_per_cls = batch_size // len(cls_indices)
 
     def __iter__(self):
