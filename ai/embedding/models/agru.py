@@ -5,9 +5,11 @@ from ai.modules.vae_latent_mean_var import VAELambda
 from ai.embedding.models.layers import *
 from ai.embedding.models import register_model
 
+
+
 # --- 2. MultiModalAutoencoder (带注意力 & 强化预测 & Batch Norm) ---
-@register_model(name='lstm-ae')
-class LSTMAutoencoder(nn.Module):
+@register_model(name='agru-ae')
+class AGRUAutoencoder(nn.Module):
     def __init__(self, config):
         super().__init__()
 
@@ -31,7 +33,6 @@ class LSTMAutoencoder(nn.Module):
         
         self.total_embedding_dim = ts_embedding_dim + ctx_embedding_dim
         self.use_fused_embedding = config['fused_embedding']
-        self.vae = config['vae']
         self.num_layers = num_layers
         self.hidden_dim = hidden_dim
         self.predict_dim = predict_dim
@@ -39,9 +40,7 @@ class LSTMAutoencoder(nn.Module):
         self.encoder_mode = False
 
         # --- 分支1: 时序编码器 (LSTM) ---
-        self.ts_encoder = nn.LSTM(ts_input_dim, hidden_dim, num_layers, batch_first=True)
-        # self.ts_encoder_att = Attention(hidden_dim)
-        self.ts_encoder_fc = VAELambda(hidden_dim, ts_embedding_dim, vae=config['vae']) #nn.Linear(hidden_dim, ts_embedding_dim)
+        self.ts_encoder = ALSTMEncoder(ts_input_dim, hidden_dim, num_layers, ts_embedding_dim, dropout=0, gru=True)
 
         # --- 分支2: 上下文编码器 (MLP) ---
         # 增加 Batch Normalization
@@ -49,12 +48,9 @@ class LSTMAutoencoder(nn.Module):
 
         # --- 解码器 ---
         # 时序解码器
-        self.ts_decoder_fc = nn.Linear(ts_embedding_dim if not self.use_fused_embedding else self.total_embedding_dim, hidden_dim)
-        self.ts_decoder = nn.LSTM(hidden_dim, hidden_dim, num_layers, 
-                                  batch_first=True, dropout=dropout_rate)
-        self.ts_output_layer = ResidualMLPBlock(hidden_dim, hidden_dim, ts_input_dim, dropout_rate=dropout_rate)
+        self.ts_decoder = ALSTMDecoder(ts_input_dim, hidden_dim, num_layers, ts_embedding_dim, gru=True)
 
-        self.ctx_decoder = ResidualMLPBlock(ctx_embedding_dim if not self.use_fused_embedding else self.total_embedding_dim, hidden_dim, ctx_input_dim, dropout_rate=dropout_rate)
+        self.ctx_decoder = ResidualMLPBlock(ctx_embedding_dim if not self.use_fused_embedding else self.total_embedding_dim, hidden_dim, ctx_input_dim, dropout_rate=0)
         
 
         self.embedding_norm = nn.LayerNorm(self.total_embedding_dim)
@@ -62,21 +58,32 @@ class LSTMAutoencoder(nn.Module):
             SEFusionBlock(input_dim=self.total_embedding_dim, reduction_ratio=8),
             ResidualMLP(self.total_embedding_dim, int(hidden_dim))
         )
-        self.predictor = PredictionHead(hidden_dim, predict_dim, dropout_rate=dropout_rate) #ResidualMLPBlock(self.total_embedding_dim, int(hidden_dim), predict_dim, dropout_rate=dropout_rate)
-        self.return_head = PredictionHead(hidden_dim, 1, dropout_rate=dropout_rate) #ResidualMLPBlock(self.total_embedding_dim, int(hidden_dim), predict_dim, dropout_rate=dropout_rate)
-        self.trend_head = PredictionHead(hidden_dim, config['trend_classes'], dropout_rate=dropout_rate) #ResidualMLPBlock(self.total_embedding_dim, int(hidden_dim), predict_dim, dropout_rate=dropout_rate)
-        # self.init_parameters()
+        # self.init_parameters(self)
+
+        self.build_head(config['trend_classes'])
 
         if config.get('encoder_only', False):
             self.encoder_only(True)
+
+    def build_head(self, trend_classes):
+        self.predictor = PredictionHead(self.hidden_dim, self.predict_dim, act=nn.ReLU, dropout_rate=self.dropout_rate)
+        self.return_head = PredictionHead(self.hidden_dim, 1, act=nn.ReLU, dropout_rate=self.dropout_rate)
+        self.trend_head = PredictionHead(self.hidden_dim, trend_classes, act=nn.ReLU, dropout_rate=self.dropout_rate)
+
+        # self.init_parameters(self.predictor)
+        # self.init_parameters(self.return_head)
+        # self.init_parameters(self.trend_head)
+        # self.initialize_prediction_head(self.predictor.head_fc)
+        # self.initialize_prediction_head(self.return_head.head_fc)
+        # self.initialize_prediction_head(self.trend_head.head_fc)
 
     def encoder_only(self, encoder=True):
         if encoder:
             self.eval()
         self.encoder_mode = encoder
 
-    def init_parameters(self, heads=['ts', 'ctx', 'pred']):
-        for name, module in self.named_modules():
+    def init_parameters(self, m):
+        for name, module in m.named_modules():
             if isinstance(module, nn.Linear):
                 nn.init.xavier_normal_(module.weight)
                 if module.bias is not None:
@@ -96,8 +103,6 @@ class LSTMAutoencoder(nn.Module):
             print(f"   -> Module {type(module)} is not a Linear layer, skipping zero-initialization.")
 
     def forward(self, x_ts, x_ctx):
-        self.ts_encoder.flatten_parameters()
-        self.ts_decoder.flatten_parameters()
         if self.training and self.noise_prob > 0:
             if torch.rand(1).item() < self.noise_prob:
                 # 添加噪声
@@ -112,23 +117,8 @@ class LSTMAutoencoder(nn.Module):
                 
         # --- 编码过程 ---
         # 1. 时序编码
-        ts_encoder_outputs, (ts_h_n, ts_c_n) = self.ts_encoder(x_ts)
-        ts_last_hidden_state = ts_h_n[-1, :, :]
-        # ts_last_hidden_state, _ = self.ts_encoder_att(ts_encoder_outputs)
-        _ts_embedding, ts_mean, ts_logvar = self.ts_encoder_fc(ts_last_hidden_state)
-
-        # if self.training:
-        #     wasserstein_distance = self.compute_wasserstein_loss(ts_embedding)
-        #     gradient_penalty = self.compute_gradient_penalty(ts_embedding)
-
-        if self.training:
-            if self.vae:
-                ts_embedding = ts_mean
-            else:
-                ts_embedding = _ts_embedding
-        else:
-            ts_embedding = _ts_embedding
-        
+        seq_len = x_ts.size(1)
+        ts_embedding = self.ts_encoder(x_ts)
         # 2. 上下文编码
         ctx_embedding = self.ctx_encoder(x_ctx)
 
@@ -136,16 +126,9 @@ class LSTMAutoencoder(nn.Module):
         final_embedding = torch.cat([ts_embedding, ctx_embedding], dim=1)
         if not self.encoder_mode:
             if not self.use_fused_embedding:
-                h_state = self.ts_decoder_fc(ts_embedding)
+                ts_output = self.ts_decoder(ts_embedding, seq_len)
             else:
-                h_state = self.ts_decoder_fc(final_embedding)
-            h_0 = torch.stack([h_state for _ in range(self.num_layers)])
-            zero_input = torch.zeros_like(h_state)
-            c_0 = torch.zeros_like(h_0).to(h_0.device)
-            # decoder_input = h_state.unsqueeze(1).repeat(1, x_ts.size(1), 1)
-            # ts_reconstructed, _ = self.ts_decoder(decoder_input)
-            ts_reconstructed, _ = self.ts_decoder(zero_input.unsqueeze(1).repeat(1, x_ts.size(1), 1), (h_0, c_0))
-            ts_output = self.ts_output_layer(ts_reconstructed)
+                ts_output = self.ts_decoder(final_embedding, seq_len)
         
             # 2. 上下文重构
             if not self.use_fused_embedding:
@@ -164,7 +147,7 @@ class LSTMAutoencoder(nn.Module):
 
         if not self.encoder_mode:
             if self.training:
-                return ts_output, ctx_output, predict_output, trend_output, return_output, final_embedding, ts_mean, ts_logvar
+                return ts_output, ctx_output, predict_output, trend_output, return_output, final_embedding, None, None
             return ts_output, ctx_output, predict_output, trend_output, return_output, final_embedding
         else:
             return predict_output, trend_output, return_output, final_embedding

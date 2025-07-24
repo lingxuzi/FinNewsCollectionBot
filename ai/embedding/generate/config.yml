@@ -16,8 +16,9 @@ embedding:
     scaler_path: '../hamuna_stock_data/train_data/hist/scaler.joblib'
     encoder_path: '../hamuna_stock_data/train_data/hist/encoder.joblib'
     features: ['open', 'high', 'low', 'close', 'volume', 'turn_over', 'MA5', 'MA10', 'MA20', 'RSI', 'MACD', 'ATR', 'OBV', 'CCI', 'ADX', 'vwap']
+    temporal: ['month', 'day', 'weekday']
     numerical: ['pe_ttm', 'pb', 'ps_ttm', 'pcf_ncf_ttm']
     categorical: ['industry']
-  model: 'lstm-ae'
+  model: 'alstm-ae'
   model_path: "../fin_models/kline_encoder.pth"
   encoder_only: true

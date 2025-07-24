@@ -140,24 +140,44 @@ class StockSource:
 
         df['typical_price'] = (df['high'] + df['low'] + df['close']) / 3
         df['tpv'] = df['typical_price'] * df['volume']
-        monthly_start_dates = df['date'].dt.to_period('M').drop_duplicates().dt.to_timestamp().tolist()
+
+        # 1. 获取所有季度初的日期
+        quarterly_start_dates = df['date'].dt.to_period('Q').drop_duplicates().dt.to_timestamp().tolist()
+ 
+        # 2. 修正日期：如果该季度初不在数据中，则使用最接近的数据日期
+        corrected_quarterly_start_dates = []
+        for start_date in quarterly_start_dates:
+            if start_date not in df['date'].values:
+                # 获取该季度内的数据
+                quarter_data = df[(df['date'].dt.year == start_date.year) & (df['date'].dt.quarter == start_date.quarter)]
+                if not quarter_data.empty:
+                    # 找到最接近季度初的日期
+                    closest_date = min(quarter_data['date'], key=lambda x: abs(x - start_date))
+                    corrected_quarterly_start_dates.append(closest_date)
+                else:
+                    corrected_quarterly_start_dates.append(None)  # 该季度无数据
+            else:
+                corrected_quarterly_start_dates.append(start_date)
+ 
+        # 移除None值（无数据的季度）
+        corrected_quarterly_start_dates = [d for d in corrected_quarterly_start_dates if d is not None]
  
         # 3. 初始化 VWAP 列
         df['vwap'] = np.nan
  
-        # 4. 循环计算每个月的 VWAP
-        for i in range(len(monthly_start_dates)):
-            start_date = monthly_start_dates[i]
-            if i < len(monthly_start_dates) - 1:
-                end_date = monthly_start_dates[i+1]
+        # 4. 循环计算每个季度的 VWAP
+        for i in range(len(corrected_quarterly_start_dates)):
+            start_date = corrected_quarterly_start_dates[i]
+            if i < len(corrected_quarterly_start_dates) - 1:
+                end_date = corrected_quarterly_start_dates[i+1]
             else:
                 end_date = df['date'].max()  # 到最后一天
  
-            # 筛选出当月的数据
-            monthly_data = df[(df['date'] >= start_date) & (df['date'] <= end_date)].copy()
+            # 筛选出当季度的数据
+            quarterly_data = df[(df['date'] >= start_date) & (df['date'] <= end_date)].copy()
  
-            # 计算当月的 VWAP
-            df.loc[(df['date'] >= start_date) & (df['date'] <= end_date), 'vwap'] = (monthly_data['tpv'].cumsum() / monthly_data['volume'].cumsum()).values
+            # 计算当季度的 VWAP
+            df.loc[(df['date'] >= start_date) & (df['date'] <= end_date), 'vwap'] = (quarterly_data['tpv'].cumsum() / quarterly_data['volume'].cumsum()).values
  
         # 5. 使用前向填充，处理1号之前的数据
         df['vwap'] = df['vwap'].fillna(method='ffill')

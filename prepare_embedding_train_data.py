@@ -96,7 +96,7 @@ def parse_args():
     import argparse
     parser = argparse.ArgumentParser(description='Prepare historical stock data for training, evaluation, and testing.')
     parser.add_argument('--workers', type=int, default=10, help='Number of worker threads to use for data processing.')
-    parser.add_argument('--runs', type=str, default='train,eval,test,finetune', help='Number of runs to perform.')
+    parser.add_argument('--runs', type=str, default='eval,test,finetune', help='Number of runs to perform.')
     parser.add_argument('--mode', type=str, default='kline', help='kline or financial')
     return parser.parse_args()
 

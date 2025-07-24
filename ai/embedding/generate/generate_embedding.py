@@ -49,8 +49,9 @@ def init_indexer(index_db, embedding_dim):
 
 def run(config):
     model_config = get_model_config(config['embedding']['model'])
-    model_config['ts_input_dim'] = len(config['embedding']['data']['features'])
+    model_config['ts_input_dim'] = len(config['embedding']['data']['features']) + len(config['embedding']['data']['temporal'])
     model_config['ctx_input_dim'] = len(config['embedding']['data']['numerical'] + config['embedding']['data']['categorical'])
+    model_config['trend_classes'] = 4
     model_config['encoder_only'] = config['embedding']['encoder_only']
 
     client = init_indexer(config['embedding']['index_db'], model_config['ts_embedding_dim'] + model_config['ctx_embedding_dim'])

@@ -28,11 +28,11 @@ class Metric:
         if self.logvar:
             y_batch = np.expm1(y_batch)
             y_pred_batch = np.expm1(y_pred_batch)
-        self.sse += np.sum((y_batch - y_pred_batch) ** 2)
+        self.sse += np.sum((y_batch - y_pred_batch) ** 2, axis=0)
         
         # 2. 累加计算 SS_tot 所需的量
-        self.y_true_sum += np.sum(y_batch)
-        self.y_true_squared_sum += np.sum(y_batch ** 2)
+        self.y_true_sum += np.sum(y_batch, axis=0)
+        self.y_true_squared_sum += np.sum(y_batch ** 2, axis=0)
 
         if self.appends:
             self.preds.append(y_pred_batch)
@@ -59,12 +59,7 @@ class Metric:
             y_mean = self.y_true_sum / self.n_samples
             # sst = self.y_true_squared_sum - (self.y_true_sum ** 2) / self.n_samples
             sst = self.y_true_squared_sum - y_mean * self.y_true_sum
-            if sst <= 0:
-                self.r2 = 0.0
-            else:
-                # 计算 R²
-                # R² = 1 - SS_res / SS_tot
-                self.r2 = 1 - (self.sse / sst)
+            self.r2 = (1 - (self.sse / (sst + 1e-8))).mean()
         
         print(f"{self.tag} -> R2 Score = {self.r2}, MSE = {self.mse}, MAE = {self.mae}, MAPE = {self.mape}, ME = {self.me}")
         return (self.r2, self.mse, self.mae, self.mape), self.r2# + 1 / ((self.mse + self.mae) * self.mape)

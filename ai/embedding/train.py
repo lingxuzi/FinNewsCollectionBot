@@ -36,7 +36,7 @@ def ale_loss(pred, target, reduction='mean', eps=1e-8, gamma=0):
     target = target.clamp(eps, 1-eps)
     abs_error = torch.abs(pred - target)
 
-    loss = -torch.log(1.0 - abs_error + eps) * torch.pow(torch.maximum(abs_erroDataLoadr, torch.tensor(eps).to(abs_error.device)), gamma)
+    loss = -torch.log(1.0 - abs_error + eps) * torch.pow(torch.maximum(abs_error, torch.tensor(eps).to(abs_error.device)), gamma)
 
     if reduction == 'sum':
         return loss.sum()
@@ -154,6 +154,7 @@ def run_training(config):
             seq_length=config['training']['sequence_length'],
             features=config['data']['features'],
             numerical=config['data']['numerical'],
+            temporal=config['data']['temporal'],
             categorical=config['data']['categorical'],
             include_meta=config['data']['include_meta'],
             scaler=scaler,
@@ -168,6 +169,7 @@ def run_training(config):
             hist_data_file=config['data']['eval']['hist_data_file'],
             seq_length=config['training']['sequence_length'],
             features=config['data']['features'],
+            temporal=config['data']['temporal'],
             numerical=config['data']['numerical'],
             categorical=config['data']['categorical'],
             include_meta=config['data']['include_meta'],
@@ -184,6 +186,7 @@ def run_training(config):
             hist_data_file=config['data']['eval']['hist_data_file'],
             seq_length=config['training']['sequence_length'],
             features=config['data']['features'],
+            temporal=config['data']['temporal'],
             numerical=config['data']['numerical'],
             categorical=config['data']['categorical'],
             include_meta=config['data']['include_meta'],
@@ -199,6 +202,7 @@ def run_training(config):
             hist_data_file=config['data']['test']['hist_data_file'],
             seq_length=config['training']['sequence_length'],
             features=config['data']['features'],
+            temporal=config['data']['temporal'],
             numerical=config['data']['numerical'],
             categorical=config['data']['categorical'],
             include_meta=config['data']['include_meta'],
@@ -208,11 +212,13 @@ def run_training(config):
             tag='test'
         )
 
-    train_sampler = TrendSampler(train_dataset, config['training']['batch_size'])
-    train_loader = DataLoader(train_dataset, num_workers=config['training']['workers'], pin_memory=False, shuffle=False, drop_last=False, batch_sampler=train_sampler)
+    if config['data']['sampler']:
+        train_sampler = TrendSampler(train_dataset, config['training']['batch_size'])
+        train_loader = DataLoader(train_dataset, num_workers=config['training']['workers'], pin_memory=False, shuffle=False, drop_last=False, batch_sampler=train_sampler)
+    else:
+        train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], num_workers=config['training']['workers'], pin_memory=False, shuffle=True, drop_last=True)
     val_loader = DataLoader(eval_dataset, batch_size=config['training']['batch_size'], num_workers=config['training']['workers'], pin_memory=False, shuffle=False, drop_last=True)
 
-    
     print(f"Training data size: {len(train_dataset)}, Validation data size: {len(eval_dataset)}")
     if config['training']['awl']:
         awl = AutomaticWeightedLoss(len(config['training']['losses']) + 1)
@@ -221,7 +227,7 @@ def run_training(config):
     # --- 3. 初始化模型、损失函数和优化器 ---
 
     model_config = get_model_config(config['training']['model'])
-    model_config['ts_input_dim'] = len(config['data']['features'])
+    model_config['ts_input_dim'] = len(config['data']['features']) + len(config['data']['temporal'])
     model_config['ctx_input_dim'] = len(config['data']['numerical'] + config['data']['categorical'])
     model_config['trend_classes'] = train_dataset.trend_classes()
 
@@ -250,9 +256,9 @@ def run_training(config):
 
     model = model.to(device)
 
-    criterion_ts = HuberTrendLoss(delta=0.6, tildeq=True) # 均方误差损失
-    criterion_ctx = nn.HuberLoss(delta=0.3) # 均方误差损失
-    criterion_predict = HuberTrendLoss(delta=0.6, tildeq=True) # 均方误差损失
+    criterion_ts = HuberTrendLoss(delta=0.1, tildeq=False) # 均方误差损失
+    criterion_ctx = nn.HuberLoss(delta=0.1) # 均方误差损失
+    criterion_predict = HuberTrendLoss(delta=0.1, tildeq=config['training']['tildeq']) # 均方误差损失
     criterion_trend = nn.CrossEntropyLoss() #HuberTrendLoss(delta=0.1, sim_weight=0.)
     criterion_return = nn.HuberLoss(delta=0.1) #HuberTrendLoss(delta=0.1, sim_weight=0.1)
 
@@ -260,18 +266,21 @@ def run_training(config):
     if config['training']['awl']:
         parameters += [{'params': awl.parameters(), 'weight_decay': 0}]
     parameters += [{'params': model.parameters(), 'weight_decay': config['training']['weight_decay']}]
-    optimizer = torch.optim.AdamW(parameters, lr=config['training']['min_learning_rate'] if config['training']['warmup_epochs'] > 0 else config['training']['learning_rate'])
+    optimizer = torch.optim.Adam(parameters, lr=config['training']['min_learning_rate'] if config['training']['warmup_epochs'] > 0 else config['training']['learning_rate'])
     if config['training']['auto_grad_norm']:
         optimizer = QuantileClip.as_optimizer(optimizer=optimizer, quantile=0.9, history_length=1000)
     early_stopper = EarlyStopping(patience=40, direction='up')
     
+    if config['data']['sampler']:
+        train_iter = DataPrefetcher(train_loader, config['device'], enable_queue=False, num_threads=1)
     scheduler = CosineWarmupLR(
         optimizer, config['training']['num_epochs'], config['training']['learning_rate'], config['training']['min_learning_rate'], warmup_epochs=config['training']['warmup_epochs'], warmup_lr=config['training']['min_learning_rate'])
 
     # --- 4. 训练循环 ---
     best_val_loss = float('inf') if early_stopper.direction == 'down' else -float('inf')
-    train_iter = DataPrefetcher(train_loader, config['device'], enable_queue=False, num_threads=1)
     for epoch in range(config['training']['num_epochs']):
+        if not config['data']['sampler']:
+            train_iter = DataPrefetcher(train_loader, config['device'], enable_queue=False, num_threads=1)
         model.train()
         train_loss_meter = AverageMeter()
         ts_loss_meter = AverageMeter()
@@ -347,8 +356,8 @@ def run_training(config):
 
             total_loss.backward()
 
-            if not config.get('auto_grad_norm', True):
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5)
+            # if not config.get('auto_grad_norm', True):
+            #     torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5)
             optimizer.step()
 
             ema.update(model)
@@ -461,6 +470,7 @@ def run_eval(config):
         hist_data_file=config['data']['test']['hist_data_file'],
         seq_length=config['training']['sequence_length'],
         features=config['data']['features'],
+        temporal=config['data']['temporal'],
         numerical=config['data']['numerical'],
         categorical=config['data']['categorical'],
         include_meta=config['data']['include_meta'],
@@ -472,7 +482,7 @@ def run_eval(config):
     test_loader = DataLoader(test_dataset, batch_size=config['training']['batch_size'], num_workers=config['training']['workers'], pin_memory=False, shuffle=False)
 
     model_config = get_model_config(config['training']['model'])
-    model_config['ts_input_dim'] = len(config['data']['features'])
+    model_config['ts_input_dim'] = len(config['data']['features']) + len(config['data']['temporal'])
     model_config['ctx_input_dim'] = len(config['data']['numerical'] + config['data']['categorical'])
     model_config['trend_classes'] = test_dataset.trend_classes()
 

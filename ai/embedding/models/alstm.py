@@ -40,25 +40,25 @@ class ALSTMAutoencoder(nn.Module):
         self.encoder_mode = False
 
         # --- 分支1: 时序编码器 (LSTM) ---
-        self.ts_encoder = ALSTMEncoder(ts_input_dim, hidden_dim, num_layers, ts_embedding_dim)
+        self.ts_encoder = ALSTMEncoder(ts_input_dim, hidden_dim, num_layers, ts_embedding_dim, dropout=0)
 
         # --- 分支2: 上下文编码器 (MLP) ---
         # 增加 Batch Normalization
-        self.ctx_encoder = ResidualMLPBlock(ctx_input_dim, hidden_dim, ctx_embedding_dim, dropout_rate=0, use_batchnorm=True)
+        self.ctx_encoder = ResidualMLPBlock(ctx_input_dim, hidden_dim, ctx_embedding_dim, dropout_rate=0, use_batchnorm=True, bias=False)
 
         # --- 解码器 ---
         # 时序解码器
         self.ts_decoder = ALSTMDecoder(ts_input_dim, hidden_dim, num_layers, ts_embedding_dim)
 
-        self.ctx_decoder = ResidualMLPBlock(ctx_embedding_dim if not self.use_fused_embedding else self.total_embedding_dim, hidden_dim, ctx_input_dim, dropout_rate=dropout_rate)
+        self.ctx_decoder = ResidualMLPBlock(ctx_embedding_dim if not self.use_fused_embedding else self.total_embedding_dim, hidden_dim, ctx_input_dim, dropout_rate=0)
         
 
         self.embedding_norm = nn.LayerNorm(self.total_embedding_dim)
         self.fusion_block = nn.Sequential(
             SEFusionBlock(input_dim=self.total_embedding_dim, reduction_ratio=8),
-            ResidualMLP(self.total_embedding_dim, int(hidden_dim))
+            # ResidualMLP(self.total_embedding_dim, int(hidden_dim))
         )
-        self.init_parameters(self)
+        # self.init_parameters(self)
 
         self.build_head(config['trend_classes'])
 
@@ -66,16 +66,16 @@ class ALSTMAutoencoder(nn.Module):
             self.encoder_only(True)
 
     def build_head(self, trend_classes):
-        self.predictor = PredictionHead(self.hidden_dim, self.predict_dim, act=nn.ReLU, dropout_rate=self.dropout_rate)
-        self.return_head = PredictionHead(self.hidden_dim, 1, act=nn.ReLU, dropout_rate=self.dropout_rate)
-        self.trend_head = PredictionHead(self.hidden_dim, trend_classes, act=nn.ReLU, dropout_rate=self.dropout_rate)
+        self.predictor = PredictionHead(self.total_embedding_dim, self.predict_dim, act=nn.ReLU, dropout_rate=self.dropout_rate)
+        self.return_head = PredictionHead(self.total_embedding_dim, 1, act=nn.ReLU, dropout_rate=self.dropout_rate)
+        self.trend_head = PredictionHead(self.total_embedding_dim, trend_classes, act=nn.ReLU, dropout_rate=self.dropout_rate)
 
-        self.init_parameters(self.predictor)
-        self.init_parameters(self.return_head)
-        self.init_parameters(self.trend_head)
-        self.initialize_prediction_head(self.predictor.p[-1])
-        self.initialize_prediction_head(self.return_head.p[-1])
-        self.initialize_prediction_head(self.trend_head.p[-1])
+        # self.init_parameters(self.predictor)
+        # self.init_parameters(self.return_head)
+        # self.init_parameters(self.trend_head)
+        self.initialize_prediction_head(self.predictor.head_fc)
+        self.initialize_prediction_head(self.return_head.head_fc)
+        self.initialize_prediction_head(self.trend_head.head_fc)
 
     def encoder_only(self, encoder=True):
         if encoder:
@@ -85,7 +85,7 @@ class ALSTMAutoencoder(nn.Module):
     def init_parameters(self, m):
         for name, module in m.named_modules():
             if isinstance(module, nn.Linear):
-                # nn.init.xavier_normal_(module.weight)
+                nn.init.xavier_normal_(module.weight)
                 if module.bias is not None:
                     nn.init.zeros_(module.bias)
 

@@ -29,6 +29,10 @@ def normalize(df, features, numerical):
     df['volume'] = np.log1p(df['volume'])
     df.drop(columns=['prev_close'], inplace=True)
 
+    df['month'] = df['date'].dt.month / 12
+    df['day'] = df['date'].dt.day / 31
+    df['weekday'] = df['date'].dt.weekday + 1 / 7
+
     return df
 
 def generate_scaler_and_encoder(db_path, hist_data_files, features, numerical, categorical):
@@ -43,10 +47,14 @@ def generate_scaler_and_encoder(db_path, hist_data_files, features, numerical, c
     scaler = StandardScaler()
     scaler.fit_transform(df[features + numerical])
     
-    encoder = LabelEncoder()
-    encoder.fit_transform(df[categorical])
+    indus_encoder = LabelEncoder()
+    indus_encoder.fit_transform(df[categorical[0]])
 
-    return encoder, scaler
+    code_encoder = LabelEncoder()
+    code_encoder.fit_transform(df[categorical[1]])
+    
+
+    return (indus_encoder, code_encoder), scaler
     
 
 class KlineDataset(Dataset):
@@ -54,12 +62,13 @@ class KlineDataset(Dataset):
     自定义K线数据Dataset。
     负责从数据库加载数据、归一化处理，并生成时间序列样本。
     """
-    def __init__(self, cache, db_path, stock_list_file, hist_data_file, seq_length, features, numerical, categorical, scaler, encoder, tag, noise_level=0.001, noise_prob=0., include_meta=False, is_train=True):
+    def __init__(self, cache, db_path, stock_list_file, hist_data_file, seq_length, features, numerical, temporal, categorical, scaler, encoder, tag, noise_level=0.001, noise_prob=0., include_meta=False, is_train=True):
         super().__init__()  
         self.seq_length = seq_length
         self.features = features
         self.numerical = numerical
         self.categorical = categorical
+        self.temporal = temporal
         self.is_train = is_train
         self.noise_level = noise_level
         self.noise_prob = noise_prob
@@ -87,7 +96,8 @@ class KlineDataset(Dataset):
             all_data_df = normalize(all_data_df, self.features, self.numerical)
             all_data_df[self.features + self.numerical] = scaler.transform(all_data_df[self.features + self.numerical])
 
-            encoded_categorical = encoder.transform(all_data_df[self.categorical]) 
+            encoded_categorical = encoder[0].transform(all_data_df[self.categorical[0]])
+            encoded_code = encoder[1].transform(all_data_df[self.categorical[1]])
             self.ts_sequences = [] # 时间序列部分
             self.ctx_sequences = [] # 上下文部分
             self.labels = []
@@ -99,7 +109,7 @@ class KlineDataset(Dataset):
             # for code in tqdm(stock_list, desc="Processing stocks"):
             i = 0
             with ThreadPoolExecutor(max_workers=10) as executor:
-                futures = {executor.submit(self.generate_sequences, code, all_data_df, encoded_categorical): code for code in stock_list}
+                futures = {executor.submit(self.generate_sequences, code, all_data_df, encoded_categorical, encoded_code): code for code in stock_list}
                 for future in tqdm(as_completed(futures), total=len(futures), desc="Generating sequences and caching"):
                     code = futures[future]
                     try:
@@ -133,7 +143,7 @@ class KlineDataset(Dataset):
             self.cache.close()
             self.cache = LMDBEngine(os.path.join(db_path, f'{tag}'), readonly=True)
 
-    def generate_sequences(self, code, all_data_df, encoded_categorical):
+    def generate_sequences(self, code, all_data_df, encoded_categorical, encoded_code):
         ts_sequences = [] # 时间序列部分
         ctx_sequences = [] # 上下文部分
         labels = []
@@ -150,16 +160,17 @@ class KlineDataset(Dataset):
             label_return_cols.append(f'label_return_{i+1}')
             label_trend_cols.append(f'label_trend_{i+1}')
         
-        stock_ori_close = stock_data['ori_vwap'].to_numpy()
+        stock_ori_close = stock_data['ori_close'].to_numpy()
         stock_labels = stock_data[label_cols].to_numpy()
         stock_returns = stock_data[label_return_cols].to_numpy()
         stock_trends = stock_data[label_trend_cols].to_numpy()
-        featured_stock_data = stock_data[self.features].to_numpy()
+        featured_stock_data = stock_data[self.features + self.temporal].to_numpy()
         numerical_stock_data = stock_data[self.numerical].to_numpy()
+
         date = stock_data['date']
         if len(stock_data) < self.seq_length:
             return None, None, None, None, None, None, None
-        for i in range(0, len(stock_data) - self.seq_length + 1, 2):
+        for i in range(0, len(stock_data) - self.seq_length + 1, 3):
             ts_seq = featured_stock_data[i:i + self.seq_length]
             if len(ts_seq) < self.seq_length:
                 break
@@ -169,7 +180,8 @@ class KlineDataset(Dataset):
             # 我们取序列最后一天的上下文特征作为代表
             context_numerical = numerical_stock_data[i + self.seq_length - 1]
             context_categorical = encoded_categorical[i + self.seq_length - 1]
-            ctx_sequences.append(np.concatenate([context_numerical, np.asarray([context_categorical])]))
+            context_code = encoded_code[i + self.seq_length - 1]
+            ctx_sequences.append(np.concatenate([context_numerical, np.asarray([context_categorical, context_code])]))
             date_range.append((str(date.iloc[i].date()), str(date.iloc[i + self.seq_length - 1].date())))
             # self.ctx_sequences.append(context_numerical)
 
@@ -205,7 +217,7 @@ class KlineDataset(Dataset):
     def parse_item(self, idx):
         ts_seq, ctx_seq, label, trend, _return, date_range, code = self.cache.get(f'seq_{idx}')
 
-        acu_return = (label - 1).mean() #float(self.accumulative_return(_return))
+        acu_return = self.accumulative_return(_return)
         if acu_return > 0.1:
             _trend = 3
         elif 0.05 < acu_return <= 0.1:

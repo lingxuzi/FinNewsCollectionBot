@@ -40,7 +40,7 @@ class SEFusionBlock(nn.Module):
             nn.Linear(input_dim, bottleneck_dim),
             nn.ReLU(inplace=True),
             # Excite: 再用一个线性层恢复到原始维度
-            nn.Linear(bottleneck_dim, input_dim),
+            nn.Linear(bottleneck_dim, input_dim, bias=False),
             # Sigmoid将输出转换为0-1之间的注意力分数
             nn.Sigmoid()
         )
@@ -65,14 +65,14 @@ class SEFusionBlock(nn.Module):
     
 
 class ResidualMLPBlock(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, dropout_rate, act=nn.ReLU, use_batchnorm=True):
+    def __init__(self, input_dim, hidden_dim, output_dim, dropout_rate, act=nn.ReLU, use_batchnorm=True, bias=True):
         super().__init__()
         self.p = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
             nn.LayerNorm(hidden_dim) if use_batchnorm else nn.Identity(),
             act(),
             nn.Dropout(dropout_rate),
-            nn.Linear(hidden_dim, output_dim)
+            nn.Linear(hidden_dim, output_dim, bias=bias)
         )
         # 如果输入和输出维度不同，则需要一个跳跃连接的线性投影
         self.shortcut = nn.Linear(input_dim, output_dim) if input_dim != output_dim else nn.Identity()
@@ -86,12 +86,13 @@ class ResidualMLPBlock(nn.Module):
         return out + residual
 
 class ResidualMLP(nn.Module):
-    def __init__(self, input_dim, output_dim, act=nn.ReLU, use_batchnorm=True):
+    def __init__(self, input_dim, output_dim, act=nn.ReLU, use_batchnorm=True, dropout_rate=0):
         super().__init__()
         self.p = nn.Sequential(
             nn.Linear(input_dim, output_dim),
             nn.LayerNorm(output_dim) if use_batchnorm else nn.Identity(),
-            act()
+            act(),
+            nn.Dropout(dropout_rate) if dropout_rate > 0 else nn.Identity(),
         )
         # 如果输入和输出维度不同，则需要一个跳跃连接的线性投影
         self.shortcut = nn.Linear(input_dim, output_dim) if input_dim != output_dim else nn.Identity()
@@ -108,9 +109,28 @@ class PredictionHead(nn.Module):
     def __init__(self, input_dim, output_dim, dropout_rate, act=nn.ReLU, confidence=False):
         super().__init__()
         self.confidence = confidence
+        self.p = ResidualMLP(input_dim, input_dim // 2, act, False, dropout_rate)
+
+        self.head_fc = nn.Linear(input_dim // 2, output_dim)
+        if confidence:
+            self.head_logvar = nn.Linear(input_dim // 2, output_dim)
+
+    def forward(self, x):
+        x = self.p(x)
+        x = self.head_fc(x)
+        if self.confidence:
+            logvar = self.head_logvar(x)
+            return x, logvar
+        return x
+    
+class NormedPredictionHead(nn.Module):
+    def __init__(self, input_dim, output_dim, dropout_rate, act=nn.SiLU, confidence=False):
+        super().__init__()
+        self.confidence = confidence
         self.p = nn.Sequential(
             nn.Linear(input_dim, input_dim),
-            act(),
+            nn.LayerNorm(input_dim),
+            act(inplace=True),
             nn.Dropout(dropout_rate) if dropout_rate > 0 else nn.Identity()
         )
 
@@ -125,30 +145,17 @@ class PredictionHead(nn.Module):
             logvar = self.head_logvar(x)
             return x, logvar
         return x
-    
-class NormedPredictionHead(nn.Module):
-    def __init__(self, input_dim, output_dim, dropout_rate, act=nn.ReLU):
-        super().__init__()
-        self.p = nn.Sequential(
-            nn.Linear(input_dim, input_dim),
-            nn.LayerNorm(input_dim),
-            act(),
-            nn.Dropout(dropout_rate) if dropout_rate > 0 else nn.Identity(),
-            nn.Linear(input_dim, output_dim)
-        )
-
-    def forward(self, x):
-        out = self.p(x)
-        return out
 
 class ALSTMEncoder(nn.Module):
-    def __init__(self, input_dim, hidden_dim, num_layers, embedding_dim, dropout=0.1):
+    def __init__(self, input_dim, hidden_dim, num_layers, embedding_dim, gru=False, dropout=0.1):
         super().__init__()
-        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True)
-        self.embedding_fc = nn.Linear(hidden_dim * 2, embedding_dim)
+        self.gru = gru
+        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True) if not gru else nn.GRU(input_dim, hidden_dim, num_layers, batch_first=True)
+        # self.lstm.activation = nn.ReLU(inplace=True)
+        self.embedding_fc = nn.Linear(hidden_dim * 2, embedding_dim, bias=False)
         self.att_net = nn.Sequential(
             nn.Linear(in_features=hidden_dim, out_features=int(hidden_dim / 2)),
-            nn.Dropout(dropout),
+            nn.Dropout(dropout) if dropout > 0 else nn.Identity(),
             nn.Tanh(),
             nn.Linear(in_features=int(hidden_dim / 2), out_features=1, bias=False),
             nn.Softmax(dim=1)
@@ -156,7 +163,10 @@ class ALSTMEncoder(nn.Module):
 
     def forward(self, x):
         self.lstm.flatten_parameters()
-        out, (h, c) = self.lstm(x)
+        if not self.gru:
+            out, (h, c) = self.lstm(x)
+        else:
+            out, h = self.lstm(x)
         attention_score = self.att_net(out)
         out_att = out * attention_score
         out_att = torch.sum(out_att, dim=1)
@@ -164,19 +174,23 @@ class ALSTMEncoder(nn.Module):
         return embedding
 
 class ALSTMDecoder(nn.Module):
-    def __init__(self, output_dim, hidden_dim, num_layers, embedding_dim):
+    def __init__(self, output_dim, hidden_dim, num_layers, embedding_dim, gru=False):
         super().__init__()
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
+        self.gru = gru
         
-        # 将 embedding 映射回 LSTM 的初始隐藏状态和细胞状态
-        self.embedding_to_hidden = nn.Linear(embedding_dim, num_layers * hidden_dim)
-        self.embedding_to_cell = nn.Linear(embedding_dim, num_layers * hidden_dim)
+        if not gru:
+            # 将 embedding 映射回 LSTM 的初始隐藏状态和细胞状态
+            self.embedding_to_hidden = nn.Linear(embedding_dim, num_layers * hidden_dim)
+            self.embedding_to_cell = nn.Linear(embedding_dim, num_layers * hidden_dim)
+        else:
+            self.embedding_to_hidden = nn.Linear(embedding_dim, num_layers * hidden_dim)
         
         # 解码器LSTM
         # 它的输入维度 output_dim 应该和原始序列的 input_dim 一致
-        self.lstm = nn.LSTM(hidden_dim, hidden_dim, num_layers, batch_first=True)
-        
+        self.lstm = nn.LSTM(hidden_dim, hidden_dim, num_layers, batch_first=True) if not gru else nn.GRU(hidden_dim, hidden_dim, num_layers, batch_first=True)
+        # self.lstm.activation = nn.ReLU(inplace=True)
         # 将LSTM的输出映射回原始数据维度
         self.fc_out = nn.Linear(hidden_dim, output_dim)
 
@@ -184,18 +198,21 @@ class ALSTMDecoder(nn.Module):
         self.lstm.flatten_parameters()
         # embedding shape: (batch_size, embedding_dim)
         
-        # 1. 从 embedding 生成初始 h_0 和 c_0
-        # -> (batch_size, num_layers * hidden_dim)
-        h_init_flat = self.embedding_to_hidden(embedding)
-        c_init_flat = self.embedding_to_cell(embedding)
-        
-        # -> (batch_size, num_layers, hidden_dim) -> (num_layers, batch_size, hidden_dim)
-        h_0 = h_init_flat.view(-1, self.num_layers, self.hidden_dim).permute(1, 0, 2).contiguous()
-        c_0 = c_init_flat.view(-1, self.num_layers, self.hidden_dim).permute(1, 0, 2).contiguous()
+        h_0 = self.embedding_to_hidden(embedding)
+        h_0 = h_0.view(-1, self.num_layers, self.hidden_dim).permute(1, 0, 2).contiguous()
+        if not self.gru:
+            # 1. 从 embedding 生成初始 h_0 和 c_0
+            # -> (batch_size, num_layers * hidden_dim)
+            c_0 = self.embedding_to_cell(embedding)
+            # -> (batch_size, num_layers, hidden_dim) -> (num_layers, batch_size, hidden_dim)
+            c_0 = c_0.view(-1, self.num_layers, self.hidden_dim).permute(1, 0, 2).contiguous()
         
         # 2. 将目标序列和初始状态送入LSTM
         decoder_input = torch.zeros(embedding.size(0), seq_len, self.hidden_dim, device=embedding.device)
-        decoder_outputs, _ = self.lstm(decoder_input, (h_0, c_0))
+        if not self.gru:
+            decoder_outputs, _ = self.lstm(decoder_input, (h_0, c_0))
+        else:
+            decoder_outputs, _ = self.lstm(decoder_input, h_0)
         # decoder_outputs shape: (batch_size, seq_len, hidden_dim)
         
         # 3. 将每个时间步的输出映射回原始维度
