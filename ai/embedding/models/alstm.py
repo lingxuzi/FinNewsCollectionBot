@@ -55,10 +55,9 @@ class ALSTMAutoencoder(nn.Module):
 
         self.embedding_norm = nn.LayerNorm(self.total_embedding_dim)
         self.fusion_block = nn.Sequential(
-            SEFusionBlock(input_dim=self.total_embedding_dim, reduction_ratio=8),
+            SEFusionBlock(input_dim=self.total_embedding_dim, reduction_ratio=4),
             # ResidualMLP(self.total_embedding_dim, int(hidden_dim))
         )
-        # self.init_parameters(self)
 
         self.build_head(config['trend_classes'])
 
@@ -82,13 +81,6 @@ class ALSTMAutoencoder(nn.Module):
             self.eval()
         self.encoder_mode = encoder
 
-    def init_parameters(self, m):
-        for name, module in m.named_modules():
-            if isinstance(module, nn.Linear):
-                nn.init.xavier_normal_(module.weight)
-                if module.bias is not None:
-                    nn.init.zeros_(module.bias)
-
     def initialize_prediction_head(self, module):
         """
         Initializes the final layer of the predictor to output zero.
@@ -96,7 +88,7 @@ class ALSTMAutoencoder(nn.Module):
         """
         print("🧠 Initializing prediction head for faster convergence...")
         if isinstance(module, nn.Linear):
-            nn.init.zeros_(module.weight)
+            nn.init.xavier_uniform_(module.weight)
             nn.init.zeros_(module.bias)
             print(f"   -> Linear layer {module} has been zero-initialized.")
         else:

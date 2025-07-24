@@ -26,11 +26,11 @@ training:
   finetune: false
   model: 'alstm-ae'
   awl: false
-  auto_grad_norm: true
+  auto_grad_norm: false
   losses: ['ts', 'ctx', 'pred', 'trend']
   loss_weights: [1, 1, 0.2, 0.2]
   sequence_length: 50       # K线序列长度
-  learning_rate: 0.0003
+  learning_rate: 0.001
   min_learning_rate: 0.00001
   weight_decay: 0.0000
   warmup_epochs: 0
@@ -40,12 +40,12 @@ training:
   kl_weight_initial: 0.00
   kl_target: 0.00
   kl_freebits: 0.5
-  reset_heads: true
+  reset_heads: false
   tildeq: false
   model_save_path: "../fin_models/kline_encoder.pth"
   pretrained_path: "../fin_models/kline_pretrained.pth"
   processed_data_cache_path: "../fin_train_cache/"
-  load_pretrained: true
+  load_pretrained: false
 
 # --- 设备配置 ---
 device: "cuda"              # 如果有GPU则使用cuda，否则使用cpu

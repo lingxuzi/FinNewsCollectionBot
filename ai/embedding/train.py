@@ -19,6 +19,7 @@ from ai.embedding.dataset.dataset import KlineDataset, generate_scaler_and_encod
 from ai.modules.multiloss import AutomaticWeightedLoss
 from ai.modules.earlystop import EarlyStopping
 from ai.modules.gradient import adaptive_clip_grad
+from ai.optimizer.tiger import Tiger
 from ai.scheduler.sched import *
 from ai.metrics import *
 from utils.prefetcher import DataPrefetcher
@@ -266,7 +267,8 @@ def run_training(config):
     if config['training']['awl']:
         parameters += [{'params': awl.parameters(), 'weight_decay': 0}]
     parameters += [{'params': model.parameters(), 'weight_decay': config['training']['weight_decay']}]
-    optimizer = torch.optim.Adam(parameters, lr=config['training']['min_learning_rate'] if config['training']['warmup_epochs'] > 0 else config['training']['learning_rate'])
+    print(list(model.named_parameters()))
+    optimizer = Tiger(parameters, lr=config['training']['min_learning_rate'] if config['training']['warmup_epochs'] > 0 else config['training']['learning_rate'])
     if config['training']['auto_grad_norm']:
         optimizer = QuantileClip.as_optimizer(optimizer=optimizer, quantile=0.9, history_length=1000)
     early_stopper = EarlyStopping(patience=40, direction='up')
@@ -375,7 +377,7 @@ def run_training(config):
             val_iter = DataPrefetcher(val_loader, config['device'], enable_queue=False, num_threads=1)
             pred_metric = Metric('vwap', appends=True)
             ts_metric = Metric('ts')
-            ctx_metric = Metric('ctx')
+            ctx_metric = Metric('ctx', appends=True)
             trend_metric = ClsMetric('trend')
             return_metric = Metric('return')
 
@@ -498,9 +500,9 @@ def run_eval(config):
         print(f"Error loading model state dict: {e}")
     model.eval()
     
-    pred_metric = Metric('vwap', appends=True)
+    pred_metric = Metric('vwap')
     ts_metric = Metric('ts')
-    ctx_metric = Metric('ctx')
+    ctx_metric = Metric('ctx', appends=True)
     trend_metric = ClsMetric('trend')
     return_metric = Metric('return')
     

@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from ai.modules.activations import ELSA
+
 class Attention(nn.Module):
     def __init__(self, hidden_size):
         super(Attention, self).__init__()
@@ -38,7 +40,7 @@ class SEFusionBlock(nn.Module):
         self.se_module = nn.Sequential(
             # Squeeze: 使用一个线性层将维度降低
             nn.Linear(input_dim, bottleneck_dim),
-            nn.ReLU(inplace=True),
+            ELSA(activation=nn.ReLU()),
             # Excite: 再用一个线性层恢复到原始维度
             nn.Linear(bottleneck_dim, input_dim, bias=False),
             # Sigmoid将输出转换为0-1之间的注意力分数
@@ -65,12 +67,12 @@ class SEFusionBlock(nn.Module):
     
 
 class ResidualMLPBlock(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, dropout_rate, act=nn.ReLU, use_batchnorm=True, bias=True):
+    def __init__(self, input_dim, hidden_dim, output_dim, dropout_rate, act=nn.ReLU, use_batchnorm=True, bias=True, elsa=False):
         super().__init__()
         self.p = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
             nn.LayerNorm(hidden_dim) if use_batchnorm else nn.Identity(),
-            act(),
+            act() if not elsa else ELSA(activation=act()),
             nn.Dropout(dropout_rate),
             nn.Linear(hidden_dim, output_dim, bias=bias)
         )
@@ -86,34 +88,48 @@ class ResidualMLPBlock(nn.Module):
         return out + residual
 
 class ResidualMLP(nn.Module):
-    def __init__(self, input_dim, output_dim, act=nn.ReLU, use_batchnorm=True, dropout_rate=0):
+    def __init__(self, input_dim, output_dim, act=nn.ReLU, use_batchnorm=True, dropout_rate=0, elsa=False, residual=True):
         super().__init__()
         self.p = nn.Sequential(
             nn.Linear(input_dim, output_dim),
             nn.LayerNorm(output_dim) if use_batchnorm else nn.Identity(),
-            act(),
-            nn.Dropout(dropout_rate) if dropout_rate > 0 else nn.Identity(),
+            act() if not elsa else ELSA(activation=act()),
+            nn.Dropout(dropout_rate, inplace=True) if dropout_rate > 0 else nn.Identity(),
         )
         # 如果输入和输出维度不同，则需要一个跳跃连接的线性投影
-        self.shortcut = nn.Linear(input_dim, output_dim) if input_dim != output_dim else nn.Identity()
+        self.residual = residual
+        if self.residual:
+            self.shortcut = nn.Linear(input_dim, output_dim) if input_dim != output_dim else nn.Identity()
 
     def forward(self, x):
-        residual = self.shortcut(x)
-        
-        out = self.p(x)
-        
-        # 将残差加到输出上
-        return out + residual
+        if self.residual:
+            residual = self.shortcut(x)
+            
+            out = self.p(x)
+            
+            # 将残差加到输出上
+            return out + residual
+        else:
+            return self.p(x)
 
 class PredictionHead(nn.Module):
     def __init__(self, input_dim, output_dim, dropout_rate, act=nn.ReLU, confidence=False):
         super().__init__()
         self.confidence = confidence
-        self.p = ResidualMLP(input_dim, input_dim // 2, act, False, dropout_rate)
+        self.p = ResidualMLP(input_dim, input_dim // 2, act, False, dropout_rate, elsa=True, residual=False)
 
         self.head_fc = nn.Linear(input_dim // 2, output_dim)
         if confidence:
             self.head_logvar = nn.Linear(input_dim // 2, output_dim)
+        
+        # self.init_parameters(self.p)
+
+    def init_parameters(self, m):
+        for name, module in m.named_modules():
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_normal_(module.weight)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
 
     def forward(self, x):
         x = self.p(x)
