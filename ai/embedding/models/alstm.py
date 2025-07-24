@@ -54,10 +54,11 @@ class ALSTMAutoencoder(nn.Module):
         
 
         self.embedding_norm = nn.LayerNorm(self.total_embedding_dim)
-        self.fusion_block = nn.Sequential(
-            SEFusionBlock(input_dim=self.total_embedding_dim, reduction_ratio=4),
-            # ResidualMLP(self.total_embedding_dim, int(hidden_dim))
-        )
+        # self.fusion_block = nn.Sequential(
+        #     # SEFusionBlock(input_dim=self.total_embedding_dim, reduction_ratio=4),
+        #     # ResidualMLP(self.total_embedding_dim, int(hidden_dim))
+        # )
+        self.fusion_block = ResidualMLPBlock(self.total_embedding_dim, self.total_embedding_dim // 2, self.hidden_dim, dropout_rate=0, use_batchnorm=False, elsa=True)
 
         self.build_head(config['trend_classes'])
 
@@ -65,9 +66,9 @@ class ALSTMAutoencoder(nn.Module):
             self.encoder_only(True)
 
     def build_head(self, trend_classes):
-        self.predictor = PredictionHead(self.total_embedding_dim, self.predict_dim, act=nn.ReLU, dropout_rate=self.dropout_rate)
-        self.return_head = PredictionHead(self.total_embedding_dim, 1, act=nn.ReLU, dropout_rate=self.dropout_rate)
-        self.trend_head = PredictionHead(self.total_embedding_dim, trend_classes, act=nn.ReLU, dropout_rate=self.dropout_rate)
+        self.predictor = PredictionHead(self.hidden_dim, self.predict_dim, act=nn.ReLU, dropout_rate=self.dropout_rate)
+        self.return_head = PredictionHead(self.hidden_dim, 1, act=nn.ReLU, dropout_rate=self.dropout_rate)
+        self.trend_head = PredictionHead(self.hidden_dim, trend_classes, act=nn.ReLU, dropout_rate=self.dropout_rate)
 
         # self.init_parameters(self.predictor)
         # self.init_parameters(self.return_head)

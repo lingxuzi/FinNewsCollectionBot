@@ -40,7 +40,7 @@ class SEFusionBlock(nn.Module):
         self.se_module = nn.Sequential(
             # Squeeze: 使用一个线性层将维度降低
             nn.Linear(input_dim, bottleneck_dim),
-            ELSA(activation=nn.ReLU()),
+            nn.ReLU(),
             # Excite: 再用一个线性层恢复到原始维度
             nn.Linear(bottleneck_dim, input_dim, bias=False),
             # Sigmoid将输出转换为0-1之间的注意力分数
