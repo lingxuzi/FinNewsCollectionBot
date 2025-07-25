@@ -163,12 +163,15 @@ class NormedPredictionHead(nn.Module):
         return x
 
 class ALSTMEncoder(nn.Module):
-    def __init__(self, input_dim, hidden_dim, num_layers, embedding_dim, gru=False, dropout=0.1):
+    def __init__(self, input_dim, hidden_dim, num_layers, embedding_dim, gru=False, kl=False, dropout=0.1):
         super().__init__()
         self.gru = gru
+        self.kl = kl
         self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True) if not gru else nn.GRU(input_dim, hidden_dim, num_layers, batch_first=True)
         # self.lstm.activation = nn.ReLU(inplace=True)
         self.embedding_fc = nn.Linear(hidden_dim * 2, embedding_dim, bias=False)
+        if kl:
+            self.embedding_logvar = nn.Linear(hidden_dim * 2, embedding_dim, bias=False)
         self.att_net = nn.Sequential(
             nn.Linear(in_features=hidden_dim, out_features=int(hidden_dim / 2)),
             nn.Dropout(dropout) if dropout > 0 else nn.Identity(),
@@ -187,7 +190,13 @@ class ALSTMEncoder(nn.Module):
         out_att = out * attention_score
         out_att = torch.sum(out_att, dim=1)
         embedding = self.embedding_fc(torch.cat([h[-1], out_att], dim=1))
-        return embedding
+        if self.kl:
+            logvar = self.embedding_logvar(torch.cat([h[-1], out_att], dim=1))
+            if self.training:
+                std = torch.exp(0.5 * logvar)
+                eps = torch.randn_like(std)
+                return eps.mul(std).add_(embedding), embedding, logvar
+        return embedding, None, None
 
 class ALSTMDecoder(nn.Module):
     def __init__(self, output_dim, hidden_dim, num_layers, embedding_dim, gru=False):

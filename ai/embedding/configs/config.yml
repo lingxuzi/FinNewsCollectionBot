@@ -26,9 +26,9 @@ training:
   finetune: false
   model: 'alstm-ae'
   awl: false
-  auto_grad_norm: false
-  losses: ['ts', 'ctx', 'pred', 'trend']
-  loss_weights: [1, 1, 0.2, 0.2]
+  clip_norm: 1
+  losses: ['ts', 'ctx']
+  loss_weights: [1, 1]
   sequence_length: 50       # K线序列长度
   learning_rate: 0.0005
   min_learning_rate: 0.00001
@@ -37,11 +37,11 @@ training:
   batch_size: 1024
   num_epochs: 100
   kl_annealing_steps: 5
-  kl_weight_initial: 0.00
-  kl_target: 0.00
+  kl_weight_initial: 0.00001
+  kl_target: 0.00001
   kl_freebits: 0.5
   reset_heads: false
-  tildeq: true
+  tildeq: false
   model_save_path: "../fin_models/kline_encoder.pth"
   pretrained_path: "../fin_models/kline_pretrained.pth"
   processed_data_cache_path: "../fin_train_cache/"

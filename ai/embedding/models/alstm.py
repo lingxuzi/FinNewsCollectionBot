@@ -40,17 +40,17 @@ class ALSTMAutoencoder(nn.Module):
         self.encoder_mode = False
 
         # --- 分支1: 时序编码器 (LSTM) ---
-        self.ts_encoder = ALSTMEncoder(ts_input_dim, hidden_dim, num_layers, ts_embedding_dim, dropout=0)
+        self.ts_encoder = ALSTMEncoder(ts_input_dim, hidden_dim, num_layers, ts_embedding_dim, dropout=0, kl=True)
 
         # --- 分支2: 上下文编码器 (MLP) ---
         # 增加 Batch Normalization
-        self.ctx_encoder = ResidualMLPBlock(ctx_input_dim, hidden_dim, ctx_embedding_dim, dropout_rate=0, use_batchnorm=True, bias=False)
+        self.ctx_encoder = ResidualMLPBlock(ctx_input_dim, hidden_dim, ctx_embedding_dim, dropout_rate=0, use_batchnorm=True, bias=True, elsa=True)
 
         # --- 解码器 ---
         # 时序解码器
         self.ts_decoder = ALSTMDecoder(ts_input_dim, hidden_dim, num_layers, ts_embedding_dim)
 
-        self.ctx_decoder = ResidualMLPBlock(ctx_embedding_dim if not self.use_fused_embedding else self.total_embedding_dim, hidden_dim, ctx_input_dim, dropout_rate=0)
+        self.ctx_decoder = ResidualMLPBlock(ctx_embedding_dim if not self.use_fused_embedding else self.total_embedding_dim, hidden_dim, ctx_input_dim, dropout_rate=0, elsa=True, bias=True)
         
 
         self.embedding_norm = nn.LayerNorm(self.total_embedding_dim)
@@ -111,7 +111,7 @@ class ALSTMAutoencoder(nn.Module):
         # --- 编码过程 ---
         # 1. 时序编码
         seq_len = x_ts.size(1)
-        ts_embedding = self.ts_encoder(x_ts)
+        ts_embedding, mean, logvar = self.ts_encoder(x_ts)
         # 2. 上下文编码
         ctx_embedding = self.ctx_encoder(x_ctx)
 
@@ -140,7 +140,7 @@ class ALSTMAutoencoder(nn.Module):
 
         if not self.encoder_mode:
             if self.training:
-                return ts_output, ctx_output, predict_output, trend_output, return_output, final_embedding, None, None
+                return ts_output, ctx_output, predict_output, trend_output, return_output, final_embedding, mean, logvar
             return ts_output, ctx_output, predict_output, trend_output, return_output, final_embedding
         else:
             return predict_output, trend_output, return_output, final_embedding

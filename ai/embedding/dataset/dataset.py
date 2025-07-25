@@ -209,7 +209,7 @@ class KlineDataset(Dataset):
         return np.log(np.clip(x, 1e-8, x.max()))
 
     def accumulative_return(self, returns):
-        return np.expm1(np.log1p(returns).sum())
+        return np.prod(1 + returns) - 1
     
     def trend_classes(self):
         return 4

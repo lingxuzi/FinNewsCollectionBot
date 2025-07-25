@@ -257,7 +257,7 @@ def run_training(config):
 
     model = model.to(device)
 
-    criterion_ts = HuberTrendLoss(delta=0.1, tildeq=False) # 均方误差损失
+    criterion_ts = HuberTrendLoss(delta=0.1, tildeq=config['training']['tildeq']) # 均方误差损失
     criterion_ctx = nn.HuberLoss(delta=0.1) # 均方误差损失
     criterion_predict = HuberTrendLoss(delta=0.1, tildeq=config['training']['tildeq']) # 均方误差损失
     criterion_trend = nn.CrossEntropyLoss() #HuberTrendLoss(delta=0.1, sim_weight=0.)
@@ -267,9 +267,9 @@ def run_training(config):
     if config['training']['awl']:
         parameters += [{'params': awl.parameters(), 'weight_decay': 0}]
     parameters += [{'params': model.parameters(), 'weight_decay': config['training']['weight_decay']}]
-    print(list(model.named_parameters()))
+    # print(list(model.named_parameters()))
     optimizer = Tiger(parameters, lr=config['training']['min_learning_rate'] if config['training']['warmup_epochs'] > 0 else config['training']['learning_rate'])
-    if config['training']['auto_grad_norm']:
+    if config['training']['clip_norm'] == 0.01:
         optimizer = QuantileClip.as_optimizer(optimizer=optimizer, quantile=0.9, history_length=1000)
     early_stopper = EarlyStopping(patience=40, direction='up')
     
@@ -358,8 +358,9 @@ def run_training(config):
 
             total_loss.backward()
 
-            # if not config.get('auto_grad_norm', True):
-            #     torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5)
+            clip_norm = config['training']['clip_norm']
+            if clip_norm > 0.01:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=clip_norm)
             optimizer.step()
 
             ema.update(model)
