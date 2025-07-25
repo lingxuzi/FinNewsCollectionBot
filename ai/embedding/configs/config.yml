@@ -37,11 +37,11 @@ training:
   batch_size: 1024
   num_epochs: 100
   kl_annealing_steps: 5
-  kl_weight_initial: 0.00001
+  kl_weight_initial: 0.0000
   kl_target: 0.00001
-  kl_freebits: 0.5
+  kl_freebits: 3
   reset_heads: false
-  tildeq: false
+  tildeq: true
   model_save_path: "../fin_models/kline_encoder.pth"
   pretrained_path: "../fin_models/kline_pretrained.pth"
   processed_data_cache_path: "../fin_train_cache/"

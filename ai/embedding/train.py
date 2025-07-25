@@ -218,7 +218,6 @@ def run_training(config):
         train_loader = DataLoader(train_dataset, num_workers=config['training']['workers'], pin_memory=False, shuffle=False, drop_last=False, batch_sampler=train_sampler)
     else:
         train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], num_workers=config['training']['workers'], pin_memory=False, shuffle=True, drop_last=True)
-    val_loader = DataLoader(eval_dataset, batch_size=config['training']['batch_size'], num_workers=config['training']['workers'], pin_memory=False, shuffle=False, drop_last=True)
 
     print(f"Training data size: {len(train_dataset)}, Validation data size: {len(eval_dataset)}")
     if config['training']['awl']:
@@ -372,59 +371,9 @@ def run_training(config):
         scheduler.step()
 
         # --- 5. 验证循环 ---
-        _model = copy.deepcopy(ema.module)
-        _model.eval()
-        with torch.no_grad():
-            val_iter = DataPrefetcher(val_loader, config['device'], enable_queue=False, num_threads=1)
-            pred_metric = Metric('vwap', appends=True)
-            ts_metric = Metric('ts')
-            ctx_metric = Metric('ctx', appends=True)
-            trend_metric = ClsMetric('trend')
-            return_metric = Metric('return')
-
-            for _ in tqdm(range(num_iters_per_epoch(eval_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Validation]"):
-                # ts_sequences = ts_sequences.to(device)
-                # ctx_sequences = ctx_sequences.to(device)
-                # y = y.to(device)
-                ts_sequences, ctx_sequences, y, trend, _return = val_iter.next()
-                ts_reconstructed, ctx_reconstructed, pred, trend_pred, return_pred, _ = _model(ts_sequences, ctx_sequences)
-                
-                y_cpu = y.cpu().numpy()
-                pred_cpu = pred.cpu().numpy()
-
-                pred_metric.update(y_cpu, pred_cpu)
-                trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred.cpu().numpy())
-                return_metric.update(_return.cpu().numpy() + 1, return_pred.cpu().numpy() + 1)
-                
-                ts_sequences_cpu = ts_sequences.cpu().numpy()
-                ts_reconstructed_cpu = ts_reconstructed.cpu().numpy()
-                ctx_sequences_cpu = ctx_sequences.cpu().numpy()
-                ctx_reconstructed_cpu = ctx_reconstructed.cpu().numpy()
-                ctx_reconstructed_cpu[:, -1] = np.round(ctx_reconstructed_cpu[:, -1], 2)
-
-                ts_metric.update(ts_sequences_cpu.reshape(-1, ts_sequences_cpu.shape[-1]), ts_reconstructed_cpu.reshape(-1, ts_reconstructed_cpu.shape[-1]))
-                ctx_metric.update(ctx_sequences_cpu.reshape(-1, ctx_sequences_cpu.shape[-1]), ctx_reconstructed_cpu.reshape(-1, ctx_reconstructed_cpu.shape[-1]))
-
-        # --- 计算整体 R² --
-
-        scores = []
-        if 'ts' in config['training']['losses']:
-            _, ts_score = ts_metric.calculate()
-            scores.append(ts_score)
-        if 'ctx' in config['training']['losses']:
-            _, ctx_score = ctx_metric.calculate()
-            scores.append(ctx_score)
-        if 'pred' in config['training']['losses']:
-            _, vwap_score = pred_metric.calculate()
-            scores.append(vwap_score)
-        if 'trend' in config['training']['losses']:
-            _, trend_score = trend_metric.calculate()
-            scores.append(trend_score)
-        if 'return' in config['training']['losses']:
-            _, return_score = return_metric.calculate()
-            scores.append(return_score)
+        _model = ema.module
+        mean_r2 = eval(ema.module, eval_dataset, config)
         
-        mean_r2 = sum(scores) / len(scores)
         # --- 6. 保存最佳模型 ---
         # 只保存性能最好的模型，避免存储过多文件
         if mean_r2 > best_val_loss:
@@ -444,6 +393,65 @@ def run_training(config):
             break
     
     run_eval(config)
+
+def eval(model, dataset, config):
+    _model = model#copy.deepcopy(ema.module)
+    _model.eval()
+
+    val_loader = DataLoader(dataset, batch_size=config['training']['batch_size'], num_workers=config['training']['workers'], pin_memory=False, shuffle=False, drop_last=True)
+    with torch.no_grad():
+        val_iter = DataPrefetcher(val_loader, config['device'], enable_queue=False, num_threads=1)
+        pred_metric = Metric('vwap', appends=True)
+        ts_metric = Metric('ts')
+        ctx_metric = Metric('ctx', appends=True)
+        trend_metric = ClsMetric('trend')
+        return_metric = Metric('return')
+
+        for _ in tqdm(range(num_iters_per_epoch(dataset, config['training']['batch_size'])), desc="[Validation]"):
+            # ts_sequences = ts_sequences.to(device)
+            # ctx_sequences = ctx_sequences.to(device)
+            # y = y.to(device)
+            ts_sequences, ctx_sequences, y, trend, _return = val_iter.next()
+            ts_reconstructed, ctx_reconstructed, pred, trend_pred, return_pred, _ = _model(ts_sequences, ctx_sequences)
+            
+            y_cpu = y.cpu().numpy()
+            pred_cpu = pred.cpu().numpy()
+
+            pred_metric.update(y_cpu, pred_cpu)
+            trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred.cpu().numpy())
+            return_metric.update(_return.cpu().numpy() + 1, return_pred.cpu().numpy() + 1)
+            
+            ts_sequences_cpu = ts_sequences.cpu().numpy()
+            ts_reconstructed_cpu = ts_reconstructed.cpu().numpy()
+            ctx_sequences_cpu = ctx_sequences.cpu().numpy()
+            ctx_reconstructed_cpu = ctx_reconstructed.cpu().numpy()
+            ctx_reconstructed_cpu[:, -1] = np.round(ctx_reconstructed_cpu[:, -1], 2)
+
+            ts_metric.update(ts_sequences_cpu.reshape(-1, ts_sequences_cpu.shape[-1]), ts_reconstructed_cpu.reshape(-1, ts_reconstructed_cpu.shape[-1]))
+            ctx_metric.update(ctx_sequences_cpu.reshape(-1, ctx_sequences_cpu.shape[-1]), ctx_reconstructed_cpu.reshape(-1, ctx_reconstructed_cpu.shape[-1]))
+
+    # --- 计算整体 R² --
+
+    scores = []
+    if 'ts' in config['training']['losses']:
+        _, ts_score = ts_metric.calculate()
+        scores.append(ts_score)
+    if 'ctx' in config['training']['losses']:
+        _, ctx_score = ctx_metric.calculate()
+        scores.append(ctx_score)
+    if 'pred' in config['training']['losses']:
+        _, vwap_score = pred_metric.calculate()
+        scores.append(vwap_score)
+    if 'trend' in config['training']['losses']:
+        _, trend_score = trend_metric.calculate()
+        scores.append(trend_score)
+    if 'return' in config['training']['losses']:
+        _, return_score = return_metric.calculate()
+        scores.append(return_score)
+    
+    mean_r2 = sum(scores) / len(scores)
+
+    return mean_r2
 
 def run_eval(config):
     device = torch.device(config['device'] if torch.cuda.is_available() else "cpu")
