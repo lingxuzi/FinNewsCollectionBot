@@ -264,10 +264,10 @@ def run_training(config):
 
     parameters = []
     if config['training']['awl']:
-        parameters += [{'params': awl.parameters(), 'weight_decay': 0}]
-    parameters += [{'params': model.parameters(), 'weight_decay': config['training']['weight_decay']}]
+        parameters += [{'params': awl.parameters(), 'weight_decay': 0, 'lr': 1e-2}]
+    parameters += [{'params': model.parameters(), 'weight_decay': config['training']['weight_decay'], 'lr': config['training']['min_learning_rate'] if config['training']['warmup_epochs'] > 0 else config['training']['learning_rate']}]
     # print(list(model.named_parameters()))
-    optimizer = Tiger(parameters, lr=config['training']['min_learning_rate'] if config['training']['warmup_epochs'] > 0 else config['training']['learning_rate'])
+    optimizer = torch.optim.Adam(parameters)
     if config['training']['clip_norm'] == 0.01:
         optimizer = QuantileClip.as_optimizer(optimizer=optimizer, quantile=0.9, history_length=1000)
     early_stopper = EarlyStopping(patience=40, direction='up')

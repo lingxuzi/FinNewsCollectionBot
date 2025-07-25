@@ -58,7 +58,7 @@ class ALSTMAutoencoder(nn.Module):
         #     # SEFusionBlock(input_dim=self.total_embedding_dim, reduction_ratio=4),
         #     # ResidualMLP(self.total_embedding_dim, int(hidden_dim))
         # )
-        self.fusion_block = ResidualMLPBlock(self.total_embedding_dim, self.total_embedding_dim // 2, self.hidden_dim, dropout_rate=0, use_batchnorm=False, elsa=True)
+        self.fusion_block = ResidualMLPBlock(self.total_embedding_dim, self.total_embedding_dim // 4, self.hidden_dim, dropout_rate=0, use_batchnorm=False, elsa=True)
 
         self.build_head(config['trend_classes'])
 
