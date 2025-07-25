@@ -9,7 +9,7 @@ import ai.embedding.models.base
 from ai.embedding.samplers.trend_sampler import TrendSampler
 from autoclip.torch import QuantileClip
 from ai.loss.tildeq import tildeq_loss
-from ai.embedding.models import create_model, get_model_config
+from ai.vision.price_trend.model import create_model, get_model_config
 from sklearn.metrics import f1_score
 from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm # 提供优雅的进度条
@@ -256,7 +256,7 @@ def run_training(config):
 
     model = model.to(device)
 
-    criterion_ts = HuberTrendLoss(delta=0.1, tildeq=False) # 均方误差损失
+    criterion_ts = HuberTrendLoss(delta=0.1, tildeq=config['training']['tildeq']) # 均方误差损失
     criterion_ctx = nn.HuberLoss(delta=0.1) # 均方误差损失
     criterion_predict = HuberTrendLoss(delta=0.1, tildeq=config['training']['tildeq']) # 均方误差损失
     criterion_trend = nn.CrossEntropyLoss() #HuberTrendLoss(delta=0.1, sim_weight=0.)

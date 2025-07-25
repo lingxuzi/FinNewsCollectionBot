@@ -153,7 +153,6 @@ class ImagingPriceTrendDataset(Dataset):
         labels = stock_data[label_return_cols].to_numpy()
         image = get_image_with_price(price_data)
 
-
         acu_return = self.accumulative_return(labels)
         if acu_return > 0.1:
             _trend = 3
