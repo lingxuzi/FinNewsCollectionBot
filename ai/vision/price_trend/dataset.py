@@ -3,8 +3,8 @@ import torch
 import pandas as pd
 import numpy as np
 import os
-import joblib
-import time
+from PIL import Image
+from torchvision import transforms
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from torch.utils.data import Dataset
 from sklearn.preprocessing import LabelEncoder, StandardScaler, MinMaxScaler
@@ -12,6 +12,7 @@ from utils.common import read_text
 from utils.lmdb import LMDBEngine
 from tqdm import tqdm
 from diskcache import FanoutCache
+from collections import OrderedDict
 
 
 class PriceToImgae:
@@ -116,52 +117,103 @@ def get_image_with_price(price):
     return image
 
 class ImagingPriceTrendDataset(Dataset):
-    def __init__(self, cache, db_path, stock_list_file, hist_data_file, seq_length, features, tag, is_train=True):
+    def __init__(self, db_path, img_caching_path, stock_list_file, hist_data_file, seq_length, features, encoder, image_size, tag, is_train=True):
         super().__init__()
-
+        self.image_size = image_size
         self.seq_length = seq_length
         self.features = features
+        self.is_train = is_train
+        self.indus_encoder, self.stock_encoder = encoder
+        self.img_caching_path = img_caching_path
+        os.makedirs(self.img_caching_path, exist_ok=True)
 
-        self.cache = FanoutCache(os.path.join(db_path, f'{tag}'), shards=32, timeout=5, size_limit=3e11, eviction_policy='none')
+        self.transforms = transforms.Compose([
+            transforms.Resize(self.image_size),
+            transforms.ToTensor()
+        ])
 
+        self.cache = FanoutCache(os.path.join(db_path, f'{tag}', 'cache'), shards=32, timeout=5, size_limit=3e11, eviction_policy='none')
+        
         if self.cache.get('total_count', 0) == 0:
             # 1. 从数据库加载数据
-            all_data_df = pd.read_parquet(os.path.join(db_path, hist_data_file))
-            stock_list = read_text(os.path.join(db_path, stock_list_file)).split(',')
+            self.onehot = OrderedDict()
+            all_data_df = pd.read_parquet(hist_data_file)
+            stock_list = read_text(stock_list_file).split(',')
 
-            i = 0
-            with ThreadPoolExecutor(max_workers=10) as executor:
-                futures = {executor.submit(self.generate_sequence_imgs, all_data_df[all_data_df['code'] == code]): code for code in stock_list}
-                for future in tqdm(futures):
+            images = []
+            trends = []
+            codes = []
+            industries = []
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                futures = {executor.submit(self.generate_sequence_imgs, all_data_df[all_data_df['code'] == code], code): code for code in stock_list}
+                for future in tqdm(as_completed(futures), total=len(futures), ncols=120, desc='generate sequence imgs'):
                     code = futures[future]
+                    if self.onehot.get(code) is None:
+                        self.onehot[code] = len(self.onehot)
+                    
+                    code = self.stock_encoder.transform([code])[0]
                     try:
-                        image, _trend = future.result()
-                        self.cache.set(code, (image, _trend))
-                        i += 1
+                        _images, _trends, industry = future.result()
+                        
+                        images.extend(_images)
+                        trends.extend(_trends)
+                        codes.extend([code] * len(_images))
+                        industries.extend([industry] * len(_images))
                     except Exception as e:
                         print(e)
-            self.cache.set('total_count', i)
+            self.cache.set('total_count', len(images))
+            for i, (img, trend, code, industry) in tqdm(enumerate(zip(images, trends, codes, industries))):
+                self.cache.set(i, (img, trend, code, industry))
 
     def accumulative_return(self, returns):
         return np.prod(1 + returns) - 1
     
-    def generate_sequence_imgs(self, stock_data):
+    def generate_sequence_imgs(self, stock_data, code):
+        print('preparing sequences for ', code)
         label_return_cols = []
         for i in range(5):
             label_return_cols.append(f'label_return_{i+1}')
+        industry= self.indus_encoder.transform(stock_data['industry'].to_numpy())[0]
         price_data = stock_data[self.features].to_numpy()
         labels = stock_data[label_return_cols].to_numpy()
-        image = get_image_with_price(price_data)
+        returns = []
+        imgs = []
+        for i in range(0, len(stock_data) - self.seq_length + 1, 3):
+            ts_seq = price_data[i:i + self.seq_length]
+            if len(ts_seq) < self.seq_length:
+                break
+            
+            img_path = os.path.join(self.img_caching_path, code, f'{i}.png')
+            os.makedirs(os.path.dirname(img_path), exist_ok=True)
+            if not os.path.isfile(img_path):
+                image = get_image_with_price(ts_seq)
+                image.save(img_path)
 
-        acu_return = self.accumulative_return(labels)
-        if acu_return > 0.1:
-            _trend = 3
-        elif 0.05 < acu_return <= 0.1:
+            returns.append(labels[i + self.seq_length - 1])
+            imgs.append(img_path)
+        return imgs, returns, industry
+
+    def __len__(self):
+        if self.is_train:
+            return 64000#self.cache.get('total_count', 0)
+        return self.cache.get('total_count', 0)
+    
+    def parse_item(self, idx):
+        image, _trend, code, industry = self.cache.get(idx)
+
+        acu_return = self.accumulative_return(_trend)
+        if acu_return > 0.01:
             _trend = 2
-        elif -0.05 < acu_return <= 0.05:
+        elif -0.01 < acu_return <= 0.01:
             _trend = 1
-        elif acu_return <= -0.05:
+        elif acu_return <= -0.01:
             _trend = 0
+        
+        return image, _trend, code, industry
+    
+    def __getitem__(self, idx):
+        image, _trend, code, industry = self.parse_item(idx)
+        image = Image.open(image)
+        image = self.transforms(image)
 
-        return image, _trend
-
+        return image, torch.LongTensor([_trend]), torch.LongTensor([code]), torch.LongTensor([industry])

@@ -1,0 +1,3 @@
+trend_classes: 3
+dropout: 0.5
+backbone: 'mobilenetv3.lcnet_100' #'efficientnet.efficientnet_b0'

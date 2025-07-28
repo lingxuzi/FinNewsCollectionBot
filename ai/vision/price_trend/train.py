@@ -4,213 +4,99 @@ import torch
 import torch.nn as nn
 import os
 import joblib
+import pandas as pd
 import copy
-import ai.embedding.models.base
-from ai.embedding.samplers.trend_sampler import TrendSampler
+import random
+import ai.vision.price_trend.models.base
+from ai.vision.price_trend.dataset import ImagingPriceTrendDataset
+from ai.vision.price_trend.sampler.trend_sampler import TrendSampler
 from autoclip.torch import QuantileClip
-from ai.loss.tildeq import tildeq_loss
-from ai.vision.price_trend.model import create_model, get_model_config
-from sklearn.metrics import f1_score
+from ai.vision.price_trend.models import create_model, get_model_config
 from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm # 提供优雅的进度条
 from utils.common import AverageMeter
 from config.base import *
-from ai.embedding.dataset.dataset import KlineDataset, generate_scaler_and_encoder
 from ai.modules.multiloss import AutomaticWeightedLoss
 from ai.modules.earlystop import EarlyStopping
-from ai.modules.gradient import adaptive_clip_grad
+from ai.loss.focalloss import ASLSingleLabel
 from ai.optimizer.tiger import Tiger
 from ai.scheduler.sched import *
 from ai.metrics import *
 from utils.prefetcher import DataPrefetcher
-from utils.common import ModelEmaV2, calculate_r2_components, calculate_r2_components_recon
+from utils.common import ModelEmaV2
+from sklearn.metrics import balanced_accuracy_score
+from sklearn.preprocessing import LabelEncoder
 
 
 def num_iters_per_epoch(loader, batch_size):
     return len(loader) // batch_size
 
-def kl_loss(latent_mean, latent_logvar, free_bits=5):
-    return torch.clamp(-0.5 * (1 + latent_logvar - latent_mean.pow(2) - latent_logvar.exp()), min=free_bits).mean()
+def generate_encoder(hist_data_files, categorical):
+    hist_data = []
+    for hist_data_file in hist_data_files:
+        df = pd.read_parquet(hist_data_file)
+        hist_data.append(df)
+    
+    df = pd.concat(hist_data)
+    
+    indus_encoder = LabelEncoder()
+    indus_encoder.fit_transform(df[categorical[0]])
 
-def ale_loss(pred, target, reduction='mean', eps=1e-8, gamma=0):
-    pred = pred.clamp(eps, 1-eps)
-    target = target.clamp(eps, 1-eps)
-    abs_error = torch.abs(pred - target)
+    code_encoder = LabelEncoder()
+    code_encoder.fit_transform(df[categorical[1]])
+    
 
-    loss = -torch.log(1.0 - abs_error + eps) * torch.pow(torch.maximum(abs_error, torch.tensor(eps).to(abs_error.device)), gamma)
-
-    if reduction == 'sum':
-        return loss.sum()
-    elif reduction == 'mean':
-        return loss.mean()
-
-    return loss
-
-class HuberTrendLoss:
-    def __init__(self, delta=0.1, sim_weight=0.1, tildeq=False):
-        self.delta = delta
-        self.tildeq = tildeq
-        self.epsilon = 1e-8
-        self.sim_weight = sim_weight
-
-    def _similarity(self, y_true, y_pred):
-        y_true_mean = torch.mean(y_true, dim=-1, keepdim=True)
-        y_pred_mean = torch.mean(y_pred, dim=-1, keepdim=True)
-        y_true_centered = y_true - y_true_mean
-        y_pred_centered = y_pred - y_pred_mean
-        # 2. 计算分子和分母
-        numerator = torch.sum(y_true_centered * y_pred_centered, dim=-1)
-        denominator = torch.sqrt(torch.sum(y_true_centered ** 2, dim=-1) * torch.sum(y_pred_centered ** 2, dim=-1) + 1e-12)
-        # 3. 计算皮尔逊相关系数
-        pearson_corr = numerator / (denominator)  # 添加一个小的常数以避免除以零
-        return pearson_corr
-
-    def _ccc_similarity(self, y_true, y_pred):
-        y_true = y_true.view(-1)
-        y_pred = y_pred.view(-1)
-        
-        # 步骤 2: 计算均值
-        mean_true = torch.mean(y_true)
-        mean_pred = torch.mean(y_pred)
-        
-        # 步骤 3: 计算方差
-        var_true = torch.var(y_true, unbiased=False)  # 使用总体方差 (n)
-        var_pred = torch.var(y_pred, unbiased=False) # 使用总体方差 (n)
-        
-        # 步骤 4: 计算协方差
-        # Cov(X, Y) = E[(X - E[X])(Y - E[Y])] = E[XY] - E[X]E[Y]
-        cov = torch.mean((y_true - mean_true) * (y_pred - mean_pred))
-        
-        # 步骤 5: 组装 CCC 公式
-        numerator = 2 * cov
-        denominator = var_true + var_pred + (mean_true - mean_pred)**2
-        
-        # 添加 epsilon 防止除以零
-        ccc = numerator / (denominator + self.epsilon)
-        
-        return ccc
-
-    def directional_consistency_loss(self, y_true, y_pred, type='pearson'):
-        """
-        计算方向一致性损失
-        Args:
-            y_true: 真实值 (torch.Tensor)
-            y_pred: 预测值 (torch.Tensor)
-        Returns:
-            方向一致性损失 (torch.Tensor)
-        """
-        corr = self._similarity(y_true, y_pred) if type == 'pearson' else self._ccc_similarity(y_true, y_pred)
-        # 4. 计算损失
-        loss = 1 - corr
-        return torch.mean(loss)
-
-    def __call__(self, ytrue, ypred):
-        direction_loss = tildeq_loss(ypred, ytrue) if self.tildeq else nn.functional.huber_loss(ypred, ytrue, delta=self.delta)
-        if not self.tildeq:
-            sim_loss = self.directional_consistency_loss(ytrue, ypred)
-            similarity = (1 - sim_loss).item()
-            return direction_loss + sim_loss * self.sim_weight, similarity
-        else:
-            # sim_loss = nn.functional.huber_loss(ypred, ytrue, delta=self.delta)
-            with torch.no_grad():
-                similarity = self._ccc_similarity(ytrue, ypred).mean().item()
-            # corr_loss = self.directional_consistency_loss(ytrue, ypred, type='ccc')
-            return direction_loss, similarity
-        
+    return (indus_encoder, code_encoder)
 
 def run_training(config):
+    # set random seed
+    torch.manual_seed(42)
+    np.random.seed(42)
+    random.seed(42)
     """主训练函数"""
     # --- 1. 加载配置 ---
     device = torch.device(config['device'] if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
-
-    os.makedirs(os.path.split(config['training']['model_save_path'])[0], exist_ok=True)
-    config['data']['db_path'] = os.path.join(BASE_DIR, config['data']['db_path'])
-    scaler_path = os.path.join(config['data']['db_path'], 'scaler.joblib')
-    encoder_path = os.path.join(config['data']['db_path'], 'encoder.joblib')
-    os.makedirs(config['training']['processed_data_cache_path'], exist_ok=True)
-    if os.path.exists(scaler_path) and os.path.exists(encoder_path):
-        print("Loading precomputed scaler and encoder...")
-        scaler = joblib.load(scaler_path)
+    encoder_path = config['data']['encoder_path']
+    if os.path.exists(encoder_path):
+        print("Loading precomputed encoder...")
         encoder = joblib.load(encoder_path)
     else:
-        encoder, scaler = generate_scaler_and_encoder(
-            config['data']['db_path'],
-            [
+        encoder = generate_encoder(
+        [
             config['data']['train']['hist_data_file'],
             config['data']['eval']['hist_data_file'],
             config['data']['test']['hist_data_file']
-        ], config['data']['features'], config['data']['numerical'], config['data']['categorical'])
-        joblib.dump(scaler, scaler_path)
+        ], config['data']['categorical'])
         joblib.dump(encoder, encoder_path)
-        print(f"Scaler and encoder saved to {scaler_path} and {encoder_path}")
+        print(f"Scaler and encoder saved to {encoder_path}")
+
+    os.makedirs(os.path.split(config['training']['model_save_path'])[0], exist_ok=True)
 
     # --- 2. 准备数据 ---
     if not config['training']['finetune']:
-        train_dataset = KlineDataset(
-            cache=config['data']['cache'],
+        train_dataset = ImagingPriceTrendDataset(
             db_path=config['data']['db_path'],
+            img_caching_path=config['data']['train']['img_caching_path'],
             stock_list_file=config['data']['train']['stock_list_file'],
             hist_data_file=config['data']['train']['hist_data_file'],
-            seq_length=config['training']['sequence_length'],
+            seq_length=config['data']['sequence_length'],
             features=config['data']['features'],
-            numerical=config['data']['numerical'],
-            temporal=config['data']['temporal'],
-            categorical=config['data']['categorical'],
-            include_meta=config['data']['include_meta'],
-            scaler=scaler,
+            image_size=config['data']['image_size'],
             encoder=encoder,
             tag='train'
         )
-
-        eval_dataset = KlineDataset(
-            cache=config['data']['cache'],
+        eval_dataset = ImagingPriceTrendDataset(
             db_path=config['data']['db_path'],
+            img_caching_path=config['data']['eval']['img_caching_path'],
             stock_list_file=config['data']['eval']['stock_list_file'],
             hist_data_file=config['data']['eval']['hist_data_file'],
-            seq_length=config['training']['sequence_length'],
+            seq_length=config['data']['sequence_length'],
             features=config['data']['features'],
-            temporal=config['data']['temporal'],
-            numerical=config['data']['numerical'],
-            categorical=config['data']['categorical'],
-            include_meta=config['data']['include_meta'],
-            scaler=scaler,
+            image_size=config['data']['image_size'],
             encoder=encoder,
-            is_train=False,
-            tag='eval'
-        )
-    else:
-        train_dataset = KlineDataset(
-            cache=config['data']['cache'],
-            db_path=config['data']['db_path'],
-            stock_list_file=config['data']['eval']['stock_list_file'],
-            hist_data_file=config['data']['eval']['hist_data_file'],
-            seq_length=config['training']['sequence_length'],
-            features=config['data']['features'],
-            temporal=config['data']['temporal'],
-            numerical=config['data']['numerical'],
-            categorical=config['data']['categorical'],
-            include_meta=config['data']['include_meta'],
-            scaler=scaler,
-            encoder=encoder,
-            is_train=False,
-            tag='eval'
-        )
-        eval_dataset = KlineDataset(
-            cache=config['data']['cache'],
-            db_path=config['data']['db_path'],
-            stock_list_file=config['data']['test']['stock_list_file'],
-            hist_data_file=config['data']['test']['hist_data_file'],
-            seq_length=config['training']['sequence_length'],
-            features=config['data']['features'],
-            temporal=config['data']['temporal'],
-            numerical=config['data']['numerical'],
-            categorical=config['data']['categorical'],
-            include_meta=config['data']['include_meta'],
-            scaler=scaler,
-            encoder=encoder,
-            is_train=False,
-            tag='test'
+            tag='eval',
+            is_train=False
         )
 
     if config['data']['sampler']:
@@ -227,10 +113,8 @@ def run_training(config):
     # --- 3. 初始化模型、损失函数和优化器 ---
 
     model_config = get_model_config(config['training']['model'])
-    model_config['ts_input_dim'] = len(config['data']['features']) + len(config['data']['temporal'])
-    model_config['ctx_input_dim'] = len(config['data']['numerical'] + config['data']['categorical'])
-    model_config['trend_classes'] = train_dataset.trend_classes()
-
+    model_config['stock_classes'] = len(encoder[1].classes_)
+    model_config['industry_classes'] = len(encoder[0].classes_)
     model = create_model(config['training']['model'], model_config)
 
     if config['training']['load_pretrained']:
@@ -249,25 +133,19 @@ def run_training(config):
         except Exception as e:
             print(f'Load finetune model failed: {e}')
 
-    if config['training']['reset_heads']:
-        model.build_head(train_dataset.trend_classes())
-
     ema = ModelEmaV2(model, decay=0.9999, device=device)
 
     model = model.to(device)
-
-    criterion_ts = HuberTrendLoss(delta=0.1, tildeq=config['training']['tildeq']) # 均方误差损失
-    criterion_ctx = nn.HuberLoss(delta=0.1) # 均方误差损失
-    criterion_predict = HuberTrendLoss(delta=0.1, tildeq=config['training']['tildeq']) # 均方误差损失
-    criterion_trend = nn.CrossEntropyLoss() #HuberTrendLoss(delta=0.1, sim_weight=0.)
-    criterion_return = nn.HuberLoss(delta=0.1) #HuberTrendLoss(delta=0.1, sim_weight=0.1)
+    criterion_trend = nn.CrossEntropyLoss() #ASLSingleLabel() #focal_loss(alpha=0.3, gamma=2, num_classes=model_config['trend_classes'])
+    criterion_stock = nn.CrossEntropyLoss()#ASLSingleLabel()#focal_loss(alpha=0.3, gamma=2, num_classes=model_config['stock_classes'])
+    criterion_industry = nn.CrossEntropyLoss()#ASLSingleLabel()#focal_loss(alpha=0.3, gamma=2, num_classes=model_config['industry_classes'])
 
     parameters = []
     if config['training']['awl']:
         parameters += [{'params': awl.parameters(), 'weight_decay': 0, 'lr': 1e-2}]
     parameters += [{'params': model.parameters(), 'weight_decay': config['training']['weight_decay'], 'lr': config['training']['min_learning_rate'] if config['training']['warmup_epochs'] > 0 else config['training']['learning_rate']}]
     # print(list(model.named_parameters()))
-    optimizer = torch.optim.Adam(parameters)
+    optimizer = torch.optim.AdamW(parameters)
     if config['training']['clip_norm'] == 0.01:
         optimizer = QuantileClip.as_optimizer(optimizer=optimizer, quantile=0.9, history_length=1000)
     early_stopper = EarlyStopping(patience=40, direction='up')
@@ -284,77 +162,39 @@ def run_training(config):
             train_iter = DataPrefetcher(train_loader, config['device'], enable_queue=False, num_threads=1)
         model.train()
         train_loss_meter = AverageMeter()
-        ts_loss_meter = AverageMeter()
-        ctx_loss_meter = AverageMeter()
-        pred_loss_meter = AverageMeter()
         trend_loss_meter = AverageMeter()
-        return_loss_meter = AverageMeter()
-        kl_loss_meter = AverageMeter()
-        
-        ts_sim_meter = AverageMeter()
-        pred_sim_meter = AverageMeter()
+        stock_loss_meter = AverageMeter()
+        industry_loss_meter = AverageMeter()
 
+        trend_metric_meter = AverageMeter()
 
-        if not config['training']['awl']:
-            if epoch == 0 or epoch % config['training']['kl_annealing_steps'] != 0:
-                kl_weight = min(config['training']['kl_weight_initial'] + (config['training']['kl_target'] - config['training']['kl_weight_initial']) * epoch / config['training']['kl_annealing_steps'], config['training']['kl_target'])
-            else:
-                kl_weight = config['training']['kl_weight_initial']
-        else:
-            kl_weight = config['training']['kl_weight_initial']
-        
         # 使用tqdm显示进度条
         pbar = tqdm(range(num_iters_per_epoch(train_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training]")
         for _ in pbar:
-            ts_sequences, ctx_sequences, y, trend, _return = train_iter.next()
+            img, trend, stock, industry = train_iter.next()
             optimizer.zero_grad()
-            ts_reconstructed, ctx_reconstructed, pred, trend_pred, return_pred, _, latent_mean, latent_logvar = model(ts_sequences, ctx_sequences)
+            trend_pred, stock_pred, industry_pred = model(img)
 
             losses = {}
 
-            if 'ts' in config['training']['losses']:
-                loss_ts, ts_sim = criterion_ts(ts_sequences, ts_reconstructed)
-                ts_sim_meter.update(ts_sim)
-                ts_loss_meter.update(loss_ts.item())
-                
-                losses['ts'] = loss_ts
-            
-            if 'ctx' in config['training']['losses']:
-                loss_ctx = criterion_ctx(ctx_sequences, ctx_reconstructed)
-                ctx_loss_meter.update(loss_ctx.item())
-                losses['ctx'] = loss_ctx
-            
-            if 'pred' in config['training']['losses']:
-                loss_pred, pred_sim = criterion_predict(y, pred)
-                losses['pred'] = loss_pred
-                pred_loss_meter.update(loss_pred.item())
-                pred_sim_meter.update(pred_sim)
-            
             if 'trend' in config['training']['losses']:
                 loss_trend = criterion_trend(trend_pred, trend.squeeze())
                 losses['trend'] = loss_trend
                 trend_loss_meter.update(loss_trend.item())
 
-            if 'return' in config['training']['losses']:
-                loss_return = criterion_return(return_pred, _return)
-                losses['return'] = loss_return
-                return_loss_meter.update(loss_return.item())
-            
-            if kl_weight > 0:
-                _kl_loss = kl_loss(latent_mean, latent_logvar, config['training']['kl_freebits'])
-                kl_loss_meter.update(_kl_loss.item())
-            
+                trend_metric_meter.update(balanced_accuracy_score(trend.squeeze().cpu().numpy(), trend_pred.argmax(axis=1).cpu().numpy()))
 
-            if config['training']['awl']:
-                losses = list(losses.values())
-                if kl_weight > 0:
-                    losses.append(_kl_loss)
-                total_loss = awl(*losses)
-            else:
-                total_loss = sum([losses[lk] * w for w, lk in zip(config['training']['loss_weights'], config['training']['losses'])])
-                if kl_weight > 0:
-                    total_loss += kl_weight * _kl_loss
-
+            if 'stock' in config['training']['losses']:
+                loss_stock = criterion_stock(stock_pred, stock.squeeze())
+                losses['stock'] = loss_stock
+                stock_loss_meter.update(loss_stock.item())
+            
+            if 'industry' in config['training']['losses']:
+                loss_industry = criterion_industry(industry_pred, industry.squeeze())
+                losses['industry'] = loss_industry
+                industry_loss_meter.update(loss_industry.item())
+            
+            total_loss = sum(losses.values())
             total_loss.backward()
 
             clip_norm = config['training']['clip_norm']
@@ -366,13 +206,13 @@ def run_training(config):
 
             train_loss_meter.update(total_loss.item())
             #| Pred Loss: {pred_loss_meter.avg}
-            pbar.set_description(f"Total({epoch+1}/{config['training']['num_epochs']}): {train_loss_meter.avg:.4f} | KL: {kl_loss_meter.avg:.4f} | TS: {ts_loss_meter.avg:.4f} | TS Sim: {ts_sim_meter.avg:.4f} | CTX: {ctx_loss_meter.avg:.4f} | Pred: {pred_loss_meter.avg:.4f} | Pred Sim: {pred_sim_meter.avg:.4f} | Trend: {trend_loss_meter.avg:.4f} | Return: {return_loss_meter.avg:.4f}")
+            pbar.set_description(f"Total({epoch+1}/{config['training']['num_epochs']}): {train_loss_meter.avg:.4f} | Trend: {trend_loss_meter.avg:.4f} | Trend Metric: {trend_metric_meter.avg:.4f} | Stock: {stock_loss_meter.avg:.4f} | Industry: {industry_loss_meter.avg:.4f}")
         
         scheduler.step()
 
         # --- 5. 验证循环 ---
-        _model = ema.module
-        mean_r2 = eval(ema.module, eval_dataset, config)
+        _model = copy.deepcopy(ema.module)
+        mean_r2 = eval(_model, eval_dataset, config)
         
         # --- 6. 保存最佳模型 ---
         # 只保存性能最好的模型，避免存储过多文件
@@ -400,53 +240,33 @@ def eval(model, dataset, config):
     val_loader = DataLoader(dataset, batch_size=config['training']['batch_size'], num_workers=config['training']['workers'], pin_memory=False, shuffle=False, drop_last=True)
     with torch.no_grad():
         val_iter = DataPrefetcher(val_loader, config['device'], enable_queue=False, num_threads=1)
-        pred_metric = Metric('vwap', appends=True)
-        ts_metric = Metric('ts')
-        ctx_metric = Metric('ctx', appends=True)
         trend_metric = ClsMetric('trend')
-        return_metric = Metric('return')
+        stock_metric = ClsMetric('stock')
+        industry_metric = ClsMetric('industry')
 
         for _ in tqdm(range(num_iters_per_epoch(dataset, config['training']['batch_size'])), desc="[Validation]"):
             # ts_sequences = ts_sequences.to(device)
             # ctx_sequences = ctx_sequences.to(device)
             # y = y.to(device)
-            ts_sequences, ctx_sequences, y, trend, _return = val_iter.next()
-            ts_reconstructed, ctx_reconstructed, pred, trend_pred, return_pred, _ = _model(ts_sequences, ctx_sequences)
-            
-            y_cpu = y.cpu().numpy()
-            pred_cpu = pred.cpu().numpy()
+            img, trend, stock, industry = val_iter.next()
+            trend_pred, stock_pred, industry_pred = _model(img)
 
-            pred_metric.update(y_cpu, pred_cpu)
             trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred.cpu().numpy())
-            return_metric.update(_return.cpu().numpy() + 1, return_pred.cpu().numpy() + 1)
-            
-            ts_sequences_cpu = ts_sequences.cpu().numpy()
-            ts_reconstructed_cpu = ts_reconstructed.cpu().numpy()
-            ctx_sequences_cpu = ctx_sequences.cpu().numpy()
-            ctx_reconstructed_cpu = ctx_reconstructed.cpu().numpy()
-            ctx_reconstructed_cpu[:, -1] = np.round(ctx_reconstructed_cpu[:, -1], 2)
-
-            ts_metric.update(ts_sequences_cpu.reshape(-1, ts_sequences_cpu.shape[-1]), ts_reconstructed_cpu.reshape(-1, ts_reconstructed_cpu.shape[-1]))
-            ctx_metric.update(ctx_sequences_cpu.reshape(-1, ctx_sequences_cpu.shape[-1]), ctx_reconstructed_cpu.reshape(-1, ctx_reconstructed_cpu.shape[-1]))
+            stock_metric.update(stock.squeeze().cpu().numpy(), stock_pred.cpu().numpy())
+            industry_metric.update(industry.squeeze().cpu().numpy(), industry_pred.cpu().numpy())
 
     # --- 计算整体 R² --
 
     scores = []
-    if 'ts' in config['training']['losses']:
-        _, ts_score = ts_metric.calculate()
-        scores.append(ts_score)
-    if 'ctx' in config['training']['losses']:
-        _, ctx_score = ctx_metric.calculate()
-        scores.append(ctx_score)
-    if 'pred' in config['training']['losses']:
-        _, vwap_score = pred_metric.calculate()
-        scores.append(vwap_score)
     if 'trend' in config['training']['losses']:
         _, trend_score = trend_metric.calculate()
         scores.append(trend_score)
-    if 'return' in config['training']['losses']:
-        _, return_score = return_metric.calculate()
-        scores.append(return_score)
+    if 'stock' in config['training']['losses']:
+        _, stock_score = stock_metric.calculate()
+        scores.append(stock_score)
+    if 'industry' in config['training']['losses']:
+        _, industry_score = industry_metric.calculate()
+        scores.append(industry_score)
     
     mean_r2 = sum(scores) / len(scores)
 
@@ -454,51 +274,22 @@ def eval(model, dataset, config):
 
 def run_eval(config):
     device = torch.device(config['device'] if torch.cuda.is_available() else "cpu")
-    config['data']['db_path'] = os.path.join(BASE_DIR, config['data']['db_path'])
-    scaler_path = os.path.join(config['data']['db_path'], 'scaler.joblib')
-    encoder_path = os.path.join(config['data']['db_path'], 'encoder.joblib')
-    if os.path.exists(scaler_path) and os.path.exists(encoder_path):
-        print("Loading precomputed scaler and encoder...")
-        scaler = joblib.load(scaler_path)
-        encoder = joblib.load(encoder_path)
-    else:
-        encoder, scaler = generate_scaler_and_encoder(
-            config['data']['db_path'],
-            [
-            config['data']['train']['hist_data_file'],
-            config['data']['eval']['hist_data_file'],
-            config['data']['test']['hist_data_file']
-        ], config['data']['features'], config['data']['numerical'], config['data']['categorical'])
-        joblib.dump(scaler, scaler_path)
-        joblib.dump(encoder, encoder_path)
-        print(f"Scaler and encoder saved to {scaler_path} and {encoder_path}")
 
-    test_dataset = KlineDataset(
-        cache=config['data']['cache'],
+    test_dataset = ImagingPriceTrendDataset(
         db_path=config['data']['db_path'],
+        img_caching_path=config['data']['test']['img_caching_path'],
         stock_list_file=config['data']['test']['stock_list_file'],
         hist_data_file=config['data']['test']['hist_data_file'],
-        seq_length=config['training']['sequence_length'],
+        seq_length=config['data']['sequence_length'],
         features=config['data']['features'],
-        temporal=config['data']['temporal'],
-        numerical=config['data']['numerical'],
-        categorical=config['data']['categorical'],
-        include_meta=config['data']['include_meta'],
-        scaler=scaler,
-        encoder=encoder,
-        is_train=False,
-        tag='test'
+        image_size=config['data']['image_size'],
+        tag='test',
+        is_train=False
     )
     test_loader = DataLoader(test_dataset, batch_size=config['training']['batch_size'], num_workers=config['training']['workers'], pin_memory=False, shuffle=False)
-
     model_config = get_model_config(config['training']['model'])
-    model_config['ts_input_dim'] = len(config['data']['features']) + len(config['data']['temporal'])
-    model_config['ctx_input_dim'] = len(config['data']['numerical'] + config['data']['categorical'])
-    model_config['trend_classes'] = test_dataset.trend_classes()
 
-    model = create_model(config['training']['model'], model_config)
-    
-    model = model.to(device)
+    model = create_model(config['training']['model'], model_config).to(device)
 
     device = torch.device(config['device'] if torch.cuda.is_available() else "cpu")
     state_dict = torch.load(config['training']['model_save_path'], map_location=device)
@@ -506,13 +297,8 @@ def run_eval(config):
         model.load_state_dict(state_dict, strict=False)
     except Exception as e:
         print(f"Error loading model state dict: {e}")
-    model.eval()
-    
-    pred_metric = Metric('vwap')
-    ts_metric = Metric('ts')
-    ctx_metric = Metric('ctx', appends=True)
+
     trend_metric = ClsMetric('trend')
-    return_metric = Metric('return')
     
     with torch.no_grad():
         test_iter = DataPrefetcher(test_loader, config['device'], enable_queue=False, num_threads=1)
@@ -521,32 +307,10 @@ def run_eval(config):
             # ctx_sequences = ctx_sequences.to(device)
             # y = y.to(device)
 
-            ts_sequences, ctx_sequences, y, trend, _return = test_iter.next()
-            ts_reconstructed, ctx_reconstructed, pred, trend_pred, return_pred, _ = model(ts_sequences, ctx_sequences)
-            
-            y_cpu = y.cpu().numpy()
-            pred_cpu = pred.cpu().numpy()
-            trend_cpu = trend.cpu().numpy()
-            return_cpu = _return.cpu().numpy()
+            img, trend, code = test_iter.next()
+            trend_pred = model(img)
 
-            pred_metric.update(y_cpu, pred_cpu)
-            trend_metric.update(trend_cpu.squeeze(), trend_pred.cpu().numpy())
-            return_metric.update(return_cpu + 1, return_pred.cpu().numpy() + 1)
-                
-            ts_sequences_cpu = ts_sequences.cpu().numpy()
-            ts_reconstructed_cpu = ts_reconstructed.cpu().numpy()
-            ctx_sequences_cpu = ctx_sequences.cpu().numpy()
-            ctx_reconstructed_cpu = ctx_reconstructed.cpu().numpy()
-            ctx_reconstructed_cpu[:, -1] = np.round(ctx_reconstructed_cpu[:, -1], 2)
-
-            ts_metric.update(ts_sequences_cpu.reshape(-1, ts_sequences_cpu.shape[-1]), ts_reconstructed_cpu.reshape(-1, ts_reconstructed_cpu.shape[-1]))
-            ctx_metric.update(ctx_sequences_cpu.reshape(-1, ctx_sequences_cpu.shape[-1]), ctx_reconstructed_cpu.reshape(-1, ctx_reconstructed_cpu.shape[-1]))
-
-
+            trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred.cpu().numpy())
 
         # --- 计算整体 R² ---
-        _, vwap_score = pred_metric.calculate()
-        _, ts_score = ts_metric.calculate()
-        _, ctx_score = ctx_metric.calculate()
         _, trend_score = trend_metric.calculate()
-        _, return_score = return_metric.calculate()

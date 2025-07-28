@@ -25,7 +25,7 @@ def register_model(name: str):
     return decorator
 
 def get_model_config(name):
-    with open('./ai/embedding/configs/models/{}.yml'.format(name), 'r') as f:
+    with open('./ai/vision/price_trend/configs/models/{}.yml'.format(name), 'r') as f:
         return yaml.safe_load(f)
 
 def create_model(name, config):

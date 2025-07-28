@@ -1,10 +1,4 @@
-from datasource.stock_basic.baostock_source import BaoSource
-from config.base import *
-import datetime
+from ai.vision.price_trend.dataset import ImagingPriceTrendDataset
 
-source = BaoSource()
+dataset = ImagingPriceTrendDataset('../price_trend/cache', '../price_trend/train', '../hamuna_stock_data/train_data/hist/train_stocks.txt', '../hamuna_stock_data/train_data/hist/fundamental_train.pkl', 20, ['open', 'close', 'low', 'high', 'MA5', 'MA10', 'MA20', 'volume'], 'train', True)
 
-stock_list = source.get_stock_list()
-kline_data = source.get_kline_daily('600651', TRAIN_FUNDAMENTAL_DATA_START_DATE, TEST_FUNDAMENTAL_DATA_END_DATE, include_industry=True, include_profit=True)
-print(stock_list)
-print(kline_data)

@@ -1,1 +1,1 @@
-import ai.vision.price_trend.models.effnet
+import ai.vision.price_trend.models.nets
