@@ -194,8 +194,6 @@ class ImagingPriceTrendDataset(Dataset):
         return imgs, returns, industry
 
     def __len__(self):
-        if self.is_train:
-            return 64000#self.cache.get('total_count', 0)
         return self.cache.get('total_count', 0)
     
     def parse_item(self, idx):

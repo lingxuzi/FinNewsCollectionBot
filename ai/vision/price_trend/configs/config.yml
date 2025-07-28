@@ -2,7 +2,7 @@
 # --- 数据参数 ---
 data:
   db_path: '../price_trend/cache'
-  sampler: false
+  sampler: true
   encoder_path: '../hamuna_stock_data/train_data/hist/encoder.joblib'
   train:
     stock_list_file: "../hamuna_stock_data/train_data/hist/train_stocks.txt"
@@ -28,14 +28,14 @@ training:
   finetune: false
   model: 'stocknet'
   awl: false
-  clip_norm: 0.0
+  clip_norm: 0.01
   losses: ['trend', 'stock', 'industry']
   loss_weights: [1, 0.1, 0.1]
-  learning_rate: 0.005
+  learning_rate: 0.0003
   min_learning_rate: 0.00001
   weight_decay: 0.0005
   warmup_epochs: 10
-  batch_size: 128
+  batch_size: 256
   num_epochs: 100
   model_save_path: "../fin_models/trend.pth"
   pretrained_path: "../fin_models/trend_pretrained.pth"
