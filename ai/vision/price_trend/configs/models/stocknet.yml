@@ -1,3 +1,4 @@
-trend_classes: 3
+trend_classes: 2
 dropout: 0.1
-backbone: 'mobilenetv3.lcnet_100' #'efficientnet.efficientnet_b0'
+backbone: 'stockchartnet'
+#'models.mobilenetv3.lcnet_100' #'models.efficientnet.efficientnet_b0'

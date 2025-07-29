@@ -212,19 +212,16 @@ class KlineDataset(Dataset):
         return np.prod(1 + returns) - 1
     
     def trend_classes(self):
-        return 4
+        return 2
 
     def parse_item(self, idx):
         ts_seq, ctx_seq, label, trend, _return, date_range, code = self.cache.get(f'seq_{idx}')
 
         acu_return = self.accumulative_return(_return)
-        if acu_return > 0.1:
-            _trend = 3
-        elif 0.05 < acu_return <= 0.1:
-            _trend = 2
-        elif -0.05 < acu_return <= 0.05:
+        
+        if acu_return > 0:
             _trend = 1
-        elif acu_return <= -0.05:
+        else:
             _trend = 0
 
         return ts_seq, ctx_seq, label, _trend, acu_return, date_range, code

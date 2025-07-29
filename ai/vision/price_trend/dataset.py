@@ -128,7 +128,7 @@ class ImagingPriceTrendDataset(Dataset):
         os.makedirs(self.img_caching_path, exist_ok=True)
 
         self.transforms = transforms.Compose([
-            transforms.Resize(self.image_size),
+            transforms.Resize((self.image_size, self.image_size)),
             transforms.ToTensor()
         ])
 
@@ -144,7 +144,7 @@ class ImagingPriceTrendDataset(Dataset):
             trends = []
             codes = []
             industries = []
-            with ThreadPoolExecutor(max_workers=4) as executor:
+            with ThreadPoolExecutor(max_workers=10) as executor:
                 futures = {executor.submit(self.generate_sequence_imgs, all_data_df[all_data_df['code'] == code], code): code for code in stock_list}
                 for future in tqdm(as_completed(futures), total=len(futures), ncols=120, desc='generate sequence imgs'):
                     code = futures[future]
@@ -200,11 +200,15 @@ class ImagingPriceTrendDataset(Dataset):
         image, _trend, code, industry = self.cache.get(idx)
 
         acu_return = self.accumulative_return(_trend)
-        if acu_return > 0.01:
-            _trend = 2
-        elif -0.01 < acu_return <= 0.01:
+        # if acu_return > 0.01:
+        #     _trend = 2
+        # elif -0.01 < acu_return <= 0.01:
+        #     _trend = 1
+        # elif acu_return <= -0.01:
+        #     _trend = 0
+        if acu_return > 0:
             _trend = 1
-        elif acu_return <= -0.01:
+        else:
             _trend = 0
         
         return image, _trend, code, industry

@@ -40,7 +40,7 @@ class ALSTMAutoencoder(nn.Module):
         self.encoder_mode = False
 
         # --- 分支1: 时序编码器 (LSTM) ---
-        self.ts_encoder = ALSTMEncoder(ts_input_dim, hidden_dim, num_layers, ts_embedding_dim, dropout=0, kl=True)
+        self.ts_encoder = ALSTMEncoder(ts_input_dim, hidden_dim, num_layers, ts_embedding_dim, dropout=0.1, kl=True)
 
         # --- 分支2: 上下文编码器 (MLP) ---
         # 增加 Batch Normalization
@@ -66,7 +66,7 @@ class ALSTMAutoencoder(nn.Module):
             self.encoder_only(True)
 
     def build_head(self, trend_classes):
-        self.predictor = PredictionHead(self.hidden_dim, self.predict_dim, act=nn.ReLU, dropout_rate=self.dropout_rate)
+        self.predictor = PredictionHead(self.hidden_dim, self.predict_dim, act=nn.ReLU, dropout_rate=0)
         self.return_head = PredictionHead(self.hidden_dim, 1, act=nn.ReLU, dropout_rate=self.dropout_rate)
         self.trend_head = PredictionHead(self.hidden_dim, trend_classes, act=nn.ReLU, dropout_rate=self.dropout_rate)
 
@@ -130,7 +130,7 @@ class ALSTMAutoencoder(nn.Module):
                 ctx_output = self.ctx_decoder(final_embedding)
 
         # 3. Fused Embedding
-        norm_embedding = self.embedding_norm(final_embedding)
+        norm_embedding = self.embedding_norm(final_embedding.detach())
         norm_embedding = self.fusion_block(norm_embedding)
 
         # --- 3. 预测分支 ---

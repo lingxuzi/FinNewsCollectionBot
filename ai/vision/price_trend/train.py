@@ -18,8 +18,9 @@ from utils.common import AverageMeter
 from config.base import *
 from ai.modules.multiloss import AutomaticWeightedLoss
 from ai.modules.earlystop import EarlyStopping
+from ai.vision.gradcam.gradcam import GradCAM, save_cam_on_image
 from ai.loss.focalloss import ASLSingleLabel
-from ai.optimizer.tiger import Tiger
+from ai.optimizer import *
 from ai.scheduler.sched import *
 from ai.metrics import *
 from utils.prefetcher import DataPrefetcher
@@ -136,16 +137,17 @@ def run_training(config):
     ema = ModelEmaV2(model, decay=0.9999, device=device)
 
     model = model.to(device)
-    criterion_trend = nn.CrossEntropyLoss() #ASLSingleLabel() #focal_loss(alpha=0.3, gamma=2, num_classes=model_config['trend_classes'])
-    criterion_stock = nn.CrossEntropyLoss()#ASLSingleLabel()#focal_loss(alpha=0.3, gamma=2, num_classes=model_config['stock_classes'])
-    criterion_industry = nn.CrossEntropyLoss()#ASLSingleLabel()#focal_loss(alpha=0.3, gamma=2, num_classes=model_config['industry_classes'])
+    criterion_trend = nn.CrossEntropyLoss() #focal_loss(alpha=0.3, gamma=2, num_classes=model_config['trend_classes'])
+    criterion_stock = nn.CrossEntropyLoss()#focal_loss(alpha=0.3, gamma=2, num_classes=model_config['stock_classes'])
+    criterion_industry = nn.CrossEntropyLoss()#focal_loss(alpha=0.3, gamma=2, num_classes=model_config['industry_classes'])
 
     parameters = []
     if config['training']['awl']:
         parameters += [{'params': awl.parameters(), 'weight_decay': 0, 'lr': 1e-2}]
     parameters += [{'params': model.parameters(), 'weight_decay': config['training']['weight_decay'], 'lr': config['training']['min_learning_rate'] if config['training']['warmup_epochs'] > 0 else config['training']['learning_rate']}]
     # print(list(model.named_parameters()))
-    optimizer = torch.optim.AdamW(parameters)
+    optimizer = torch.optim.SGD(parameters, momentum=0.9, nesterov=True)
+    # optimizer.set_model(model)
     if config['training']['clip_norm'] == 0.01:
         optimizer = QuantileClip.as_optimizer(optimizer=optimizer, quantile=0.9, history_length=1000)
     early_stopper = EarlyStopping(patience=40, direction='up')
@@ -158,6 +160,9 @@ def run_training(config):
     # --- 4. 训练循环 ---
     best_val_loss = float('inf') if early_stopper.direction == 'down' else -float('inf')
     for epoch in range(config['training']['num_epochs']):
+
+        generate_gradcam(model, eval_dataset)
+
         if not config['data']['sampler']:
             train_iter = DataPrefetcher(train_loader, config['device'], enable_queue=False, num_threads=1)
         model.train()
@@ -230,8 +235,26 @@ def run_training(config):
         early_stopper(mean_r2)
         if early_stopper.early_stop:
             break
+
     
     run_eval(config)
+
+def generate_gradcam(model, dataset):
+    model.eval()
+
+    indices = random.sample(range(len(dataset)), 10)
+
+    os.makedirs('../stock_gradcams', exist_ok=True)
+
+    for i in indices:
+        img, _, _, _ = dataset[i]
+        img = img.unsqueeze(0).cuda()
+        img.requires_grad_()
+        target_layer = model.gradcam_layer()
+        gradcam = GradCAM(model=model, target_layer=target_layer)
+        cam = gradcam(input_tensor=img)
+
+        save_cam_on_image(img.detach().squeeze().cpu().numpy(), cam.squeeze(), f'../stock_gradcams/gradcam_{i}.png')
 
 def eval(model, dataset, config):
     _model = model#copy.deepcopy(ema.module)

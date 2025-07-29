@@ -107,7 +107,7 @@ class HuberTrendLoss:
     def __call__(self, ytrue, ypred):
         direction_loss = tildeq_loss(ypred, ytrue) if self.tildeq else nn.functional.huber_loss(ypred, ytrue, delta=self.delta)
         if not self.tildeq:
-            sim_loss = self.directional_consistency_loss(ytrue, ypred)
+            sim_loss = self.directional_consistency_loss(ytrue, ypred, type='ccc')
             similarity = (1 - sim_loss).item()
             return direction_loss + sim_loss * self.sim_weight, similarity
         else:

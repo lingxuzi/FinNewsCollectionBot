@@ -4,7 +4,7 @@ data:
   cache: 'diskcache'
   db_path: "train_data/hist/"
   include_meta: false
-  sampler: true
+  sampler: false
   train:
     stock_list_file: "train_stocks.txt"
     hist_data_file: 'fundamental_train.pkl'
@@ -26,22 +26,22 @@ training:
   finetune: false
   model: 'alstm-ae'
   awl: false
-  clip_norm: 1
-  losses: ['ts', 'ctx']
-  loss_weights: [1, 1]
+  clip_norm: 0
+  losses: ['ts', 'ctx', 'pred', 'trend', 'return']
+  loss_weights: [1, 1, 1, 1, 1]
   sequence_length: 50       # K线序列长度
-  learning_rate: 0.0005
+  learning_rate: 0.00001
   min_learning_rate: 0.00001
-  weight_decay: 0.0000
+  weight_decay: 0.00001
   warmup_epochs: 0
   batch_size: 1024
   num_epochs: 100
   kl_annealing_steps: 5
   kl_weight_initial: 0.0000
   kl_target: 0.00001
-  kl_freebits: 3
+  kl_freebits: 5
   reset_heads: false
-  tildeq: true
+  tildeq: false
   model_save_path: "../fin_models/kline_encoder.pth"
   pretrained_path: "../fin_models/kline_pretrained.pth"
   processed_data_cache_path: "../fin_train_cache/"
