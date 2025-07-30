@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import math
 
 class CA_Block(nn.Module):
@@ -41,6 +42,38 @@ class CA_Block(nn.Module):
  
         return out
     
+class ResidualBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, ratio=2, stride=1, attention=True):
+        super(ResidualBlock, self).__init__()
+        self.attention = attention
+        init_channels = math.ceil(out_channels / ratio) 
+        self.conv1 = nn.Conv2d(in_channels, init_channels, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(init_channels)
+        self.relu = nn.LeakyReLU(inplace=True)
+        self.conv2 = nn.Conv2d(init_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+        self.ca = CA_Block(out_channels, reduction=8)
+ 
+        self.shortcut = nn.Sequential()
+        if stride != 1 or in_channels != out_channels:
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(out_channels)
+            )
+ 
+    def forward(self, x):
+        residual = x
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+        out = self.conv2(out)
+        out = self.bn2(out)
+        if self.attention:
+            out = self.ca(out)
+        out += self.shortcut(residual)
+        out = self.relu(out)
+        return out
+    
 class StockChartNet(nn.Module):
     """
     一个集成了CBAM注意力机制的轻量级单一分支CNN模型。
@@ -51,47 +84,67 @@ class StockChartNet(nn.Module):
         super(StockChartNet, self).__init__()
         
         # --- 主干网络 ---
-        self.conv1 = nn.Conv2d(in_chans, 16, kernel_size=5, padding=2)
-        self.bn1 = nn.BatchNorm2d(16)
-        self.relu1 = nn.Hardswish(inplace=True)
-        self.cbam1 = CA_Block(16, reduction=4)
-        self.pool1 = nn.MaxPool2d(2) # 60x60 -> 30x30
-        
-        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm2d(32)
-        self.relu2 = nn.Hardswish(inplace=True)
-        self.cbam2 = CA_Block(32, reduction=8)
-        self.pool2 = nn.MaxPool2d(2) # 30x30 -> 15x15
+        # self.conv1 = nn.Conv2d(1, 16, kernel_size=3, stride=2, padding=1)
+        # self.bn1 = nn.BatchNorm2d(16)
+        # self.relu1 = nn.ReLU(inplace=True)
 
+        stem = nn.Sequential(
+            nn.Conv2d(1, 16, kernel_size=5, stride=2, padding=2),
+            nn.BatchNorm2d(16),
+            nn.LeakyReLU(inplace=True)
+        )
 
-        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
-        self.bn3 = nn.BatchNorm2d(64)
-        self.relu3 = nn.Hardswish(inplace=True)
-        self.cbam3 = CA_Block(64, reduction=16)
-        self.pool3 = nn.MaxPool2d(2) # 15x15 -> 7x7
-        
-        self.num_features = 64
+        block2 = ResidualBlock(16, 32, stride=2, attention=False)
+        block3 = ResidualBlock(32, 64, stride=2)
+        block4 = ResidualBlock(64, 128, stride=2)
+
+        self.layers = nn.Sequential(
+            stem,
+            block2,
+            block3,
+            block4
+        )
+
+        self.num_features = 128
 
     def forward_features(self, x):
-        # Block 1
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu1(x)
-        x = self.cbam1(x) # 应用注意力
-        x = self.pool1(x)
+        return self.layers(x)
+
+
+class StockChartNetV2(nn.Module):
+    """
+    一个集成了CBAM注意力机制的轻量级单一分支CNN模型。
+    - 输入: (batch_size, 1, 60, 60) 的图像张量。
+    - 输出: (batch_size, 1) 的预测收益率张量。
+    """
+    def __init__(self, pretrained=False, in_chans=1):
+        super(StockChartNetV2, self).__init__()
         
-        # Block 2
-        x = self.conv2(x)
-        x = self.bn2(x)
-        x = self.relu2(x)
-        x = self.cbam2(x) # 应用注意力
-        x = self.pool2(x)
-        
-        # Block 3
-        x = self.conv3(x)
-        x = self.bn3(x)
-        x = self.relu3(x)
-        x = self.cbam3(x) # 应用注意力
-        x = self.pool3(x)
-        
-        return x
+        # --- 主干网络 ---
+        # self.conv1 = nn.Conv2d(1, 16, kernel_size=3, stride=2, padding=1)
+        # self.bn1 = nn.BatchNorm2d(16)
+        # self.relu1 = nn.ReLU(inplace=True)
+
+        stem = nn.Sequential(
+            nn.Conv2d(1, 16, kernel_size=(5, 3), stride=(3, 1), dilation=(2, 1), padding=(3, 1)),
+            nn.BatchNorm2d(16),
+            nn.LeakyReLU(inplace=True)
+        )
+
+        block2 = ResidualBlock(16, 32, stride=2, attention=False)
+        block3 = ResidualBlock(32, 64, stride=2)
+        block4 = ResidualBlock(64, 128, stride=2)
+
+        self.layers = nn.Sequential(
+            stem,
+            block2,
+            block3,
+            block4
+        )
+
+        self.num_features = 128
+
+    def forward_features(self, x):
+        return self.layers(x)
+
+

@@ -147,6 +147,7 @@ def run_training(config):
     parameters += [{'params': model.parameters(), 'weight_decay': config['training']['weight_decay'], 'lr': config['training']['min_learning_rate'] if config['training']['warmup_epochs'] > 0 else config['training']['learning_rate']}]
     # print(list(model.named_parameters()))
     optimizer = torch.optim.SGD(parameters, momentum=0.9, nesterov=True)
+    # optimizer = torch.optim.AdamW(parameters)
     # optimizer.set_model(model)
     if config['training']['clip_norm'] == 0.01:
         optimizer = QuantileClip.as_optimizer(optimizer=optimizer, quantile=0.9, history_length=1000)

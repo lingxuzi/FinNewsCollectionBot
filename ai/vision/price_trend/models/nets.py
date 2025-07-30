@@ -38,7 +38,7 @@ def weights_init(m):
     # 对卷积层和全连接层使用 Kaiming Normal 初始化
     if classname.find('Conv') != -1:
         # Kaiming Normal 初始化，专为ReLU设计
-        nn.init.xavier_normal_(m.weight)
+        nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='leaky_relu')
         # 将偏置初始化为0
         if m.bias is not None:
             nn.init.constant_(m.bias, 0)
@@ -56,7 +56,7 @@ class StockNet(nn.Module):
         
         self.model = eval(f'{config["backbone"]}(pretrained=True, in_chans=1)')
         
-        self.global_pool = nn.Conv2d(self.model.num_features, self.model.num_features, 7)
+        self.global_pool = nn.AdaptiveAvgPool2d((1, 1)) # 全局平均池化
         
         self.trend_classifier = nn.Linear(self.model.num_features, config["trend_classes"])
         self.stock_classifier = nn.Linear(self.model.num_features, config["stock_classes"])
@@ -77,5 +77,5 @@ class StockNet(nn.Module):
         return trend_logits, stock_logits, industry_logits
 
     def gradcam_layer(self):
-        return self.model.conv3
+        return self.model.layers[-1]
 

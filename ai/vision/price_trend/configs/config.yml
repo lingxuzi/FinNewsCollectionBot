@@ -17,7 +17,7 @@ data:
     hist_data_file: '../hamuna_stock_data/train_data/hist/fundamental_test.pkl'
     img_caching_path: '../price_trend/test'
     #, 'ATR', 'OBV', 'CCI', 'ADX'
-  features: ['open', 'high', 'low', 'close', 'MA20', 'volume']
+  features: ['open', 'high', 'low', 'close', 'MA20', 'turn_over', 'volume']
   categorical: ['industry', 'code']
   sequence_length: 20       # K线序列长度
   image_size: 60
@@ -39,7 +39,7 @@ training:
   num_epochs: 100
   model_save_path: "../fin_models/trend.pth"
   pretrained_path: "../fin_models/trend_pretrained.pth"
-  load_pretrained: false
+  load_pretrained: true
 
 # --- 设备配置 ---
 device: "cuda"              # 如果有GPU则使用cuda，否则使用cpu
