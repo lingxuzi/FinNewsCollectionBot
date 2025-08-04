@@ -34,16 +34,16 @@ def weights_init(m):
     参数:
         m: PyTorch 模块 (nn.Module)
     """
-    classname = m.__class__.__name__
+    # classname = m.__class__.__name__
     # 对卷积层和全连接层使用 Kaiming Normal 初始化
-    if classname.find('Conv') != -1:
+    if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
         # Kaiming Normal 初始化，专为ReLU设计
         nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='leaky_relu')
         # 将偏置初始化为0
         if m.bias is not None:
             nn.init.constant_(m.bias, 0)
     # 对批量归一化层进行初始化
-    elif classname.find('BatchNorm2d') != -1:
+    elif isinstance(m, nn.BatchNorm2d) != -1:
         # 将权重(gamma)初始化为1，偏置(beta)初始化为0
         nn.init.constant_(m.weight, 1)
         nn.init.constant_(m.bias, 0)
