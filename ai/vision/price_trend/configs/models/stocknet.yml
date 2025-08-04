@@ -1,4 +1,5 @@
 trend_classes: 2
 dropout: 0.5
-backbone: 'models.efficientnet.efficientnet_b0'
+backbone: 'models.mobilenetv3.lcnet_100'
+gradlayer: 'conv'
 #'models.mobilenetv3.lcnet_100' #'models.efficientnet.efficientnet_b0'

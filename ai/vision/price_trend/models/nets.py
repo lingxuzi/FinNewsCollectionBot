@@ -1,8 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import math
 import timm.models as models
 from .stockcnn import StockChartNet as stockchartnet
+from .stockcnn import MBV2_CA as mbv2_ca
 from ai.vision.price_trend.models import register_model
 
 class cnn20d(nn.Module):
@@ -28,27 +30,21 @@ class cnn20d(nn.Module):
         return self.layers(x)
             
 
-def weights_init(m):
-    """
-    为模型应用 Kaiming He 初始化。
-    参数:
-        m: PyTorch 模块 (nn.Module)
-    """
-    # classname = m.__class__.__name__
-    if isinstance(m, nn.Conv2d):
-        nn.init.xavier_normal_(m.weight)
-        # 将偏置初始化为0
-        if m.bias is not None:
-            nn.init.constant_(m.bias, 0)
-    # 对批量归一化层进行初始化
-    elif isinstance(m, nn.BatchNorm2d):
-        # 将权重(gamma)初始化为1，偏置(beta)初始化为0
-        nn.init.constant_(m.weight, 1)
-        nn.init.constant_(m.bias, 0)
-
 def initialize(module: nn.Module):
-    for name, m in module.named_modules():
-        weights_init(m)
+    for m in module.modules():
+        #print(m)
+        if isinstance(m, nn.Conv2d):
+            #print(m.weight.size())
+            n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+            m.weight.data.normal_(0, math.sqrt(2. / n))
+            if m.bias is not None:
+                m.bias.data.zero_()
+        elif isinstance(m, nn.BatchNorm2d):
+            m.weight.data.fill_(1)
+            m.bias.data.zero_()
+        elif isinstance(m, nn.Linear):
+            m.weight.data.normal_(0, 0.01)
+            m.bias.data.zero_()
 
 @register_model('stocknet')
 class StockNet(nn.Module):
@@ -80,5 +76,5 @@ class StockNet(nn.Module):
         return trend_logits, stock_logits, industry_logits
 
     def gradcam_layer(self):
-        return self.model.conv_head
+        return eval(f'self.model.{self.config['gradlayer']}')
 
