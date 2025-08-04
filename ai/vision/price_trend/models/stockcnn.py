@@ -109,42 +109,5 @@ class StockChartNet(nn.Module):
 
     def forward_features(self, x):
         return self.layers(x)
-
-
-class StockChartNetV2(nn.Module):
-    """
-    一个集成了CBAM注意力机制的轻量级单一分支CNN模型。
-    - 输入: (batch_size, 1, 60, 60) 的图像张量。
-    - 输出: (batch_size, 1) 的预测收益率张量。
-    """
-    def __init__(self, pretrained=False, in_chans=1):
-        super(StockChartNetV2, self).__init__()
-        
-        # --- 主干网络 ---
-        # self.conv1 = nn.Conv2d(1, 16, kernel_size=3, stride=2, padding=1)
-        # self.bn1 = nn.BatchNorm2d(16)
-        # self.relu1 = nn.ReLU(inplace=True)
-
-        stem = nn.Sequential(
-            nn.Conv2d(1, 16, kernel_size=(5, 3), stride=(3, 1), dilation=(2, 1), padding=(3, 1)),
-            nn.BatchNorm2d(16),
-            nn.LeakyReLU(inplace=True)
-        )
-
-        block2 = ResidualBlock(16, 32, stride=2, attention=False)
-        block3 = ResidualBlock(32, 64, stride=2)
-        block4 = ResidualBlock(64, 128, stride=2)
-
-        self.layers = nn.Sequential(
-            stem,
-            block2,
-            block3,
-            block4
-        )
-
-        self.num_features = 128
-
-    def forward_features(self, x):
-        return self.layers(x)
-
+    
 

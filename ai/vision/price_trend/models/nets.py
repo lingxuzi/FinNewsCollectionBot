@@ -77,5 +77,5 @@ class StockNet(nn.Module):
         return trend_logits, stock_logits, industry_logits
 
     def gradcam_layer(self):
-        return self.model.layers[-1]
+        return self.model.conv_head
 
