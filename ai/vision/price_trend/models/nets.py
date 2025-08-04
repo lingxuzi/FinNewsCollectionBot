@@ -35,10 +35,8 @@ def weights_init(m):
         m: PyTorch 模块 (nn.Module)
     """
     # classname = m.__class__.__name__
-    # 对卷积层和全连接层使用 Kaiming Normal 初始化
-    if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
-        # Kaiming Normal 初始化，专为ReLU设计
-        nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='leaky_relu')
+    if isinstance(m, nn.Conv2d):
+        nn.init.xavier_normal_(m.weight)
         # 将偏置初始化为0
         if m.bias is not None:
             nn.init.constant_(m.bias, 0)
@@ -66,7 +64,7 @@ class StockNet(nn.Module):
         self.stock_classifier = nn.Linear(self.model.num_features, config["stock_classes"])
         self.industry_classifier = nn.Linear(self.model.num_features, config["industry_classes"])
 
-        initialize(self)
+        initialize(self.model)
 
     def forward(self, x):
         x = self.model.forward_features(x)
