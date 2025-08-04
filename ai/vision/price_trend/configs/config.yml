@@ -31,15 +31,15 @@ training:
   clip_norm: 0
   losses: ['trend']
   loss_weights: [1]
-  learning_rate: 0.01
+  learning_rate: 0.0001
   min_learning_rate: 0.00001
   weight_decay: 0.0001
   warmup_epochs: 0
-  batch_size: 512
+  batch_size: 128
   num_epochs: 100
   model_save_path: "../fin_models/trend.pth"
   pretrained_path: "../fin_models/trend_pretrained.pth"
-  load_pretrained: true
+  load_pretrained: false
 
 # --- 设备配置 ---
 device: "cuda"              # 如果有GPU则使用cuda，否则使用cpu
