@@ -43,7 +43,7 @@ def weights_init(m):
         if m.bias is not None:
             nn.init.constant_(m.bias, 0)
     # 对批量归一化层进行初始化
-    elif isinstance(m, nn.BatchNorm2d) != -1:
+    elif isinstance(m, nn.BatchNorm2d):
         # 将权重(gamma)初始化为1，偏置(beta)初始化为0
         nn.init.constant_(m.weight, 1)
         nn.init.constant_(m.bias, 0)
