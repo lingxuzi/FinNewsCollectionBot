@@ -76,5 +76,5 @@ class StockNet(nn.Module):
         return trend_logits, stock_logits, industry_logits
 
     def gradcam_layer(self):
-        return eval(f'self.model.{self.config['gradlayer']}')
+        return eval(f'self.model.{self.config["gradlayer"]}')
 
