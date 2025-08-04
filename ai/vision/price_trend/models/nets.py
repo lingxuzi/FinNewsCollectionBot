@@ -64,7 +64,8 @@ class StockNet(nn.Module):
         self.stock_classifier = nn.Linear(self.model.num_features, config["stock_classes"])
         self.industry_classifier = nn.Linear(self.model.num_features, config["industry_classes"])
 
-        initialize(self.model)
+        if 'models.' not in config["backbone"]:
+            initialize(self.model)
 
     def forward(self, x):
         x = self.model.forward_features(x)
