@@ -48,6 +48,10 @@ def weights_init(m):
         nn.init.constant_(m.weight, 1)
         nn.init.constant_(m.bias, 0)
 
+def initialize(module: nn.Module):
+    for name, m in module.named_modules():
+        weights_init(m)
+
 @register_model('stocknet')
 class StockNet(nn.Module):
     def __init__(self, config):
@@ -62,7 +66,7 @@ class StockNet(nn.Module):
         self.stock_classifier = nn.Linear(self.model.num_features, config["stock_classes"])
         self.industry_classifier = nn.Linear(self.model.num_features, config["industry_classes"])
 
-        self.apply(weights_init)
+        self.apply(initialize)
 
     def forward(self, x):
         x = self.model.forward_features(x)
