@@ -260,7 +260,7 @@ class InvertedResidual(nn.Module):
             return y
 
 class MBV2_CA(nn.Module):
-    def __init__(self, num_classes=1000, width_mult=1.):
+    def __init__(self, pretrained, in_chans=1, width_mult=1.):
         super(MBV2_CA, self).__init__()
         # setting of inverted residual blocks
         self.cfgs = [
@@ -276,7 +276,7 @@ class MBV2_CA(nn.Module):
 
         # building first layer
         input_channel = _make_divisible(32 * width_mult, 4 if width_mult == 0.1 else 8)
-        layers = [conv_3x3_bn(3, input_channel, 2)]
+        layers = [conv_3x3_bn(in_chans, input_channel, 2)]
         # building inverted residual blocks
         block = InvertedResidual
         for t, c, n, s in self.cfgs:
