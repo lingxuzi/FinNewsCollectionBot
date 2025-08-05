@@ -8,17 +8,17 @@ import pandas as pd
 import copy
 import random
 import ai.vision.price_trend.models.base
+from autoclip.torch import QuantileClip
+from torch.utils.data import DataLoader, random_split
+from ai.optimizer.muon import MuonClip
 from ai.vision.price_trend.dataset import ImagingPriceTrendDataset
 from ai.vision.price_trend.sampler.trend_sampler import TrendSampler
-from autoclip.torch import QuantileClip
 from ai.vision.price_trend.models import create_model, get_model_config
-from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm # 提供优雅的进度条
 from utils.common import AverageMeter
 from config.base import *
 from ai.modules.multiloss import AutomaticWeightedLoss
 from ai.modules.earlystop import EarlyStopping
-from ai.optimizer.muon import MuonClip
 from ai.vision.gradcam.gradcam import GradCAM, save_cam_on_image
 from ai.loss.focalloss import ASLSingleLabel
 from ai.optimizer import *
@@ -153,9 +153,7 @@ def run_training(config):
         optimizer = torch.optim.Adam(parameters)
     elif config['training']['optimizer'] == 'adamw':
         optimizer = torch.optim.AdamW(parameters)
-    elif config['training']['optimizer'] == 'muon':
-        optimizer = MuonClip(parameters)
-        optimizer.set_model(model)
+        
     if config['training']['clip_norm'] == 0.01:
         optimizer = QuantileClip.as_optimizer(optimizer=optimizer, quantile=0.9, history_length=1000)
     early_stopper = EarlyStopping(patience=40, direction='up')
