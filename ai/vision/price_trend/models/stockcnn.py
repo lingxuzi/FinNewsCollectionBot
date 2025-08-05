@@ -47,10 +47,10 @@ class CA_Block(nn.Module):
         return out
     
 class ResidualBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, ratio=0.25, kernel_size=5, stride=1, attention=True):
+    def __init__(self, in_channels, out_channels, ratio=2, kernel_size=5, stride=1, attention=True):
         super(ResidualBlock, self).__init__()
         self.attention = attention
-        init_channels = round(out_channels * ratio) 
+        init_channels = out_channels // ratio
         # pointwise
         self.conv1 = nn.Conv2d(in_channels, init_channels, kernel_size=1, stride=1, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(init_channels)
