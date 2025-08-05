@@ -56,7 +56,7 @@ class ResidualBlock(nn.Module):
         self.bn1 = nn.BatchNorm2d(init_channels)
         self.relu = nn.Hardswish(inplace=True)
         # depthwise
-        self.conv2 = nn.Conv2d(init_channels, init_channels, kernel_size=kernel_size, stride=stride, padding=kernel_size//2, bias=False)
+        self.conv2 = nn.Conv2d(init_channels, init_channels, kernel_size=kernel_size, stride=stride, padding=kernel_size//2, groups=init_channels, bias=False)
         self.bn2 = nn.BatchNorm2d(init_channels)
         self.ca = CA_Block(init_channels, reduction=32)
 
