@@ -275,7 +275,7 @@ class StockChartNetV2(nn.Module):
                 stride=s,
                 use_se=se)
             for i, (k, in_c, out_c, s, se) in enumerate(NET_CONFIG["blocks6"])
-        ]
+        ])
         self.num_features = make_divisible(NET_CONFIG["blocks6"][-1][2] * scale)
 
     def forward_features(self, x):
