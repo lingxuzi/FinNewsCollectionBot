@@ -1,5 +1,5 @@
 trend_classes: 2
 dropout: 0.5
-backbone: 'mbv2_ca'
-gradlayer: 'conv'
+backbone: 'stockchartnetv2'
+gradlayer: 'blocks6'
 #'models.mobilenetv3.lcnet_100' #'models.efficientnet.efficientnet_b0'

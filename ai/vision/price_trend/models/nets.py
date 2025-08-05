@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import math
 import timm.models as models
 from .stockcnn import StockChartNet as stockchartnet
-from .stockcnn import MBV2_CA as mbv2_ca
+from .stockcnn import StockChartNetV2 as stockchartnetv2
 from ai.vision.price_trend.models import register_model
 
 class cnn20d(nn.Module):
@@ -53,12 +53,25 @@ class StockNet(nn.Module):
         self.config = config
         
         self.model = eval(f'{config["backbone"]}(pretrained=True, in_chans=1)')
+
+
+        self.last_conv = nn.Conv2d(
+            in_channels=self.model.num_features,
+            out_channels=1280,
+            kernel_size=1,
+            stride=1,
+            padding=0,
+            bias=False)
+
+        self.hardswish = nn.Hardswish()
+
+        output_size = 1280
         
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1)) # 全局平均池化
         
-        self.trend_classifier = nn.Linear(self.model.num_features, config["trend_classes"])
-        self.stock_classifier = nn.Linear(self.model.num_features, config["stock_classes"])
-        self.industry_classifier = nn.Linear(self.model.num_features, config["industry_classes"])
+        self.trend_classifier = nn.Linear(output_size, config["trend_classes"])
+        self.stock_classifier = nn.Linear(output_size, config["stock_classes"])
+        self.industry_classifier = nn.Linear(output_size, config["industry_classes"])
 
         if 'models.' not in config["backbone"]:
             initialize(self.model)
@@ -66,6 +79,8 @@ class StockNet(nn.Module):
     def forward(self, x):
         x = self.model.forward_features(x)
         x = self.global_pool(x)
+        x = self.last_conv(x)
+        x = self.hardswish(x)
         # flatten
         x = x.view(x.size(0), -1)
         if self.config['dropout'] > 0.:
