@@ -9,14 +9,18 @@ class CA_Block(nn.Module):
  
         self.pool_h = nn.AdaptiveAvgPool2d((None, 1))
         self.pool_w = nn.AdaptiveAvgPool2d((1, None))
+
+
+        mip = max(8, channel // reduction)
+
  
-        self.conv1 = nn.Conv2d(in_channels=channel, out_channels=channel//reduction, kernel_size=1, stride=1, bias=False)
+        self.conv1 = nn.Conv2d(in_channels=channel, out_channels=mip, kernel_size=1, stride=1)
  
-        self.bn1 = nn.BatchNorm2d(channel//reduction)
+        self.bn1 = nn.BatchNorm2d(mip)
         self.relu = nn.Hardswish(inplace=True)
  
-        self.F_h = nn.Conv2d(in_channels=channel//reduction, out_channels=channel, kernel_size=1, stride=1, bias=False)
-        self.F_w = nn.Conv2d(in_channels=channel//reduction, out_channels=channel, kernel_size=1, stride=1, bias=False)
+        self.F_h = nn.Conv2d(in_channels=mip, out_channels=channel, kernel_size=1, stride=1)
+        self.F_w = nn.Conv2d(in_channels=mip, out_channels=channel, kernel_size=1, stride=1)
  
         self.sigmoid_h = nn.Sigmoid()
         self.sigmoid_w = nn.Sigmoid()
@@ -43,16 +47,22 @@ class CA_Block(nn.Module):
         return out
     
 class ResidualBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, ratio=2, stride=1, attention=True):
+    def __init__(self, in_channels, out_channels, ratio=2, kernel_size=5, stride=1, attention=True):
         super(ResidualBlock, self).__init__()
         self.attention = attention
         init_channels = math.ceil(out_channels / ratio) 
-        self.conv1 = nn.Conv2d(in_channels, init_channels, kernel_size=3, stride=stride, padding=1, bias=False)
+        # pointwise
+        self.conv1 = nn.Conv2d(in_channels, init_channels, kernel_size=1, stride=1, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(init_channels)
-        self.relu = nn.LeakyReLU(inplace=True)
-        self.conv2 = nn.Conv2d(init_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False)
+        self.relu = nn.Hardswish(inplace=True)
+        # depthwise
+        self.conv2 = nn.Conv2d(init_channels, init_channels, kernel_size=kernel_size, stride=stride, padding=kernel_size//2, bias=False)
         self.bn2 = nn.BatchNorm2d(out_channels)
         self.ca = CA_Block(out_channels, reduction=8)
+
+        # pw-linear
+        self.conv3 = nn.Conv2d(init_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False)
+        self.bn3 = nn.BatchNorm2d(out_channels)
  
         self.shortcut = nn.Sequential()
         if stride != 1 or in_channels != out_channels:
@@ -68,10 +78,12 @@ class ResidualBlock(nn.Module):
         out = self.relu(out)
         out = self.conv2(out)
         out = self.bn2(out)
+        out = self.relu(out)
         if self.attention:
             out = self.ca(out)
+        out = self.conv3(out)
+        out = self.bn3(out)
         out += self.shortcut(residual)
-        out = self.relu(out)
         return out
     
 class StockChartNet(nn.Module):
