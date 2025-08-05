@@ -52,7 +52,7 @@ class ResidualBlock(nn.Module):
         self.attention = attention
         init_channels = out_channels // ratio
         # pointwise
-        self.conv1 = nn.Conv2d(in_channels, init_channels, kernel_size=1, stride=1, padding=1, bias=False)
+        self.conv1 = nn.Conv2d(in_channels, init_channels, kernel_size=1, stride=1, padding=0, bias=False)
         self.bn1 = nn.BatchNorm2d(init_channels)
         self.relu = nn.Hardswish(inplace=True)
         # depthwise
