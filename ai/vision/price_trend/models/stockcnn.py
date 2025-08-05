@@ -275,19 +275,8 @@ class StockChartNetV2(nn.Module):
                 stride=s,
                 use_se=se)
             for i, (k, in_c, out_c, s, se) in enumerate(NET_CONFIG["blocks6"])
-        ])
-
-        self.avg_pool = nn.AdaptiveAvgPool2d(1)
-
-        self.last_conv = nn.Conv2d(
-            in_channels=make_divisible(NET_CONFIG["blocks6"][-1][2] * scale),
-            out_channels=self.class_expand,
-            kernel_size=1,
-            stride=1,
-            padding=0,
-            bias=False)
-
-        self.hardswish = Hardswish()
+        ]
+        self.num_features = make_divisible(NET_CONFIG["blocks6"][-1][2] * scale)
 
     def forward_features(self, x):
         x = self.conv1(x)
