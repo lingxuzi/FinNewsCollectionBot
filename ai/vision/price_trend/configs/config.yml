@@ -36,7 +36,7 @@ training:
   min_learning_rate: 0.00001
   weight_decay: 0.0001
   warmup_epochs: 5
-  batch_size: 128
+  batch_size: 512
   num_epochs: 100
   model_save_path: "../fin_models/trend.pth"
   pretrained_path: "../fin_models/trend_pretrained.pth"
