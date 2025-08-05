@@ -18,6 +18,7 @@ from utils.common import AverageMeter
 from config.base import *
 from ai.modules.multiloss import AutomaticWeightedLoss
 from ai.modules.earlystop import EarlyStopping
+from ai.optimizer.muon import MuonClip
 from ai.vision.gradcam.gradcam import GradCAM, save_cam_on_image
 from ai.loss.focalloss import ASLSingleLabel
 from ai.optimizer import *
@@ -137,18 +138,24 @@ def run_training(config):
     ema = ModelEmaV2(model, decay=0.9999, device=device)
 
     model = model.to(device)
-    criterion_trend = nn.CrossEntropyLoss() #focal_loss(alpha=0.3, gamma=2, num_classes=model_config['trend_classes'])
-    criterion_stock = nn.CrossEntropyLoss()#focal_loss(alpha=0.3, gamma=2, num_classes=model_config['stock_classes'])
-    criterion_industry = nn.CrossEntropyLoss()#focal_loss(alpha=0.3, gamma=2, num_classes=model_config['industry_classes'])
+    criterion_trend = ASLSingleLabel() #focal_loss(alpha=0.3, gamma=2, num_classes=model_config['trend_classes'])
+    criterion_stock = ASLSingleLabel()#focal_loss(alpha=0.3, gamma=2, num_classes=model_config['stock_classes'])
+    criterion_industry = ASLSingleLabel()#focal_loss(alpha=0.3, gamma=2, num_classes=model_config['industry_classes'])
 
     parameters = []
     if config['training']['awl']:
         parameters += [{'params': awl.parameters(), 'weight_decay': 0, 'lr': 1e-2}]
     parameters += [{'params': model.parameters(), 'weight_decay': config['training']['weight_decay'], 'lr': config['training']['min_learning_rate'] if config['training']['warmup_epochs'] > 0 else config['training']['learning_rate']}]
     # print(list(model.named_parameters()))
-    # optimizer = torch.optim.SGD(parameters, momentum=0.9, nesterov=True)
-    optimizer = torch.optim.Adam(parameters)
-    # optimizer.set_model(model)
+    if config['training']['optimizer'] == 'sgd':
+        optimizer = torch.optim.SGD(parameters, momentum=0.9, nesterov=True)
+    elif config['training']['optimizer'] == 'adam':
+        optimizer = torch.optim.Adam(parameters)
+    elif config['training']['optimizer'] == 'adamw':
+        optimizer = torch.optim.AdamW(parameters)
+    elif config['training']['optimizer'] == 'muon':
+        optimizer = MuonClip(parameters)
+        optimizer.set_model(model)
     if config['training']['clip_norm'] == 0.01:
         optimizer = QuantileClip.as_optimizer(optimizer=optimizer, quantile=0.9, history_length=1000)
     early_stopper = EarlyStopping(patience=40, direction='up')
