@@ -345,9 +345,8 @@ def run_eval(config):
             # ctx_sequences = ctx_sequences.to(device)
             # y = y.to(device)
 
-            img, trend, code = test_iter.next()
-            trend_pred = model(img)
-
+            img, trend, stock, industry = test_iter.next()
+            trend_pred, _, _ = model(img)
             trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred.cpu().numpy())
 
         # --- 计算整体 R² ---
