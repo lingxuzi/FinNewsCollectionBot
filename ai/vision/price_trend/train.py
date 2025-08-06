@@ -322,7 +322,10 @@ def run_eval(config):
         is_train=False
     )
     test_loader = DataLoader(test_dataset, batch_size=config['training']['batch_size'], num_workers=config['training']['workers'], pin_memory=False, shuffle=False)
+    
     model_config = get_model_config(config['training']['model'])
+    model_config['stock_classes'] = len(encoder[1].classes_)
+    model_config['industry_classes'] = len(encoder[0].classes_)
 
     model = create_model(config['training']['model'], model_config).to(device)
 
