@@ -24,4 +24,4 @@ class ClsMetric:
         
         # print(f"{self.tag} -> R2 Score = {self.r2}, MSE = {self.mse}, MAE = {self.mae}, MAPE = {self.mape}, ME = {self.me}")
         print(f"{self.tag} -> F1 Score = {self.f1}, Accuracy = {self.accuracy}, Balanced Accuracy = {self.balanced_accuracy}")
-        return (self.f1, self.accuracy, self.balanced_accuracy), self.balanced_accuracy
+        return (self.f1, self.accuracy, self.balanced_accuracy), self.f1
