@@ -304,6 +304,11 @@ def eval(model, dataset, config):
 def run_eval(config):
     device = torch.device(config['device'] if torch.cuda.is_available() else "cpu")
 
+    encoder_path = config['data']['encoder_path']
+    if os.path.exists(encoder_path):
+        print("Loading precomputed encoder...")
+        encoder = joblib.load(encoder_path)
+
     test_dataset = ImagingPriceTrendDataset(
         db_path=config['data']['db_path'],
         img_caching_path=config['data']['test']['img_caching_path'],
@@ -312,6 +317,7 @@ def run_eval(config):
         seq_length=config['data']['sequence_length'],
         features=config['data']['features'],
         image_size=config['data']['image_size'],
+        encoder=encoder,
         tag='test',
         is_train=False
     )
