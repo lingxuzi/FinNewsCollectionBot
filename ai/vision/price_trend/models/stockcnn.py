@@ -103,21 +103,23 @@ class StockChartNet(nn.Module):
         stem = nn.Sequential(
             nn.Conv2d(1, 16, kernel_size=5, stride=2, padding=2),
             nn.BatchNorm2d(16),
-            nn.LeakyReLU(inplace=True)
+            nn.Hardswish(inplace=True)
         )
 
         block2 = ResidualBlock(16, 32, stride=2, attention=False)
         block3 = ResidualBlock(32, 64, stride=2)
         block4 = ResidualBlock(64, 128, stride=2)
+        block5 = ResidualBlock(128, 256, stride=2)
 
         self.layers = nn.Sequential(
             stem,
             block2,
             block3,
-            block4
+            block4,
+            block5
         )
 
-        self.num_features = 128
+        self.num_features = 256
 
     def forward_features(self, x):
         return self.layers(x)
