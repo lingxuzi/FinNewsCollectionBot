@@ -128,7 +128,7 @@ def run_training(config):
         )
 
     if config['data']['sampler']:
-        train_sampler = TrendSampler(train_dataset, config['training']['batch_size'])
+        train_sampler = TrendSampler(train_dataset, config['training']['batch_size'], tag='train' if not config['training']['finetune'] else 'finetune')
         train_loader = DataLoader(train_dataset, num_workers=config['training']['workers'], pin_memory=False, shuffle=False, drop_last=False, batch_sampler=train_sampler)
     else:
         train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], num_workers=config['training']['workers'], pin_memory=False, shuffle=True, drop_last=True)

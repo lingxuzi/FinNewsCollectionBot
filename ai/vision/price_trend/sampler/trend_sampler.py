@@ -7,9 +7,9 @@ import random
 import numpy as np
 
 class TrendSampler(torch.utils.data.sampler.Sampler):
-    def __init__(self, dataset: ImagingPriceTrendDataset, batch_size):
+    def __init__(self, dataset: ImagingPriceTrendDataset, batch_size, tag):
         os.makedirs('../price_trend_sampler_cache', exist_ok=True)
-        self._cache = Cache('../price_trend_sampler_cache')
+        self._cache = Cache(f'../price_trend_sampler_cache_{tag}')
         self.batch_size = batch_size
         cls_indices = self._cache.get('trend_cls_indices', {})
 
