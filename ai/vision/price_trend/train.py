@@ -210,7 +210,7 @@ def run_training(config):
         for _ in pbar:
             img, trend, stock, industry = train_iter.next()
             optimizer.zero_grad()
-            trend_pred, stock_pred, industry_pred = model(img)
+            trend_pred = model(img, stock, industry)
 
             losses = {}
 
@@ -220,16 +220,6 @@ def run_training(config):
                 trend_loss_meter.update(loss_trend.item())
 
                 trend_metric_meter.update(balanced_accuracy_score(trend.squeeze().cpu().numpy(), trend_pred.argmax(axis=1).cpu().numpy()))
-
-            if 'stock' in config['training']['losses']:
-                loss_stock = criterion_stock(stock_pred, stock.squeeze())
-                losses['stock'] = loss_stock
-                stock_loss_meter.update(loss_stock.item())
-            
-            if 'industry' in config['training']['losses']:
-                loss_industry = criterion_industry(industry_pred, industry.squeeze())
-                losses['industry'] = loss_industry
-                industry_loss_meter.update(loss_industry.item())
             
             total_loss = sum(losses.values())
             total_loss.backward()
@@ -296,32 +286,21 @@ def eval(model, dataset, config):
     with torch.no_grad():
         val_iter = DataPrefetcher(val_loader, config['device'], enable_queue=False, num_threads=1)
         trend_metric = ClsMetric('trend')
-        stock_metric = ClsMetric('stock')
-        industry_metric = ClsMetric('industry')
 
         for _ in tqdm(range(num_iters_per_epoch(dataset, config['training']['batch_size'])), desc="[Validation]"):
             # ts_sequences = ts_sequences.to(device)
             # ctx_sequences = ctx_sequences.to(device)
             # y = y.to(device)
             img, trend, stock, industry = val_iter.next()
-            trend_pred, stock_pred, industry_pred = _model(img)
+            trend_pred = _model(img, stock, industry)
 
             trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred.cpu().numpy())
-            stock_metric.update(stock.squeeze().cpu().numpy(), stock_pred.cpu().numpy())
-            industry_metric.update(industry.squeeze().cpu().numpy(), industry_pred.cpu().numpy())
-
     # --- 计算整体 R² --
 
     scores = []
     if 'trend' in config['training']['losses']:
         _, trend_score = trend_metric.calculate()
         scores.append(trend_score)
-    if 'stock' in config['training']['losses']:
-        _, stock_score = stock_metric.calculate()
-        scores.append(stock_score)
-    if 'industry' in config['training']['losses']:
-        _, industry_score = industry_metric.calculate()
-        scores.append(industry_score)
     
     mean_r2 = sum(scores) / len(scores)
 
@@ -372,7 +351,7 @@ def run_eval(config):
             # y = y.to(device)
 
             img, trend, stock, industry = test_iter.next()
-            trend_pred, _, _ = model(img)
+            trend_pred = model(img, stock, industry)
             trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred.cpu().numpy())
 
         # --- 计算整体 R² ---

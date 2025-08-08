@@ -25,16 +25,16 @@ data:
 # --- 训练参数 ---
 training:
   workers: 4
-  finetune: true
+  finetune: false
   model: 'stocknet'
   awl: false
   clip_norm: 0
   losses: ['trend']
   loss_weights: [1]
   optimizer: 'sgd'
-  learning_rate: 0.001
+  learning_rate: 0.01
   min_learning_rate: 0.00001
-  weight_decay: 0.0001
+  weight_decay: 0.01
   warmup_epochs: 0
   batch_size: 512
   num_epochs: 100
