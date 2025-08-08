@@ -80,7 +80,7 @@ class StockNet(nn.Module):
         # Define a linear layer to project the combined embedding vector to a specific size
         self.embedding_projection = nn.Linear(combined_embedding_size, 32)
         
-        self.trend_classifier = nn.Linear(output_size, config["trend_classes"])
+        self.trend_classifier = nn.Linear(output_size + 32, config["trend_classes"])
 
         if 'models.' not in config["backbone"]:
             initialize(self.model)
@@ -96,9 +96,6 @@ class StockNet(nn.Module):
         # Get stock and industry embeddings
         stock_embedding = self.stock_embedding(stock)
         industry_embedding = self.industry_embedding(industry)
-
-        print(stock_embedding.shape)
-        print(industry_embedding.shape)
 
         # Concatenate stock and industry embeddings
         combined_embedding = torch.cat((stock_embedding, industry_embedding), dim=1)
