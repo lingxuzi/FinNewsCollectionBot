@@ -209,6 +209,8 @@ def run_training(config):
         pbar = tqdm(range(num_iters_per_epoch(train_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training]")
         for _ in pbar:
             img, trend, stock, industry = train_iter.next()
+            stock = stock.squeeze()
+            industry = industry.squeeze()
             optimizer.zero_grad()
             trend_pred = model(img, stock, industry)
 
@@ -271,8 +273,8 @@ def generate_gradcam(model, dataset):
     for i in indices:
         img, trend, stock, industry = dataset[i]
         img = img.unsqueeze(0).cuda()
-        stock = stock.unsqueeze(0).cuda()
-        industry = industry.unsqueeze(0).cuda()
+        stock = stock.cuda()
+        industry = industry.cuda()
         img.requires_grad_()
         target_layer = model.gradcam_layer()
         gradcam = GradCAM(model=model, target_layer=target_layer, forward_callback=gradcam_forward)
@@ -299,6 +301,9 @@ def eval(model, dataset, config):
             # ctx_sequences = ctx_sequences.to(device)
             # y = y.to(device)
             img, trend, stock, industry = val_iter.next()
+
+            stock = stock.squeeze()
+            industry = industry.squeeze()
             trend_pred = _model(img, stock, industry)
 
             trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred.cpu().numpy())
@@ -358,6 +363,9 @@ def run_eval(config):
             # y = y.to(device)
 
             img, trend, stock, industry = test_iter.next()
+
+            stock = stock.squeeze()
+            industry = industry.squeeze()
             trend_pred = model(img, stock, industry)
             trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred.cpu().numpy())
 
