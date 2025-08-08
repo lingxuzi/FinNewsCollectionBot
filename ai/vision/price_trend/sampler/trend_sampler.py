@@ -33,7 +33,7 @@ class TrendSampler(torch.utils.data.sampler.Sampler):
 
     def resample(self):
         indices = []
-        min_len = sum([len(indices) for indices in self.cls_indices.values()]) / len(self.cls_indices)
+        min_len = sum([len(indices) for indices in self.cls_indices.values()]) // len(self.cls_indices)
 
         for trend, _indices in self.cls_indices.items():
             print(_indices)
