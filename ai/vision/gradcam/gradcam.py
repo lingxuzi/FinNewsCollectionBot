@@ -10,9 +10,10 @@ import matplotlib.pyplot as plt
 
 # --- 1. Grad-CAM 核心逻辑实现 ---
 class GradCAM:
-    def __init__(self, model, target_layer, forward_callback):
+    def __init__(self, model, target_layer, image_shape, forward_callback):
         self.model = model
         self.target_layer = target_layer
+        self.image_shape = image_shape
         self.forward_callback = forward_callback
         self.feature_maps = None
         self.gradients = None
@@ -58,7 +59,7 @@ class GradCAM:
         
         # 将热力图上采样到与输入图像相同的尺寸
         cam = F.interpolate(cam, 
-                            size=(input_tensor.shape[2], input_tensor.shape[3]), 
+                            size=(self.image_shape[0], self.image_shape[1]), 
                             mode='bilinear', 
                             align_corners=False)
         

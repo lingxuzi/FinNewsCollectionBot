@@ -277,7 +277,7 @@ def generate_gradcam(model, dataset):
         industry = industry.cuda()
         img.requires_grad_()
         target_layer = model.gradcam_layer()
-        gradcam = GradCAM(model=model, target_layer=target_layer, forward_callback=gradcam_forward)
+        gradcam = GradCAM(model=model, target_layer=target_layer, image_shape=img.shape[2:], forward_callback=gradcam_forward)
         cam = gradcam(input_tensor=(img, stock, industry))
 
         save_cam_on_image(img.detach().squeeze().cpu().numpy(), cam.squeeze(), f'../stock_gradcams/gradcam_{i}.png')
