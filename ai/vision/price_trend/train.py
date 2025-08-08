@@ -269,14 +269,21 @@ def generate_gradcam(model, dataset):
     os.makedirs('../stock_gradcams', exist_ok=True)
 
     for i in indices:
-        img, _, _, _ = dataset[i]
+        img, trend, stock, industry = dataset[i]
         img = img.unsqueeze(0).cuda()
+        stock = stock.unsqueeze(0).cuda()
+        industry = industry.unsqueeze(0).cuda()
         img.requires_grad_()
         target_layer = model.gradcam_layer()
-        gradcam = GradCAM(model=model, target_layer=target_layer)
-        cam = gradcam(input_tensor=img)
+        gradcam = GradCAM(model=model, target_layer=target_layer, forward_callback=gradcam_forward)
+        cam = gradcam(input_tensor=(img, stock, industry))
 
         save_cam_on_image(img.detach().squeeze().cpu().numpy(), cam.squeeze(), f'../stock_gradcams/gradcam_{i}.png')
+
+def gradcam_forward(input_tensor, model):
+    img, stock, industry = input_tensor
+    output = model(img, stock, industry)
+    return output
 
 def eval(model, dataset, config):
     _model = model#copy.deepcopy(ema.module)

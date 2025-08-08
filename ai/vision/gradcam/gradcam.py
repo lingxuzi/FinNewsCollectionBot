@@ -10,9 +10,10 @@ import matplotlib.pyplot as plt
 
 # --- 1. Grad-CAM 核心逻辑实现 ---
 class GradCAM:
-    def __init__(self, model, target_layer):
+    def __init__(self, model, target_layer, forward_callback):
         self.model = model
         self.target_layer = target_layer
+        self.forward_callback = forward_callback
         self.feature_maps = None
         self.gradients = None
         
@@ -35,7 +36,8 @@ class GradCAM:
         self.model.eval() # 切换到评估模式
         
         # 步骤 1: 正向传播
-        output = self.model(input_tensor)
+        # output = self.model(input_tensor)
+        output = self.forward_callback(input_tensor, self.model)
         
         # 步骤 2: 反向传播
         self.model.zero_grad()
