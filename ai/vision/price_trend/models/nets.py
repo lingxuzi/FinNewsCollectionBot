@@ -97,6 +97,9 @@ class StockNet(nn.Module):
         stock_embedding = self.stock_embedding(stock)
         industry_embedding = self.industry_embedding(industry)
 
+        print(stock_embedding.shape)
+        print(industry_embedding.shape)
+
         # Concatenate stock and industry embeddings
         combined_embedding = torch.cat((stock_embedding, industry_embedding), dim=1)
 
