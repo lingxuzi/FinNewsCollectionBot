@@ -17,7 +17,7 @@ data:
     hist_data_file: '../hamuna_stock_data/train_data/hist/fundamental_test.pkl'
     img_caching_path: '../price_trend/test'
     #, 'ATR', 'OBV', 'CCI', 'ADX'
-  features: ['open', 'high', 'low', 'close', 'MA20', 'turn_over', 'volume']
+  features: ['open', 'high', 'low', 'close', 'MA20', 'volume']
   categorical: ['industry', 'code']
   sequence_length: 20       # K线序列长度
   image_size: 60
@@ -32,7 +32,7 @@ training:
   losses: ['trend', 'stock', 'industry']
   loss_weights: [1, 0.2, 0.5]
   optimizer: 'adamw'
-  learning_rate: 0.0001
+  learning_rate: 0.0003
   min_learning_rate: 0.00001
   weight_decay: 0.1
   warmup_epochs: 0
