@@ -188,8 +188,6 @@ def run_training(config):
     scheduler = CosineWarmupLR(
         optimizer, config['training']['num_epochs'], config['training']['learning_rate'], config['training']['min_learning_rate'], warmup_epochs=config['training']['warmup_epochs'], warmup_lr=config['training']['min_learning_rate'])
 
-    
-    eval(model, eval_dataset, config)
     # --- 4. 训练循环 ---
     best_val_loss = float('inf') if early_stopper.direction == 'down' else -float('inf')
     for epoch in range(config['training']['num_epochs']):
@@ -352,6 +350,8 @@ def run_eval(config):
         model.load_state_dict(state_dict, strict=False)
     except Exception as e:
         print(f"Error loading model state dict: {e}")
+
+    model.eval()
 
     trend_metric = ClsMetric('trend')
     
