@@ -30,6 +30,10 @@ from sklearn.metrics import balanced_accuracy_score
 from sklearn.preprocessing import LabelEncoder
 
 
+torch.manual_seed(42)
+np.random.seed(42)
+random.seed(42)
+
 def num_iters_per_epoch(loader, batch_size):
     return len(loader) // batch_size
 
@@ -52,9 +56,6 @@ def generate_encoder(hist_data_files, categorical):
 
 def run_training(config):
     # set random seed
-    torch.manual_seed(42)
-    np.random.seed(42)
-    random.seed(42)
     """主训练函数"""
     # --- 1. 加载配置 ---
     device = torch.device(config['device'] if torch.cuda.is_available() else "cpu")
@@ -187,6 +188,8 @@ def run_training(config):
     scheduler = CosineWarmupLR(
         optimizer, config['training']['num_epochs'], config['training']['learning_rate'], config['training']['min_learning_rate'], warmup_epochs=config['training']['warmup_epochs'], warmup_lr=config['training']['min_learning_rate'])
 
+    
+    eval(_model, eval_dataset, config)
     # --- 4. 训练循环 ---
     best_val_loss = float('inf') if early_stopper.direction == 'down' else -float('inf')
     for epoch in range(config['training']['num_epochs']):
@@ -308,9 +311,8 @@ def eval(model, dataset, config):
     # --- 计算整体 R² --
 
     scores = []
-    if 'trend' in config['training']['losses']:
-        _, trend_score = trend_metric.calculate()
-        scores.append(trend_score)
+    _, trend_score = trend_metric.calculate()
+    scores.append(trend_score)
     
     mean_r2 = sum(scores) / len(scores)
 
