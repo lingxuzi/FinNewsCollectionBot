@@ -297,8 +297,8 @@ def generate_gradcam(model, dataset):
 
 def gradcam_forward(input_tensor, model):
     img, stock, industry = input_tensor
-    output = model(img, stock, industry)
-    return output
+    trend_pred, stock_pred, industry_pred = model(img)
+    return trend_pred
 
 def eval(model, dataset, config):
     _model = model#copy.deepcopy(ema.module)
