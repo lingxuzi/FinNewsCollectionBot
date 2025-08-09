@@ -165,7 +165,7 @@ def run_training(config):
     ema = ModelEmaV2(model, decay=0.9999, device=device)
 
     model = model.to(device)
-    criterion_trend = nn.CrossEntropyLoss() #focal_loss(alpha=0.3, gamma=2, num_classes=model_config['trend_classes'])
+    criterion_trend = ASLSingleLabel() #focal_loss(alpha=0.3, gamma=2, num_classes=model_config['trend_classes'])
 
     parameters = []
     if config['training']['awl']:
