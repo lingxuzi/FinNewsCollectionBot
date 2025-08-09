@@ -68,24 +68,15 @@ class StockNet(nn.Module):
         output_size = 1280
         
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1)) # 全局平均池化
-
-
-        # Embedding layers for stock and industry
-        self.stock_embedding = nn.Embedding(config["stock_classes"], 64)
-        self.industry_embedding = nn.Embedding(config["industry_classes"], 32)
-
-        # Define the size of the combined embedding vector
-        combined_embedding_size = 64 + 32
-
-        # Define a linear layer to project the combined embedding vector to a specific size
-        self.embedding_projection = nn.Linear(combined_embedding_size, 32)
         
-        self.trend_classifier = nn.Linear(output_size + 32, config["trend_classes"])
+        self.trend_classifier = nn.Linear(output_size, config["trend_classes"])
+        self.stock_classifier = nn.Linear(output_size, config["stock_classes"])
+        self.industry_classifier = nn.Linear(output_size, config["industry_classes"])
 
         if 'models.' not in config["backbone"]:
             initialize(self.model)
 
-    def forward(self, x, stock, industry):
+    def forward(self, x):
         x = self.model.forward_features(x)
         x = self.global_pool(x)
         x = self.last_conv(x)
@@ -93,24 +84,14 @@ class StockNet(nn.Module):
         # flatten
         x = x.view(x.size(0), -1)
 
-        # Get stock and industry embeddings
-        stock_embedding = self.stock_embedding(stock)
-        industry_embedding = self.industry_embedding(industry)
-
-        # Concatenate stock and industry embeddings
-        combined_embedding = torch.cat((stock_embedding, industry_embedding), dim=1)
-
-        # Project the combined embedding vector to a specific size
-        projected_embedding = self.embedding_projection(combined_embedding)
-
-        # Concatenate the CNN features with the projected embedding
-        x = torch.cat((x, projected_embedding), dim=1)
-
         if self.config['dropout'] > 0.:
             x = F.dropout(x, p=self.config['dropout'], training=self.training)
-
+        
         trend_logits = self.trend_classifier(x)
-        return trend_logits
+        stock_logits = self.stock_classifier(x)
+        industry_logits = self.industry_classifier(x)
+
+        return trend_logits, stock_logits, industry_logits
 
     def gradcam_layer(self):
         return eval(f'self.model.{self.config["gradlayer"]}')

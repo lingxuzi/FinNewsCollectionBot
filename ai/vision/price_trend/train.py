@@ -166,6 +166,8 @@ def run_training(config):
 
     model = model.to(device)
     criterion_trend = ASLSingleLabel() #focal_loss(alpha=0.3, gamma=2, num_classes=model_config['trend_classes'])
+    criterion_stock = ASLSingleLabel()
+    criterion_industry = ASLSingleLabel()
 
     parameters = []
     if config['training']['awl']:
@@ -203,15 +205,15 @@ def run_training(config):
         industry_loss_meter = AverageMeter()
 
         trend_metric_meter = AverageMeter()
+        stock_metric_meter = AverageMeter()
+        industry_metric_meter = AverageMeter()
 
         # 使用tqdm显示进度条
         pbar = tqdm(range(num_iters_per_epoch(train_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training]")
         for _ in pbar:
             img, trend, stock, industry = train_iter.next()
-            stock = stock.squeeze()
-            industry = industry.squeeze()
             optimizer.zero_grad()
-            trend_pred = model(img, stock, industry)
+            trend_pred, stock_pred, industry_pred = model(img)
 
             losses = {}
 
@@ -221,6 +223,18 @@ def run_training(config):
                 trend_loss_meter.update(loss_trend.item())
 
                 trend_metric_meter.update(balanced_accuracy_score(trend.squeeze().cpu().numpy(), trend_pred.argmax(axis=1).cpu().numpy()))
+            
+            if 'stock' in config['training']['losses']:
+                loss_stock = criterion_stock(stock_pred, stock.squeeze())
+                losses['stock'] = loss_stock
+                stock_loss_meter.update(loss_stock.item())
+                stock_metric_meter.update(balanced_accuracy_score(stock.squeeze().cpu().numpy(), trend_pred.argmax(axis=1).cpu().numpy()))
+            
+            if 'industry' in config['training']['losses']:
+                loss_industry = criterion_industry(industry_pred, industry.squeeze())
+                losses['industry'] = loss_industry
+                industry_loss_meter.update(loss_industry.item())
+                industry_metric_meter.update(balanced_accuracy_score(industry.squeeze().cpu().numpy(), trend_pred.argmax(axis=1).cpu().numpy()))
             
             total_loss = sum(losses.values())
             total_loss.backward()
@@ -301,9 +315,7 @@ def eval(model, dataset, config):
             # y = y.to(device)
             img, trend, stock, industry = val_iter.next()
 
-            stock = stock.squeeze()
-            industry = industry.squeeze()
-            trend_pred = _model(img, stock, industry)
+            trend_pred, stock_pred, industry_pred = _model(img)
 
             trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred.cpu().numpy())
     # --- 计算整体 R² --
@@ -364,9 +376,7 @@ def run_eval(config):
 
             img, trend, stock, industry = test_iter.next()
 
-            stock = stock.squeeze()
-            industry = industry.squeeze()
-            trend_pred = model(img, stock, industry)
+            trend_pred, stock_pred, industry_pred = model(img)
             trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred.cpu().numpy())
 
         # --- 计算整体 R² ---
