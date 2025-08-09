@@ -189,7 +189,7 @@ def run_training(config):
         optimizer, config['training']['num_epochs'], config['training']['learning_rate'], config['training']['min_learning_rate'], warmup_epochs=config['training']['warmup_epochs'], warmup_lr=config['training']['min_learning_rate'])
 
     
-    eval(_model, eval_dataset, config)
+    eval(model, eval_dataset, config)
     # --- 4. 训练循环 ---
     best_val_loss = float('inf') if early_stopper.direction == 'down' else -float('inf')
     for epoch in range(config['training']['num_epochs']):
