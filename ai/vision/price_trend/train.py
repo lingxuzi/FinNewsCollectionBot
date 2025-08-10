@@ -91,14 +91,14 @@ def run_training(config):
         )
         eval_dataset = ImagingPriceTrendDataset(
             db_path=config['data']['db_path'],
-            img_caching_path=config['data']['eval']['img_caching_path'],
-            stock_list_file=config['data']['eval']['stock_list_file'],
-            hist_data_file=config['data']['eval']['hist_data_file'],
+            img_caching_path=config['data']['test']['img_caching_path'],
+            stock_list_file=config['data']['test']['stock_list_file'],
+            hist_data_file=config['data']['test']['hist_data_file'],
             seq_length=config['data']['sequence_length'],
             features=config['data']['features'],
             image_size=config['data']['image_size'],
             encoder=encoder,
-            tag='eval',
+            tag='test',
             is_train=False
         )
     else:
@@ -273,8 +273,6 @@ def run_training(config):
         if early_stopper.early_stop:
             break
 
-    
-    run_eval(config)
 
 def generate_gradcam(model, dataset):
     model.eval()
