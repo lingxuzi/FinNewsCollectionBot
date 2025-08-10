@@ -3,6 +3,7 @@ import torch
 import pandas as pd
 import numpy as np
 import os
+import traceback
 from PIL import Image
 from torchvision import transforms
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -117,7 +118,7 @@ def get_image_with_price(price):
         image = image.convert('1')
         return image
     except Exception as e:
-        print(e)
+        traceback.print_exc()
 
 class ImagingPriceTrendDataset(Dataset):
     def __init__(self, db_path, img_caching_path, stock_list_file, hist_data_file, seq_length, features, encoder, image_size, tag, is_train=True):
