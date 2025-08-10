@@ -82,14 +82,14 @@ def get_image_with_price(price):
     feature: open, close, low, high, vol, MA
     '''
     # 像素大小
-    PIXEL_WIDTH = 3
+    PIXEL_WIDTH = 5
     PIXEL_HEIGHT = 1
     # 宽度是时间序列的三倍长
     WIDTH = price.shape[0] * PIXEL_WIDTH
 
     # 价格占高度2/3，vol占1/3
-    PRICE_LOGICAL_HEIGHT = 3 * price.shape[0]
-    VOLUME_LOGICAL_HEIGHT = 4
+    PRICE_LOGICAL_HEIGHT = 4 * price.shape[0]
+    VOLUME_LOGICAL_HEIGHT = price.shape[0]
 
     # 计算区域各区域大小
     PRICE_AREA_HEIGHT = PRICE_LOGICAL_HEIGHT * PIXEL_HEIGHT
