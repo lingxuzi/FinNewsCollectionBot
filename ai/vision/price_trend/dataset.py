@@ -84,10 +84,10 @@ def get_image_with_price(price):
     '''
     try:
         # 像素大小
-        PIXEL_WIDTH = 3
+        PIXEL_WIDTH = 1
         PIXEL_HEIGHT = 1
         # 宽度是时间序列的三倍长
-        WIDTH = price.shape[0] * PIXEL_WIDTH
+        WIDTH = 3 * price.shape[0] * PIXEL_WIDTH
 
         # 价格占高度2/3，vol占1/3
         PRICE_LOGICAL_HEIGHT = 2 * price.shape[0]
