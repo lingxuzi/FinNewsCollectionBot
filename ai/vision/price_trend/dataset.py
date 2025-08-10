@@ -88,7 +88,7 @@ def get_image_with_price(price):
     WIDTH = 3 * price.shape[0] * PIXEL_WIDTH
 
     # 价格占高度2/3，vol占1/3
-    PRICE_LOGICAL_HEIGHT = 2 * price.shape[0]
+    PRICE_LOGICAL_HEIGHT = 4 * price.shape[0]
     VOLUME_LOGICAL_HEIGHT = price.shape[0]
 
     # 计算区域各区域大小

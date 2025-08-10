@@ -17,7 +17,7 @@ data:
     hist_data_file: '../hamuna_stock_data/train_data/hist/fundamental_test.pkl'
     img_caching_path: '../price_trend/test'
     #, 'ATR', 'OBV', 'CCI', 'ADX'
-  features: ['open', 'high', 'low', 'close', 'MA20', 'volume']
+  features: ['open', 'high', 'low', 'close', 'MA20', 'turnover']
   categorical: ['industry', 'code']
   sequence_length: 20       # K线序列长度
   image_size: 60
