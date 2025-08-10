@@ -81,40 +81,43 @@ def get_image_with_price(price):
     price [time, feature]
     feature: open, close, low, high, vol, MA
     '''
-    # 像素大小
-    PIXEL_WIDTH = 3
-    PIXEL_HEIGHT = 1
-    # 宽度是时间序列的三倍长
-    WIDTH = price.shape[0] * PIXEL_WIDTH
+    try:
+        # 像素大小
+        PIXEL_WIDTH = 3
+        PIXEL_HEIGHT = 1
+        # 宽度是时间序列的三倍长
+        WIDTH = price.shape[0] * PIXEL_WIDTH
 
-    # 价格占高度2/3，vol占1/3
-    PRICE_LOGICAL_HEIGHT = 2 * price.shape[0]
-    VOLUME_LOGICAL_HEIGHT = price.shape[0]
+        # 价格占高度2/3，vol占1/3
+        PRICE_LOGICAL_HEIGHT = 2 * price.shape[0]
+        VOLUME_LOGICAL_HEIGHT = price.shape[0]
 
-    # 计算区域各区域大小
-    PRICE_AREA_HEIGHT = PRICE_LOGICAL_HEIGHT * PIXEL_HEIGHT
-    V0LUME_AREA_HEIGHT = VOLUME_LOGICAL_HEIGHT * PIXEL_HEIGHT
+        # 计算区域各区域大小
+        PRICE_AREA_HEIGHT = PRICE_LOGICAL_HEIGHT * PIXEL_HEIGHT
+        V0LUME_AREA_HEIGHT = VOLUME_LOGICAL_HEIGHT * PIXEL_HEIGHT
 
-    # 总高度还是加一个pixel大小分割
-    HEIGHT = PRICE_AREA_HEIGHT + V0LUME_AREA_HEIGHT + PIXEL_HEIGHT
+        # 总高度还是加一个pixel大小分割
+        HEIGHT = PRICE_AREA_HEIGHT + V0LUME_AREA_HEIGHT + PIXEL_HEIGHT
 
-    # 放缩
-    sclr1 = MinMaxScaler((0, PRICE_LOGICAL_HEIGHT - 1))
-    sclr2 = MinMaxScaler((1, VOLUME_LOGICAL_HEIGHT))
-    price_minmax = sclr1.fit_transform(price[:, :-1].reshape(-1, 1)).reshape(price.shape[0], -1).astype(int)
-    volume_minmax = sclr2.fit_transform(price[:, -1].reshape(-1, 1)).reshape(price.shape[0]).astype(int)
+        # 放缩
+        sclr1 = MinMaxScaler((0, PRICE_LOGICAL_HEIGHT - 1))
+        sclr2 = MinMaxScaler((1, VOLUME_LOGICAL_HEIGHT))
+        price_minmax = sclr1.fit_transform(price[:, :-1].reshape(-1, 1)).reshape(price.shape[0], -1).astype(int)
+        volume_minmax = sclr2.fit_transform(price[:, -1].reshape(-1, 1)).reshape(price.shape[0]).astype(int)
 
-    # 时间序列长度
-    days = price_minmax.shape[0]
+        # 时间序列长度
+        days = price_minmax.shape[0]
 
-    # 转图片
-    p2i = PriceToImgae(days, WIDTH, HEIGHT, PRICE_AREA_HEIGHT, V0LUME_AREA_HEIGHT, PIXEL_WIDTH, PIXEL_HEIGHT)
-    background_pixel = (0, 0, 0, 100)
-    color_pixel = (255, 255, 255, 100)
-    image = p2i.getImg(price_minmax[:, :-1], price_minmax[:, -1], volume_minmax, background_pixel, color_pixel)
-    # 转成黑白像素
-    image = image.convert('1')
-    return image
+        # 转图片
+        p2i = PriceToImgae(days, WIDTH, HEIGHT, PRICE_AREA_HEIGHT, V0LUME_AREA_HEIGHT, PIXEL_WIDTH, PIXEL_HEIGHT)
+        background_pixel = (0, 0, 0, 100)
+        color_pixel = (255, 255, 255, 100)
+        image = p2i.getImg(price_minmax[:, :-1], price_minmax[:, -1], volume_minmax, background_pixel, color_pixel)
+        # 转成黑白像素
+        image = image.convert('1')
+        return image
+    except Exception as e:
+        print(e)
 
 class ImagingPriceTrendDataset(Dataset):
     def __init__(self, db_path, img_caching_path, stock_list_file, hist_data_file, seq_length, features, encoder, image_size, tag, is_train=True):
