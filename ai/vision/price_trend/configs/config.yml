@@ -25,7 +25,7 @@ data:
 # --- 训练参数 ---
 training:
   workers: 4
-  finetune: false
+  finetune: true
   model: 'stocknet'
   awl: false
   clip_norm: 0
@@ -34,10 +34,10 @@ training:
   optimizer: 'adamw'
   learning_rate: 0.0001
   min_learning_rate: 0.00001
-  weight_decay: 0.05
+  weight_decay: 0.001
   warmup_epochs: 1
   batch_size: 512
-  num_epochs: 20
+  num_epochs: 100
   model_save_path: "../fin_models/trend.pth"
   pretrained_path: "../fin_models/trend_pretrained.pth"
   load_pretrained: false
