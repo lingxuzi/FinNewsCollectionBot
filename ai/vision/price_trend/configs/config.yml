@@ -25,7 +25,7 @@ data:
 # --- 训练参数 ---
 training:
   workers: 4
-  finetune: true
+  finetune: false
   model: 'stocknet'
   awl: false
   clip_norm: 0
@@ -40,7 +40,7 @@ training:
   num_epochs: 100
   model_save_path: "../fin_models/trend.pth"
   pretrained_path: "../fin_models/trend_pretrained.pth"
-  load_pretrained: false
+  load_pretrained: true
 
 # --- 设备配置 ---
 device: "cuda"              # 如果有GPU则使用cuda，否则使用cpu
