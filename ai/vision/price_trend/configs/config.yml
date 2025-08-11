@@ -32,7 +32,7 @@ training:
   losses: ['trend', 'industry']
   loss_weights: [1, 0.5]
   optimizer: 'adamw'
-  learning_rate: 0.00001
+  learning_rate: 0.00005
   min_learning_rate: 0.00001
   weight_decay: 0.01
   warmup_epochs: 0
