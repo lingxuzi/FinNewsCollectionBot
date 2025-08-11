@@ -45,6 +45,24 @@ class CA_Block(nn.Module):
         out = x * A_h * A_w
  
         return out
+
+class SPPF(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_sizes=(5, 9, 13)):
+        super().__init__()
+        self.conv = nn.Conv2d(in_channels, in_channels // 2, kernel_size=1, bias=False)
+        self.m = nn.ModuleList([nn.MaxPool2d(kernel_size=k, stride=1, padding=k // 2) for k in kernel_sizes])
+        self.conv2 = nn.Conv2d(in_channels // 2 * (len(kernel_sizes) + 1), out_channels, kernel_size=1, bias=False)
+        self.att = CA_Block(in_channels // 2 * (len(kernel_sizes) + 1))
+
+    def forward(self, x):
+        x = self.conv(x)
+        outputs = [x]
+        for m in self.m:
+            outputs.append(m(x))
+        x = torch.cat(outputs, dim=1)
+        x = self.att(x)
+        x = self.conv2(x)
+        return x
     
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels, out_channels, ratio=2, kernel_size=5, stride=1, attention=True):
@@ -111,13 +129,15 @@ class StockChartNet(nn.Module):
         block3 = ResidualBlock(32, 64, stride=2, attention=False)
         block4 = ResidualBlock(64, 128, stride=2)
         block5 = ResidualBlock(128, 256, stride=1)
+        sppf = SPPF(256, 256)
 
         self.layers = nn.Sequential(
             stem,
             block2,
             block3,
             block4,
-            block5
+            block5,
+            sppf
         )
 
         self.num_features = 256
