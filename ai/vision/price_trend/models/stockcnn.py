@@ -124,19 +124,16 @@ class StockChartNet(nn.Module):
         )
 
         block2 = ResidualBlock(16, 32, stride=2, attention=False)
-        block3 = ResidualBlock(32, 64, stride=2, attention=False)
+        block3 = ResidualBlock(32, 64, stride=2)
         block4 = ResidualBlock(64, 128, stride=2)
         block5 = ResidualBlock(128, 256, stride=1)
-
-        sppf = SPPF(256, 256)
 
         self.layers = nn.Sequential(
             stem,
             block2,
             block3,
             block4,
-            block5,
-            sppf
+            block5
         )
 
         self.num_features = 256
