@@ -49,9 +49,9 @@ class CA_Block(nn.Module):
 class SPPF(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_sizes=(5, 9, 13)):
         super().__init__()
-        self.conv = nn.Conv2d(in_channels, in_channels // 4, kernel_size=1, bias=False)
+        self.conv = nn.Conv2d(in_channels, in_channels // 2, kernel_size=1, bias=False)
         self.m = nn.ModuleList([nn.MaxPool2d(kernel_size=k, stride=1, padding=k // 2) for k in kernel_sizes])
-        self.conv2 = nn.Conv2d(in_channels // 4 * (len(kernel_sizes) + 1), out_channels, kernel_size=1, bias=False)
+        self.conv2 = nn.Conv2d(in_channels // 2 * (len(kernel_sizes) + 1), out_channels, kernel_size=1, bias=False)
 
     def forward(self, x):
         x = self.conv(x)
