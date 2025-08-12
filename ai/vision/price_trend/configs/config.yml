@@ -31,11 +31,11 @@ training:
   clip_norm: 0
   losses: ['trend']
   loss_weights: [1]
-  optimizer: 'sgd'
-  learning_rate: 0.01
+  optimizer: 'adam'
+  learning_rate: 0.0001
   min_learning_rate: 0.00001
   weight_decay: 0.0001
-  warmup_epochs: 5
+  warmup_epochs: 0
   batch_size: 512
   num_epochs: 100
   model_save_path: "../fin_models/trend.pth"

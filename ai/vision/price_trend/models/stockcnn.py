@@ -124,7 +124,7 @@ class StockChartNet(nn.Module):
         )
 
         block2 = ResidualBlock(16, 32, stride=2, attention=False)
-        block3 = ResidualBlock(32, 64, stride=2)
+        block3 = ResidualBlock(32, 64, stride=2, attention=False)
         block4 = ResidualBlock(64, 128, stride=2)
         block5 = ResidualBlock(128, 256, stride=1)
 
