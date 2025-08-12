@@ -58,6 +58,7 @@ class TrendSampler(torch.utils.data.sampler.Sampler):
             if len(indices) < self.batch_size:
                 _indices = self.resample()
                 indices = np.concatenate([indices, _indices])
+                print('resampled indices')
             
             select_indices = range(self.batch_size)
             batch = indices[select_indices]
