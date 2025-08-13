@@ -70,7 +70,7 @@ class ResidualBlock(nn.Module):
         # pointwise
         self.conv1 = nn.Conv2d(in_channels, init_channels, kernel_size=1, stride=1, padding=0, bias=False)
         self.bn1 = nn.BatchNorm2d(init_channels)
-        self.relu = nn.Hardswish(inplace=True) #nn.LeakyReLU(negative_slope=0.1, inplace=True)
+        self.relu = nn.SiLU(inplace=True) #nn.LeakyReLU(negative_slope=0.1, inplace=True)
         # depthwise
         self.conv2 = nn.Conv2d(init_channels, init_channels, kernel_size=kernel_size, stride=stride, padding=kernel_size//2, groups=init_channels, bias=False)
         self.bn2 = nn.BatchNorm2d(init_channels)
@@ -119,7 +119,7 @@ class StockChartNet(nn.Module):
         stem = nn.Sequential(
             nn.Conv2d(1, 16, kernel_size=5, stride=2, padding=2, bias=False),
             nn.BatchNorm2d(16),
-            nn.Hardswish(inplace=True),
+            nn.SiLU(inplace=True),
             #nn.LeakyReLU(negative_slope=0.1, inplace=True)
         )
 
