@@ -97,8 +97,10 @@ class CA_Block(nn.Module):
     
 def get_attention_module(channels, attention_mode='ca', **kwargs):
     if attention_mode == 'ca':
+        print('build with ca attention')
         return CA_Block(channels, **kwargs)
     elif attention_mode == 'mlca':
+        print('build with mlca attention')
         return MLCA(channels, **kwargs)
     else:
         raise ValueError(f'Unknown attention mode: {attention_mode}')
