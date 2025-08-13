@@ -29,18 +29,22 @@ class TrendSampler(torch.utils.data.sampler.Sampler):
 
         # self.samples_per_cls = batch_size // len(cls_indices)
 
-        self.total = sum([len(indices) for indices in self.cls_indices.values()])
+        self.total = min([len(indices) for indices in self.cls_indices.values()]) * len(self.cls_indices) #sum([len(indices) for indices in self.cls_indices.values()])
 
     def resample(self):
         indices = []
-        min_len = sum([len(indices) for indices in self.cls_indices.values()]) // len(self.cls_indices)
+        # min_len = sum([len(indices) for indices in self.cls_indices.values()]) // len(self.cls_indices)
 
+        # for trend, _indices in self.cls_indices.items():
+        #     # print(_indices)
+        #     if len(_indices) < min_len:
+        #         indices.extend(_indices + random.sample(_indices, min_len - len(_indices)))
+        #     else:
+        #         indices.extend(random.sample(_indices, min_len))
+
+        min_len = min([len(indices) for indices in self.cls_indices.values()])
         for trend, _indices in self.cls_indices.items():
-            # print(_indices)
-            if len(_indices) < min_len:
-                indices.extend(_indices + random.sample(_indices, min_len - len(_indices)))
-            else:
-                indices.extend(random.sample(_indices, min_len))
+            indices.extend(random.sample(_indices, min_len))
 
         random.shuffle(indices)
         return np.asarray(indices).astype(int)
