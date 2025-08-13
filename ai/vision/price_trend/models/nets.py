@@ -52,7 +52,7 @@ class StockNet(nn.Module):
         super().__init__()
         self.config = config
         
-        self.model = eval(f'{config["backbone"]}(pretrained=True, in_chans=1, attention_mode={config["attention_mode"]})')
+        self.model = eval(f'{config["backbone"]}(pretrained=True, in_chans=1, attention_mode="{config["attention_mode"]}")')
 
 
         self.last_conv = nn.Conv2d(
