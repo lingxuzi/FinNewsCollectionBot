@@ -1,6 +1,6 @@
 trend_classes: 2
 dropout: 0.8
 backbone: 'stockchartnet'
-attention_mode: 'mlca'
+attention_mode: 'ca'
 gradlayer: 'layers[-2].conv2'
 #'models.mobilenetv3.lcnet_100' #'models.efficientnet.efficientnet_b0'
