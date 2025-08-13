@@ -3,48 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 
-class CA_Block(nn.Module):
-    def __init__(self, channel, reduction=16):
-        super(CA_Block, self).__init__()
- 
-        self.pool_h = nn.AdaptiveAvgPool2d((None, 1))
-        self.pool_w = nn.AdaptiveAvgPool2d((1, None))
-
-
-        mip = max(8, channel // reduction)
-
- 
-        self.conv1 = nn.Conv2d(in_channels=channel, out_channels=mip, kernel_size=1, stride=1)
- 
-        self.bn1 = nn.BatchNorm2d(mip)
-        self.relu = nn.Hardswish(inplace=True)
- 
-        self.F_h = nn.Conv2d(in_channels=mip, out_channels=channel, kernel_size=1, stride=1)
-        self.F_w = nn.Conv2d(in_channels=mip, out_channels=channel, kernel_size=1, stride=1)
- 
-        self.sigmoid_h = nn.Sigmoid()
-        self.sigmoid_w = nn.Sigmoid()
- 
-    def forward(self, x):
-        b, c, h, w = x.size()
- 
-        x_h = self.pool_h(x)
-        x_w = self.pool_w(x).permute(0, 1, 3, 2)
- 
-        x_cat = torch.cat([x_h, x_w], dim=2)
-        x_cat = self.conv1(x_cat)
-        x_cat = self.bn1(x_cat)
-        x_cat = self.relu(x_cat)
- 
-        x_h = x_cat[:, :, :h, :]
-        x_w = x_cat[:, :, h:, :].permute(0, 1, 3, 2)
- 
-        A_h = self.sigmoid_h(self.F_h(x_h))
-        A_w = self.sigmoid_w(self.F_w(x_w))
- 
-        out = x * A_h * A_w
- 
-        return out
+from .attentions import get_attention_module
 
 class SPPF(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_sizes=(5, 9, 13)):
@@ -63,7 +22,7 @@ class SPPF(nn.Module):
         return x
     
 class ResidualBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, ratio=2, kernel_size=5, stride=1, attention=True):
+    def __init__(self, in_channels, out_channels, ratio=2, kernel_size=5, stride=1, attention=True, attention_mode='ca'):
         super(ResidualBlock, self).__init__()
         self.attention = attention
         init_channels = out_channels // ratio
@@ -74,7 +33,7 @@ class ResidualBlock(nn.Module):
         # depthwise
         self.conv2 = nn.Conv2d(init_channels, init_channels, kernel_size=kernel_size, stride=stride, padding=kernel_size//2, groups=init_channels, bias=False)
         self.bn2 = nn.BatchNorm2d(init_channels)
-        self.ca = CA_Block(init_channels, reduction=32)
+        self.ca = get_attention_module(init_channels, attention_mode)
 
         # pw-linear
         self.conv3 = nn.Conv2d(init_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False)
@@ -108,7 +67,7 @@ class StockChartNet(nn.Module):
     - 输入: (batch_size, 1, 60, 60) 的图像张量。
     - 输出: (batch_size, 1) 的预测收益率张量。
     """
-    def __init__(self, pretrained=False, in_chans=1):
+    def __init__(self, pretrained=False, in_chans=1, attention_mode='ca'):
         super(StockChartNet, self).__init__()
         
         # --- 主干网络 ---
@@ -125,8 +84,8 @@ class StockChartNet(nn.Module):
 
         block2 = ResidualBlock(16, 32, stride=2, attention=False)
         block3 = ResidualBlock(32, 64, stride=2, attention=False)
-        block4 = ResidualBlock(64, 128, stride=2)
-        block5 = ResidualBlock(128, 256, stride=1)
+        block4 = ResidualBlock(64, 128, stride=2, attention_mode=attention_mode)
+        block5 = ResidualBlock(128, 256, stride=1, attention_mode=attention_mode)
 
         self.layers = nn.Sequential(
             stem,
