@@ -85,6 +85,7 @@ def run_training(config):
             hist_data_file=config['data']['train']['hist_data_file'],
             seq_length=config['data']['sequence_length'],
             features=config['data']['features'],
+            ts_features=config['data']['ts_features'],
             image_size=config['data']['image_size'],
             encoder=encoder,
             tag='train'
