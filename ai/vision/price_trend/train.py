@@ -217,9 +217,9 @@ def run_training(config):
         # 使用tqdm显示进度条
         pbar = tqdm(range(num_iters_per_epoch(train_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training]")
         for _ in pbar:
-            img, trend, stock, industry = train_iter.next()
+            img, trend, returns, stock, industry, ts, ctx = train_iter.next()
             optimizer.zero_grad()
-            trend_pred, stock_pred, industry_pred = model(img)
+            trend_pred, stock_pred, industry_pred = model(img, ts, ctx)
 
             losses = {}
 
@@ -295,13 +295,13 @@ def generate_gradcam(model, dataset):
         img.requires_grad_()
         target_layer = model.gradcam_layer()
         gradcam = GradCAM(model=model, target_layer=target_layer, image_shape=img.shape[2:], forward_callback=gradcam_forward)
-        cam = gradcam(input_tensor=(img, stock, industry))
+        cam = gradcam(input_tensor=(img, stock, industry, ts, ctx))
 
         save_cam_on_image(img.detach().squeeze().cpu().numpy(), cam.squeeze(), f'../stock_gradcams/gradcam_{i}.png')
 
 def gradcam_forward(input_tensor, model):
-    img, stock, industry = input_tensor
-    trend_pred, stock_pred, industry_pred = model(img)
+    img, stock, industry, ts, ctx = input_tensor
+    trend_pred, stock_pred, industry_pred = model(img, ts, ctx)
     return trend_pred
 
 def eval(model, dataset, config):
@@ -317,9 +317,9 @@ def eval(model, dataset, config):
             # ts_sequences = ts_sequences.to(device)
             # ctx_sequences = ctx_sequences.to(device)
             # y = y.to(device)
-            img, trend, stock, industry = val_iter.next()
+            img, trend, returns, stock, industry, ts, ctx = val_iter.next()
 
-            trend_pred, stock_pred, industry_pred = _model(img)
+            trend_pred, stock_pred, industry_pred = _model(img, ts, ctx)
 
             trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred.cpu().numpy())
     # --- 计算整体 R² --
@@ -379,9 +379,9 @@ def run_eval(config):
             # ctx_sequences = ctx_sequences.to(device)
             # y = y.to(device)
 
-            img, trend, stock, industry = test_iter.next()
+            img, trend, returns, stock, industry, ts, ctx = test_iter.next()
 
-            trend_pred, stock_pred, industry_pred = model(img)
+            trend_pred, stock_pred, industry_pred = model(img, ts, ctx)
             trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred.cpu().numpy())
 
         # --- 计算整体 R² ---
