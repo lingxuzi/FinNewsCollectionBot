@@ -19,6 +19,10 @@ data:
     #, 'ATR', 'OBV', 'CCI', 'ADX'
   features: ['open', 'high', 'low', 'close', 'MA20', 'volume']
   categorical: ['industry', 'code']
+  ts_features:
+    features: ['open', 'high', 'low', 'close', 'volume', 'turn_over', 'MA5', 'MA10', 'MA20', 'RSI', 'MACD', 'ATR', 'OBV', 'CCI', 'ADX', 'vwap']
+    temporal: ['month', 'day', 'weekday']
+    numerical: ['pe_ttm', 'pb', 'ps_ttm', 'pcf_ncf_ttm']
   sequence_length: 20       # K线序列长度
   image_size: 60
 
@@ -34,7 +38,7 @@ training:
   optimizer: 'adamw'
   learning_rate: 0.00001
   min_learning_rate: 0.00001
-  weight_decay: 0.05
+  weight_decay: 0.1
   warmup_epochs: 0
   batch_size: 512
   num_epochs: 100
