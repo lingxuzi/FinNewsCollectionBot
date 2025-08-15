@@ -231,6 +231,7 @@ class ImagingPriceTrendDataset(Dataset):
         return self.cache.get('total_count', 0)
     
     def parse_item(self, idx):
+        print(self.cache.get(idx))
         image, returns, code, industry, ts_seq, ctx_seq = self.cache.get(idx)
 
         acu_return = self.accumulative_return(returns)
