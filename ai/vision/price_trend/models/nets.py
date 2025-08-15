@@ -3,9 +3,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 import timm.models as models
+from ai.vision.price_trend.models import register_model
 from .stockcnn import StockChartNet as stockchartnet
 from .stockcnn import StockChartNetV2 as stockchartnetv2
-from ai.vision.price_trend.models import register_model
+from .ts_encoder import TSEncoder
 
 class cnn20d(nn.Module):
     def __init__(self, pretrained=False, in_chans=1):
@@ -53,6 +54,7 @@ class StockNet(nn.Module):
         self.config = config
         
         self.model = eval(f'{config["backbone"]}(pretrained=True, in_chans=1, attention_mode="{config["attention_mode"]}")')
+        self.ts_model = TSEncoder(config['ts_encoder'])
 
 
         self.last_conv = nn.Conv2d(

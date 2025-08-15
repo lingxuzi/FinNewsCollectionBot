@@ -3,4 +3,8 @@ dropout: 0.8
 backbone: 'stockchartnet'
 attention_mode: 'ca'
 gradlayer: 'layers[-2].conv2'
-#'models.mobilenetv3.lcnet_100' #'models.efficientnet.efficientnet_b0'
+ts_encoder:
+  hidden_dim: 64
+  num_layers: 2
+  ts_embedding_dim: 128
+  ctx_embedding_dim: 32

@@ -218,14 +218,9 @@ class KlineDataset(Dataset):
         ts_seq, ctx_seq, label, trend, _return, date_range, code = self.cache.get(f'seq_{idx}')
 
         acu_return = self.accumulative_return(_return)
-<<<<<<< HEAD
-        
-        if acu_return > 0:
-=======
         if acu_return > 0.01:
             _trend = 2
         elif -0.01 < acu_return <= 0.01:
->>>>>>> aa0ad30a0a397af5526402d45ef710c1737d2998
             _trend = 1
         else:
             _trend = 0
