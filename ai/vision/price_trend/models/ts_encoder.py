@@ -7,7 +7,7 @@ class TSEncoder(nn.Module):
         self.config = config
         self.ts_model = ALSTMEncoder(config['ts_input_dim'], config['hidden_dim'], num_layers=config['num_layers'], embedding_dim=config['ts_embedding_dim'], gru=True, kl=False, dropout=config['dropout'])
         self.ctx_model = ResidualMLPBlock(config['ctx_input_dim'], config['hidden_dim'], embedding_dim=config['ctx_embedding_dim'], use_batchnorm=True, bias=True)
-        self.embedding_projector = nn.Linear(config['ts_embedding_dim'] + config['ctx_embedding_dim'], 128)
+        self.embedding_projector = nn.Linear(config['ts_embedding_dim'] + config['ctx_embedding_dim'], config['embedding_dim'], bias=False)
     
     def forward(self, x):
         ts_seq, ctx_seq = x
