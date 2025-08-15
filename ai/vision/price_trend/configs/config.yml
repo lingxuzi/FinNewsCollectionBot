@@ -29,14 +29,14 @@ data:
 # --- 训练参数 ---
 training:
   workers: 4
-  finetune: true
+  finetune: false
   model: 'stocknet'
   awl: false
   clip_norm: 0
   losses: ['trend', 'stock', 'industry']
   loss_weights: [1, 1, 1]
   optimizer: 'adamw'
-  learning_rate: 0.00001
+  learning_rate: 0.001
   min_learning_rate: 0.00001
   weight_decay: 0.1
   warmup_epochs: 0
