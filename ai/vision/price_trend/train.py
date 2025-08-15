@@ -288,7 +288,7 @@ def generate_gradcam(model, dataset):
     os.makedirs('../stock_gradcams', exist_ok=True)
 
     for i in indices:
-        img, trend, stock, industry = dataset[i]
+        img, trend, returns, stock, industry, ts, ctx = dataset[i]
         img = img.unsqueeze(0).cuda()
         stock = stock.cuda()
         industry = industry.cuda()
