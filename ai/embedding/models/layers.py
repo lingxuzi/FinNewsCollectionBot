@@ -67,7 +67,7 @@ class SEFusionBlock(nn.Module):
     
 
 class ResidualMLPBlock(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, dropout_rate, act=nn.ReLU, use_batchnorm=True, bias=True, elsa=False):
+    def __init__(self, input_dim, hidden_dim, output_dim, dropout_rate, act=nn.Hardswish, use_batchnorm=True, bias=True, elsa=False):
         super().__init__()
         self.p = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
@@ -88,7 +88,7 @@ class ResidualMLPBlock(nn.Module):
         return out + residual
 
 class ResidualMLP(nn.Module):
-    def __init__(self, input_dim, output_dim, act=nn.ReLU, use_batchnorm=True, dropout_rate=0, elsa=False, residual=True):
+    def __init__(self, input_dim, output_dim, act=nn.Hardswish, use_batchnorm=True, dropout_rate=0, elsa=False, residual=True):
         super().__init__()
         self.p = nn.Sequential(
             nn.Linear(input_dim, output_dim),
