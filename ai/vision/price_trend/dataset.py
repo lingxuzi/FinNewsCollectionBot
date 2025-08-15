@@ -187,10 +187,10 @@ class ImagingPriceTrendDataset(Dataset):
         price_data = stock_data[self.features].to_numpy()
         labels = stock_data[label_return_cols].to_numpy()
 
-        print(self.ts_features)
-
         ts_featured_stock_data = stock_data[self.ts_features['features'] + self.ts_features['temporal']].to_numpy()
         ts_numerical_stock_data = stock_data[self.ts_features['numerical']].to_numpy()
+
+        print(ts_featured_stock_data)
 
         returns = []
         imgs = []
