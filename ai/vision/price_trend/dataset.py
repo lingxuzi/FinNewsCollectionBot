@@ -165,6 +165,9 @@ class ImagingPriceTrendDataset(Dataset):
                     code = self.stock_encoder.transform([code])[0]
                     try:
                         _images, _trends, industry, ts_sequences, ctx_sequences = future.result()
+
+                        if _images is None:
+                            continue
                         
                         images.extend(_images)
                         trends.extend(_trends)
@@ -204,7 +207,7 @@ class ImagingPriceTrendDataset(Dataset):
             for i in range(0, len(stock_data) - self.seq_length + 1, 3):
                 ts_seq = price_data[i:i + self.seq_length]
                 if len(ts_seq) < self.seq_length:
-                    return None, None, None, None, None
+                    return None, None, None, None, None, None
                 
                 img_path = os.path.join(self.img_caching_path, code, f'{i}.png')
                 os.makedirs(os.path.dirname(img_path), exist_ok=True)
@@ -222,7 +225,7 @@ class ImagingPriceTrendDataset(Dataset):
             return imgs, returns, industry, ts_sequences, ctx_sequences
         except Exception as e:
             traceback.print_exc()
-            return None, None, None, None, None
+            return None, None, None, None, None, None
 
     def __len__(self):
         return self.cache.get('total_count', 0)
