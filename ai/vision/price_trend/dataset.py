@@ -177,9 +177,12 @@ class ImagingPriceTrendDataset(Dataset):
                         ctx_sequences.extend(ctx_sequences)
                     except Exception as e:
                         print(e)
-            for i, (img, trend, code, industry, ts_seq, ctx_seq) in tqdm(enumerate(zip(images, trends, codes, industries, ts_sequences, ctx_sequences))):
-                self.cache.set(i, (img, trend, code, industry, ts_seq, ctx_seq))
-            self.cache.set('total_count', len(images))
+            try:
+                for i, (img, trend, code, industry, ts_seq, ctx_seq) in tqdm(enumerate(zip(images, trends, codes, industries, ts_sequences, ctx_sequences))):
+                    self.cache.set(i, (img, trend, code, industry, ts_seq, ctx_seq))
+                self.cache.set('total_count', len(images))
+            except Exception as e:
+                traceback.print_exc()
 
     def accumulative_return(self, returns):
         return np.prod(1 + returns) - 1
