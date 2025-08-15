@@ -194,8 +194,6 @@ class ImagingPriceTrendDataset(Dataset):
         ts_featured_stock_data = stock_data[self.ts_features['features'] + self.ts_features['temporal']].to_numpy()
         ts_numerical_stock_data = stock_data[self.ts_features['numerical']].to_numpy()
 
-        print(ts_featured_stock_data)
-
         returns = []
         imgs = []
         ts_sequences = [] # 时间序列部分
