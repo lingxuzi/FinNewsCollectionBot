@@ -6,7 +6,7 @@ class TSEncoder(nn.Module):
         super().__init__()
         self.config = config
         self.ts_model = ALSTMEncoder(config['ts_input_dim'], config['hidden_dim'], num_layers=config['num_layers'], embedding_dim=config['ts_embedding_dim'], gru=True, kl=False, dropout=config['dropout'])
-        self.ctx_model = ResidualMLPBlock(config['ctx_input_dim'], config['hidden_dim'], embedding_dim=config['ctx_embedding_dim'], use_batchnorm=True, bias=True)
+        self.ctx_model = ResidualMLPBlock(config['ctx_input_dim'], config['hidden_dim'], config['ctx_embedding_dim'], use_batchnorm=True, bias=True)
         self.embedding_projector = nn.Linear(config['ts_embedding_dim'] + config['ctx_embedding_dim'], config['hidden_dim'])
         self.embedding_norm = nn.LayerNorm(config['hidden_dim'])
         self.fusion_block = ResidualMLPBlock(config['hidden_dim'], config['hidden_dim'] // 2, config['embedding_dim'], dropout_rate=0, bias=False, use_batchnorm=False, elsa=False)
