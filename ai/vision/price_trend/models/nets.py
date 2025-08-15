@@ -83,11 +83,11 @@ class StockNet(nn.Module):
 
         ts_emb = self.ts_model((ts_seq, ctx_seq))
 
-        x = torch.cat([x, ts_emb], dim=1)
+        x = torch.cat([x, ts_emb.unsqueeze(2).unsqueeze(3)], dim=1)
         
         x = self.last_conv(x)
         x = self.hardswish(x)
-        # flatten
+
         x = x.view(x.size(0), -1)
 
         if self.config['dropout'] > 0.:

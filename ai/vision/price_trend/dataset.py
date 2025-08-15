@@ -255,7 +255,7 @@ class ImagingPriceTrendDataset(Dataset):
         image = Image.open(image)
         image = self.transforms(image)
 
-        ts_seq = ts_seq / ts_seq.max()
-        ctx_seq = ctx_seq / ctx_seq.max()
+        ts_seq = ts_seq / (ts_seq.max() + 1e-12)
+        ctx_seq = ctx_seq / (ctx_seq.max() + 1e-12)
 
         return image, torch.LongTensor([_trend]), torch.FloatTensor([returns]), torch.LongTensor([code]), torch.LongTensor([industry]), torch.FloatTensor(ts_seq), torch.FloatTensor(ctx_seq)

@@ -13,7 +13,7 @@ class TSEncoder(nn.Module):
     
     def forward(self, x):
         ts_seq, ctx_seq = x
-        ts_emb = self.ts_model(ts_seq)
+        ts_emb, _, _ = self.ts_model(ts_seq)
         ctx_emb = self.ctx_model(ctx_seq)
         emb = torch.cat([ts_emb, ctx_emb], dim=1)
         emb = self.embedding_projector(emb)
