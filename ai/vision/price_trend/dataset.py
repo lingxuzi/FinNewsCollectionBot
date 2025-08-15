@@ -182,43 +182,47 @@ class ImagingPriceTrendDataset(Dataset):
         return np.prod(1 + returns) - 1
     
     def generate_sequence_imgs(self, stock_data, code):
-        print('preparing sequences for ', code)
-        label_return_cols = []
-        for i in range(5):
-            label_return_cols.append(f'label_return_{i+1}')
-        
-        industry= self.indus_encoder.transform(stock_data['industry'].to_numpy())[0]
-        price_data = stock_data[self.features].to_numpy()
-        labels = stock_data[label_return_cols].to_numpy()
-
-        ts_featured_stock_data = stock_data[self.ts_features['features'] + self.ts_features['temporal']].to_numpy()
-        ts_numerical_stock_data = stock_data[self.ts_features['numerical']].to_numpy()
-
-        assert len(ts_featured_stock_data) == len(ts_numerical_stock_data)
-
-        returns = []
-        imgs = []
-        ts_sequences = [] # 时间序列部分
-        ctx_sequences = [] # 上下文部分
-        for i in range(0, len(stock_data) - self.seq_length + 1, 3):
-            ts_seq = price_data[i:i + self.seq_length]
-            if len(ts_seq) < self.seq_length:
-                return None, None, None, None, None
+        try:
+            print('preparing sequences for ', code)
+            label_return_cols = []
+            for i in range(5):
+                label_return_cols.append(f'label_return_{i+1}')
             
-            img_path = os.path.join(self.img_caching_path, code, f'{i}.png')
-            os.makedirs(os.path.dirname(img_path), exist_ok=True)
-            if not os.path.isfile(img_path):
-                image = get_image_with_price(ts_seq)
-                image.save(img_path)
-            
-            # 时间序列部分
-            ts_sequences.append(ts_featured_stock_data[i:i + self.seq_length])
-            # 上下文部分
-            ctx_sequences.append(ts_numerical_stock_data[i + self.seq_length - 1])
+            industry= self.indus_encoder.transform(stock_data['industry'].to_numpy())[0]
+            price_data = stock_data[self.features].to_numpy()
+            labels = stock_data[label_return_cols].to_numpy()
 
-            returns.append(labels[i + self.seq_length - 1])
-            imgs.append(img_path)
-        return imgs, returns, industry, ts_sequences, ctx_sequences
+            ts_featured_stock_data = stock_data[self.ts_features['features'] + self.ts_features['temporal']].to_numpy()
+            ts_numerical_stock_data = stock_data[self.ts_features['numerical']].to_numpy()
+
+            assert len(ts_featured_stock_data) == len(ts_numerical_stock_data)
+
+            returns = []
+            imgs = []
+            ts_sequences = [] # 时间序列部分
+            ctx_sequences = [] # 上下文部分
+            for i in range(0, len(stock_data) - self.seq_length + 1, 3):
+                ts_seq = price_data[i:i + self.seq_length]
+                if len(ts_seq) < self.seq_length:
+                    return None, None, None, None, None
+                
+                img_path = os.path.join(self.img_caching_path, code, f'{i}.png')
+                os.makedirs(os.path.dirname(img_path), exist_ok=True)
+                if not os.path.isfile(img_path):
+                    image = get_image_with_price(ts_seq)
+                    image.save(img_path)
+                
+                # 时间序列部分
+                ts_sequences.append(ts_featured_stock_data[i:i + self.seq_length])
+                # 上下文部分
+                ctx_sequences.append(ts_numerical_stock_data[i + self.seq_length - 1])
+
+                returns.append(labels[i + self.seq_length - 1])
+                imgs.append(img_path)
+            return imgs, returns, industry, ts_sequences, ctx_sequences
+        except Exception as e:
+            traceback.print_exc()
+            return None, None, None, None, None
 
     def __len__(self):
         return self.cache.get('total_count', 0)
