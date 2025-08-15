@@ -145,6 +145,10 @@ class ImagingPriceTrendDataset(Dataset):
             all_data_df = pd.read_parquet(hist_data_file)
             stock_list = read_text(stock_list_file).split(',')
 
+            all_data_df['month'] = all_data_df['date'].dt.month / 12
+            all_data_df['day'] = all_data_df['date'].dt.day / 31
+            all_data_df['weekday'] = all_data_df['date'].dt.weekday + 1 / 7
+
             images = []
             trends = []
             codes = []
@@ -189,8 +193,6 @@ class ImagingPriceTrendDataset(Dataset):
 
         ts_featured_stock_data = stock_data[self.ts_features['features'] + self.ts_features['temporal']].to_numpy()
         ts_numerical_stock_data = stock_data[self.ts_features['numerical']].to_numpy()
-
-        print(ts_featured_stock_data)
 
         returns = []
         imgs = []
