@@ -177,9 +177,9 @@ class ImagingPriceTrendDataset(Dataset):
                         ctx_sequences.extend(ctx_sequences)
                     except Exception as e:
                         print(e)
-            self.cache.set('total_count', len(images))
             for i, (img, trend, code, industry, ts_seq, ctx_seq) in tqdm(enumerate(zip(images, trends, codes, industries, ts_sequences, ctx_sequences))):
                 self.cache.set(i, (img, trend, code, industry, ts_seq, ctx_seq))
+            self.cache.set('total_count', len(images))
 
     def accumulative_return(self, returns):
         return np.prod(1 + returns) - 1
@@ -207,7 +207,7 @@ class ImagingPriceTrendDataset(Dataset):
             for i in range(0, len(stock_data) - self.seq_length + 1, 3):
                 ts_seq = price_data[i:i + self.seq_length]
                 if len(ts_seq) < self.seq_length:
-                    return None, None, None, None, None, None
+                    return None, None, None, None, None
                 
                 img_path = os.path.join(self.img_caching_path, code, f'{i}.png')
                 os.makedirs(os.path.dirname(img_path), exist_ok=True)
@@ -225,13 +225,12 @@ class ImagingPriceTrendDataset(Dataset):
             return imgs, returns, industry, ts_sequences, ctx_sequences
         except Exception as e:
             traceback.print_exc()
-            return None, None, None, None, None, None
+            return None, None, None, None, None
 
     def __len__(self):
         return self.cache.get('total_count', 0)
     
     def parse_item(self, idx):
-        print(self.cache.get(idx))
         image, returns, code, industry, ts_seq, ctx_seq = self.cache.get(idx)
 
         acu_return = self.accumulative_return(returns)
