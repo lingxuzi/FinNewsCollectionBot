@@ -149,7 +149,7 @@ def run_training(config):
     model_config['stock_classes'] = len(encoder[1].classes_)
     model_config['industry_classes'] = len(encoder[0].classes_)
     model_config['ts_encoder']['ts_input_dim'] = len(config['data']['ts_features']['features']) + len(config['data']['ts_features']['temporal'])
-    model_config['ts_encoder']['ctx_input_dim'] = len(config['data']['ctx_features']['numerical'])
+    model_config['ts_encoder']['ctx_input_dim'] = len(config['data']['ts_features']['numerical'])
     model = create_model(config['training']['model'], model_config)
 
     if config['training']['load_pretrained']:
