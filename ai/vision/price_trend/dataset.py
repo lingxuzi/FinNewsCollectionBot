@@ -164,7 +164,7 @@ class ImagingPriceTrendDataset(Dataset):
                     
                     code = self.stock_encoder.transform([code])[0]
                     try:
-                        _images, _trends, industry, ts_sequences, ctx_sequences = future.result()
+                        _images, _trends, industry, ts_seq, ctx_seq = future.result()
 
                         if _images is None:
                             continue
@@ -173,8 +173,8 @@ class ImagingPriceTrendDataset(Dataset):
                         trends.extend(_trends)
                         codes.extend([code] * len(_images))
                         industries.extend([industry] * len(_images))
-                        ts_sequences.extend(ts_sequences)
-                        ctx_sequences.extend(ctx_sequences)
+                        ts_sequences.extend(ts_seq)
+                        ctx_sequences.extend(ctx_seq)
                     except Exception as e:
                         print(e)
             try:
