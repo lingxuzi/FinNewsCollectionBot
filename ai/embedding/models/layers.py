@@ -169,9 +169,9 @@ class ALSTMEncoder(nn.Module):
         self.kl = kl
         self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True) if not gru else nn.GRU(hidden_dim, hidden_dim, num_layers, batch_first=True)
         # self.lstm.activation = nn.ReLU(inplace=True)
-        self.embedding_fc = nn.Linear(hidden_dim * 2, embedding_dim, bias=False)
+        self.embedding_fc = nn.Linear(hidden_dim * 2, embedding_dim, bias=True)
         if kl:
-            self.embedding_logvar = nn.Linear(hidden_dim * 2, embedding_dim, bias=False)
+            self.embedding_logvar = nn.Linear(hidden_dim * 2, embedding_dim, bias=True)
         self.att_net = nn.Sequential(
             nn.Linear(in_features=hidden_dim, out_features=int(hidden_dim / 2)),
             nn.Dropout(dropout) if dropout > 0 else nn.Identity(),
