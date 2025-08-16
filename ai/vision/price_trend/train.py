@@ -248,7 +248,7 @@ def run_training(config):
                 loss_returns = nn.MSELoss()(returns_pred, returns.squeeze())
                 losses['returns'] = loss_returns
                 returns_loss_meter.update(loss_returns.item())
-                returns_metric_meter.update(r2_score(returns.squeeze().cpu().numpy(), returns_pred.cpu().numpy()))
+                returns_metric_meter.update(r2_score(returns.squeeze().cpu().numpy(), returns_pred.detach().cpu().numpy()))
             
             total_loss = sum(losses.values())
             total_loss.backward()
