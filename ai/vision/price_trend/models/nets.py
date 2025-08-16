@@ -57,7 +57,7 @@ class StockNet(nn.Module):
         self.ts_model = TSEncoder(config['ts_encoder'])
 
         self.last_conv = nn.Conv2d(
-            in_channels=(self.model.num_features + config['ts_encoder']['embedding_dim']),
+            in_channels=self.model.num_features,
             out_channels=512,
             kernel_size=1,
             stride=1,
@@ -66,7 +66,7 @@ class StockNet(nn.Module):
 
         self.hardswish = nn.Hardswish()
 
-        output_size = 512
+        output_size = 512 + config['ts_encoder']['embedding_dim']
         
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1)) # 全局平均池化
         
@@ -81,15 +81,16 @@ class StockNet(nn.Module):
     def forward(self, x, ts_seq, ctx_seq):
         x = self.model.forward_features(x)
         x = self.global_pool(x)
-
-        ts_emb = self.ts_model((ts_seq, ctx_seq))
-
-        x = torch.cat([x, ts_emb.unsqueeze(2).unsqueeze(3)], dim=1)
+        # x = torch.cat([x, ts_emb.unsqueeze(2).unsqueeze(3)], dim=1)
         
         x = self.last_conv(x)
         x = self.hardswish(x)
 
         x = x.view(x.size(0), -1)
+
+        ts_emb = self.ts_model((ts_seq, ctx_seq))
+
+        x = torch.cat([x, ts_emb], dim=1)
 
         if self.config['dropout'] > 0.:
             x = F.dropout(x, p=self.config['dropout'], training=self.training)
