@@ -2,7 +2,7 @@
 # --- 数据参数 ---
 data:
   db_path: '../price_trend/cache'
-  sampler: true
+  sampler: false
   encoder_path: '../hamuna_stock_data/train_data/hist/encoder.joblib'
   scaler_path: '../hamuna_stock_data/train_data/hist/scaler.joblib'
   train:
@@ -30,7 +30,7 @@ data:
 # --- 训练参数 ---
 training:
   workers: 4
-  finetune: false
+  finetune: true
   model: 'stocknet'
   awl: false
   clip_norm: 0
