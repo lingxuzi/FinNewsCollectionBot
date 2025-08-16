@@ -34,7 +34,7 @@ class GradCAM:
         :param input_tensor: 模型的输入张量, shape: (1, 1, 60, 60)
         :return: 标准化后的热力图, numpy array, shape: (60, 60)
         """
-        self.model.train() # 切换到评估模式
+        self.model.eval() # 切换到评估模式
         
         # 步骤 1: 正向传播
         # output = self.model(input_tensor)

@@ -89,17 +89,19 @@ class StockNet(nn.Module):
 
         x = x.view(x.size(0), -1)
 
-        ts_fused = self.ts_model((ts_seq, ctx_seq))
-
-        ts_fused = torch.cat([x, ts_fused], dim=1)
-
         if self.config['dropout'] > 0.:
             x = F.dropout(x, p=self.config['dropout'], training=self.training)
-        
+
         trend_logits = self.trend_classifier(x)
-        stock_logits = self.stock_classifier(ts_fused)
-        industry_logits = self.industry_classifier(ts_fused)
-        returns = self.returns_regression(ts_fused)
+        
+        if ts_seq is not None and ctx_seq is not None:
+            ts_fused = self.ts_model((ts_seq, ctx_seq))
+            ts_fused = torch.cat([x, ts_fused], dim=1)
+            stock_logits = self.stock_classifier(ts_fused)
+            industry_logits = self.industry_classifier(ts_fused)
+            returns = self.returns_regression(ts_fused)
+        else:
+            stock_logits, industry_logits, returns = None, None, None
 
         return trend_logits, stock_logits, industry_logits, returns
 
