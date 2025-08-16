@@ -66,14 +66,15 @@ class StockNet(nn.Module):
 
         self.hardswish = nn.Hardswish()
 
-        output_size = 512 + config['ts_encoder']['embedding_dim']
+        regression_output_size = 512 + config['ts_encoder']['embedding_dim']
+        trend_output_size = 512
         
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1)) # 全局平均池化
         
-        self.trend_classifier = nn.Linear(output_size, config["trend_classes"])
-        self.stock_classifier = nn.Linear(output_size, config["stock_classes"])
-        self.industry_classifier = nn.Linear(output_size, config["industry_classes"])
-        self.returns_regression = nn.Linear(output_size, 1)
+        self.trend_classifier = nn.Linear(trend_output_size, config["trend_classes"])
+        self.stock_classifier = nn.Linear(regression_output_size, config["stock_classes"])
+        self.industry_classifier = nn.Linear(regression_output_size, config["industry_classes"])
+        self.returns_regression = nn.Linear(regression_output_size, 1)
 
         if 'models.' not in config["backbone"]:
             initialize(self.model)
@@ -88,17 +89,17 @@ class StockNet(nn.Module):
 
         x = x.view(x.size(0), -1)
 
-        ts_emb = self.ts_model((ts_seq, ctx_seq))
+        ts_fused = self.ts_model((ts_seq, ctx_seq))
 
-        x = torch.cat([x, ts_emb], dim=1)
+        ts_fused = torch.cat([x, ts_fused], dim=1)
 
         if self.config['dropout'] > 0.:
             x = F.dropout(x, p=self.config['dropout'], training=self.training)
         
         trend_logits = self.trend_classifier(x)
-        stock_logits = self.stock_classifier(x)
-        industry_logits = self.industry_classifier(x)
-        returns = self.returns_regression(x)
+        stock_logits = self.stock_classifier(ts_fused)
+        industry_logits = self.industry_classifier(ts_fused)
+        returns = self.returns_regression(ts_fused)
 
         return trend_logits, stock_logits, industry_logits, returns
 
