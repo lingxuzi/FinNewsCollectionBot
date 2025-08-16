@@ -66,8 +66,8 @@ class StockNet(nn.Module):
 
         self.hardswish = nn.Hardswish()
 
-        regression_output_size = 512 + config['ts_encoder']['embedding_dim']
-        trend_output_size = 512
+        regression_output_size = 1280 + config['ts_encoder']['embedding_dim']
+        trend_output_size = 1280
         
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1)) # 全局平均池化
         
