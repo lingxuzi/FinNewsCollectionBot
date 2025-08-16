@@ -329,7 +329,7 @@ def eval(model, dataset, config):
             # y = y.to(device)
             img, trend, returns, stock, industry, ts, ctx = val_iter.next()
 
-            trend_pred, stock_pred, industry_pred = _model(img, ts, ctx)
+            trend_pred, stock_pred, industry_pred, returns_pred = _model(img, ts, ctx)
 
             trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred.cpu().numpy())
     # --- 计算整体 R² --
@@ -391,7 +391,7 @@ def run_eval(config):
 
             img, trend, returns, stock, industry, ts, ctx = test_iter.next()
 
-            trend_pred, stock_pred, industry_pred = model(img, ts, ctx)
+            trend_pred, stock_pred, industry_pred, returns_pred = model(img, ts, ctx)
             trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred.cpu().numpy())
 
         # --- 计算整体 R² ---
