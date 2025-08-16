@@ -120,8 +120,30 @@ def get_image_with_price(price):
     except Exception as e:
         traceback.print_exc()
 
+def normalize(df, features, numerical):
+    df['prev_close'] = df.groupby('code')['close'].shift(1)
+    df['ori_vwap'] = df['vwap'].copy()
+    df['ori_close'] = df['close'].copy()
+    if 'MBRevenue' in df.columns:
+        df.drop(columns=['MBRevenue'], axis=1, inplace=True)
+    df.dropna(inplace=True)
+    
+    price_cols = ['open', 'high', 'low', 'close']
+    for col in price_cols:
+        df[col] = (df[col] / df['prev_close']) - 1
+        
+    print("   -> 步骤2: 对成交量进行对数变换...")
+    df['volume'] = np.log1p(df['volume'])
+    df.drop(columns=['prev_close'], inplace=True)
+
+    df['month'] = df['date'].dt.month / 12
+    df['day'] = df['date'].dt.day / 31
+    df['weekday'] = df['date'].dt.weekday + 1 / 7
+
+    return df
+
 class ImagingPriceTrendDataset(Dataset):
-    def __init__(self, db_path, img_caching_path, stock_list_file, hist_data_file, seq_length, features, ts_features, encoder, image_size, tag, is_train=True):
+    def __init__(self, db_path, img_caching_path, stock_list_file, hist_data_file, seq_length, features, ts_features, scaler, encoder, image_size, tag, is_train=True):
         super().__init__()
         self.image_size = image_size
         self.seq_length = seq_length
@@ -145,9 +167,12 @@ class ImagingPriceTrendDataset(Dataset):
             all_data_df = pd.read_parquet(hist_data_file)
             stock_list = read_text(stock_list_file).split(',')
 
-            all_data_df['month'] = all_data_df['date'].dt.month / 12
-            all_data_df['day'] = all_data_df['date'].dt.day / 31
-            all_data_df['weekday'] = all_data_df['date'].dt.weekday + 1 / 7
+            # all_data_df['month'] = all_data_df['date'].dt.month / 12
+            # all_data_df['day'] = all_data_df['date'].dt.day / 31
+            # all_data_df['weekday'] = all_data_df['date'].dt.weekday + 1 / 7
+
+            ts_df = normalize(all_data_df, self.ts_features['features'], self.ts_features['numerical'])
+            ts_df[self.ts_features['features'] + self.ts_features['numerical']] = scaler.transform(all_data_df[self.ts_features['features'] + self.ts_features['numerical']])
 
             images = []
             trends = []
@@ -156,7 +181,7 @@ class ImagingPriceTrendDataset(Dataset):
             ts_sequences = []
             ctx_sequences = []
             with ThreadPoolExecutor(max_workers=4) as executor:
-                futures = {executor.submit(self.generate_sequence_imgs, all_data_df[all_data_df['code'] == code], code): code for code in stock_list}
+                futures = {executor.submit(self.generate_sequence_imgs, all_data_df[all_data_df['code'] == code], ts_df[ts_df['code'] == code], code): code for code in stock_list}
                 for future in tqdm(as_completed(futures), total=len(futures), ncols=120, desc='generate sequence imgs'):
                     code = futures[future]
                     if self.onehot.get(code) is None:
@@ -187,7 +212,7 @@ class ImagingPriceTrendDataset(Dataset):
     def accumulative_return(self, returns):
         return np.prod(1 + returns) - 1
     
-    def generate_sequence_imgs(self, stock_data, code):
+    def generate_sequence_imgs(self, stock_data, ts_data, code):
         try:
             print('preparing sequences for ', code)
             label_return_cols = []
@@ -200,8 +225,8 @@ class ImagingPriceTrendDataset(Dataset):
             price_data = stock_data[self.features].to_numpy()
             labels = stock_data[label_return_cols].to_numpy()
 
-            ts_featured_stock_data = stock_data[self.ts_features['features'] + self.ts_features['temporal']].to_numpy()
-            ts_numerical_stock_data = stock_data[self.ts_features['numerical']].to_numpy()
+            ts_featured_stock_data = ts_data[self.ts_features['features'] + self.ts_features['temporal']].to_numpy()
+            ts_numerical_stock_data = ts_data[self.ts_features['numerical']].to_numpy()
 
             assert len(ts_featured_stock_data) == len(ts_numerical_stock_data)
 
@@ -256,8 +281,5 @@ class ImagingPriceTrendDataset(Dataset):
         image, _trend, returns, code, industry, ts_seq, ctx_seq = self.parse_item(idx)
         image = Image.open(image)
         image = self.transforms(image)
-
-        ts_seq = ts_seq / (ts_seq.max() + 1e-12)
-        ctx_seq = ctx_seq / (ctx_seq.max() + 1e-12)
 
         return image, torch.LongTensor([_trend]), torch.FloatTensor([returns]), torch.LongTensor([code]), torch.LongTensor([industry]), torch.FloatTensor(ts_seq), torch.FloatTensor(ctx_seq)

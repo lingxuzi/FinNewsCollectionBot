@@ -12,7 +12,7 @@ import ai.vision.price_trend.models.base
 from autoclip.torch import QuantileClip
 from torch.utils.data import DataLoader, random_split
 from ai.optimizer.muon import MuonClip
-from ai.vision.price_trend.dataset import ImagingPriceTrendDataset
+from ai.vision.price_trend.dataset import ImagingPriceTrendDataset, normalize
 from ai.vision.price_trend.sampler.trend_sampler import TrendSampler
 from ai.vision.price_trend.models import create_model, get_model_config
 from tqdm import tqdm # 提供优雅的进度条
@@ -28,7 +28,7 @@ from ai.metrics import *
 from utils.prefetcher import DataPrefetcher
 from utils.common import ModelEmaV2
 from sklearn.metrics import balanced_accuracy_score
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 
 torch.manual_seed(42)
@@ -38,13 +38,17 @@ random.seed(42)
 def num_iters_per_epoch(loader, batch_size):
     return len(loader) // batch_size
 
-def generate_encoder(hist_data_files, categorical):
+def generate_encoder(hist_data_files, ts_features, ts_numerical, categorical):
     hist_data = []
     for hist_data_file in hist_data_files:
         df = pd.read_parquet(hist_data_file)
+        df = normalize(df, ts_features, ts_numerical)
         hist_data.append(df)
     
     df = pd.concat(hist_data)
+
+    scaler = StandardScaler()
+    scaler.fit_transform(df[ts_features + ts_numerical])
     
     indus_encoder = LabelEncoder()
     indus_encoder.fit_transform(df[categorical[0]])
@@ -53,7 +57,7 @@ def generate_encoder(hist_data_files, categorical):
     code_encoder.fit_transform(df[categorical[1]])
     
 
-    return (indus_encoder, code_encoder)
+    return (indus_encoder, code_encoder), scaler
 
 def run_training(config):
     # set random seed
@@ -62,18 +66,20 @@ def run_training(config):
     device = torch.device(config['device'] if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     encoder_path = config['data']['encoder_path']
+    scaler_path = config['data']['scaler_path']
     if os.path.exists(encoder_path):
         print("Loading precomputed encoder...")
         encoder = joblib.load(encoder_path)
+        scaler = joblib.load(scaler_path)
     else:
-        encoder = generate_encoder(
+        encoder, scaler = generate_encoder(
         [
             config['data']['train']['hist_data_file'],
             config['data']['eval']['hist_data_file'],
             config['data']['test']['hist_data_file']
-        ], config['data']['categorical'])
+        ], config['data']['ts_features']['features'], config['data']['ts_features']['numerical'], config['data']['categorical'])
         joblib.dump(encoder, encoder_path)
-        print(f"Scaler and encoder saved to {encoder_path}")
+        joblib.dump(scaler, scaler_path)
 
     os.makedirs(os.path.split(config['training']['model_save_path'])[0], exist_ok=True)
 
@@ -89,6 +95,7 @@ def run_training(config):
             ts_features=config['data']['ts_features'],
             image_size=config['data']['image_size'],
             encoder=encoder,
+            scaler=scaler,
             tag='train'
         )
         eval_dataset = ImagingPriceTrendDataset(
@@ -101,6 +108,7 @@ def run_training(config):
             ts_features=config['data']['ts_features'],
             image_size=config['data']['image_size'],
             encoder=encoder,
+            scaler=scaler,
             tag='test',
             is_train=False
         )
@@ -115,6 +123,7 @@ def run_training(config):
             ts_features=config['data']['ts_features'],
             image_size=config['data']['image_size'],
             encoder=encoder,
+            scaler=scaler,
             tag='eval',
             is_train=False
         )
@@ -129,6 +138,7 @@ def run_training(config):
             ts_features=config['data']['ts_features'],
             image_size=config['data']['image_size'],
             encoder=encoder,
+            scaler=scaler,
             tag='test',
             is_train=False
         )
@@ -347,9 +357,13 @@ def run_eval(config):
     device = torch.device(config['device'] if torch.cuda.is_available() else "cpu")
 
     encoder_path = config['data']['encoder_path']
+    scaler_path = config['data']['scaler_path']
     if os.path.exists(encoder_path):
         print("Loading precomputed encoder...")
         encoder = joblib.load(encoder_path)
+    if os.path.exists(scaler_path):
+        print("Loading precomputed scaler...")
+        scaler = joblib.load(scaler_path)
 
     test_dataset = ImagingPriceTrendDataset(
         db_path=config['data']['db_path'],
@@ -361,6 +375,7 @@ def run_eval(config):
         ts_features=config['data']['ts_features'],
         image_size=config['data']['image_size'],
         encoder=encoder,
+        scaler=scaler,
         tag='test',
         is_train=False
     )
