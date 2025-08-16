@@ -33,8 +33,8 @@ training:
   model: 'stocknet'
   awl: false
   clip_norm: 0
-  losses: ['trend']
-  loss_weights: [1]
+  losses: ['trend', 'returns']
+  loss_weights: [1, 1]
   optimizer: 'adamw'
   learning_rate: 0.0001
   min_learning_rate: 0.00001
