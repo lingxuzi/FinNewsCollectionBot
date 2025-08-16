@@ -167,8 +167,7 @@ class ALSTMEncoder(nn.Module):
         super().__init__()
         self.gru = gru
         self.kl = kl
-        self.projector = nn.Linear(input_dim, hidden_dim, bias=False)
-        self.lstm = nn.LSTM(hidden_dim, hidden_dim, num_layers, batch_first=True) if not gru else nn.GRU(hidden_dim, hidden_dim, num_layers, batch_first=True)
+        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True) if not gru else nn.GRU(hidden_dim, hidden_dim, num_layers, batch_first=True)
         # self.lstm.activation = nn.ReLU(inplace=True)
         self.embedding_fc = nn.Linear(hidden_dim * 2, embedding_dim, bias=False)
         if kl:
@@ -182,7 +181,6 @@ class ALSTMEncoder(nn.Module):
         )
 
     def forward(self, x):
-        x = self.projector(x)
         self.lstm.flatten_parameters()
         if not self.gru:
             out, (h, c) = self.lstm(x)
