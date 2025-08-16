@@ -312,7 +312,7 @@ def generate_gradcam(model, dataset):
 
 def gradcam_forward(input_tensor, model):
     img, stock, industry, ts, ctx = input_tensor
-    trend_pred, stock_pred, industry_pred = model(img, ts.unsqueeze(0), ctx.unsqueeze(0))
+    trend_pred, stock_pred, industry_pred = model(img, None, None)
     return trend_pred
 
 def eval(model, dataset, config):
