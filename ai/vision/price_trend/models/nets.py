@@ -58,7 +58,7 @@ class StockNet(nn.Module):
 
         self.last_conv = nn.Conv2d(
             in_channels=self.model.num_features,
-            out_channels=512,
+            out_channels=1280,
             kernel_size=1,
             stride=1,
             padding=0,
