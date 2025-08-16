@@ -73,6 +73,7 @@ class StockNet(nn.Module):
         self.trend_classifier = nn.Linear(output_size, config["trend_classes"])
         self.stock_classifier = nn.Linear(output_size, config["stock_classes"])
         self.industry_classifier = nn.Linear(output_size, config["industry_classes"])
+        self.returns_regression = nn.Linear(output_size, 1)
 
         if 'models.' not in config["backbone"]:
             initialize(self.model)
@@ -96,8 +97,9 @@ class StockNet(nn.Module):
         trend_logits = self.trend_classifier(x)
         stock_logits = self.stock_classifier(x)
         industry_logits = self.industry_classifier(x)
+        returns = self.returns_regression(x)
 
-        return trend_logits, stock_logits, industry_logits
+        return trend_logits, stock_logits, industry_logits, returns
 
     def gradcam_layer(self):
         return eval(f'self.model.{self.config["gradlayer"]}')

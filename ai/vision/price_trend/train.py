@@ -209,17 +209,19 @@ def run_training(config):
         trend_loss_meter = AverageMeter()
         stock_loss_meter = AverageMeter()
         industry_loss_meter = AverageMeter()
+        returns_loss_meter = AverageMeter()
 
         trend_metric_meter = AverageMeter()
         stock_metric_meter = AverageMeter()
         industry_metric_meter = AverageMeter()
+        returns_metric_meter = AverageMeter()
 
         # 使用tqdm显示进度条
         pbar = tqdm(range(num_iters_per_epoch(train_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training]")
         for _ in pbar:
             img, trend, returns, stock, industry, ts, ctx = train_iter.next()
             optimizer.zero_grad()
-            trend_pred, stock_pred, industry_pred = model(img, ts, ctx)
+            trend_pred, stock_pred, industry_pred, returns_pred = model(img, ts, ctx)
 
             losses = {}
 
@@ -242,6 +244,12 @@ def run_training(config):
                 industry_loss_meter.update(loss_industry.item())
                 industry_metric_meter.update(balanced_accuracy_score(industry.squeeze().cpu().numpy(), trend_pred.argmax(axis=1).cpu().numpy()))
             
+            if 'returns' in config['training']['losses']:
+                loss_returns = nn.MSELoss()(returns_pred, returns.squeeze())
+                losses['returns'] = loss_returns
+                returns_loss_meter.update(loss_returns.item())
+                returns_metric_meter.update(r2_score(returns.squeeze().cpu().numpy(), returns_pred.cpu().numpy()))
+            
             total_loss = sum(losses.values())
             total_loss.backward()
 
@@ -254,7 +262,7 @@ def run_training(config):
 
             train_loss_meter.update(total_loss.item())
             #| Pred Loss: {pred_loss_meter.avg}
-            pbar.set_description(f"Total({epoch+1}/{config['training']['num_epochs']}): {train_loss_meter.avg:.4f} | Trend: {trend_loss_meter.avg:.4f} | Trend Metric: {trend_metric_meter.avg:.4f} | Stock: {stock_loss_meter.avg:.4f} | Industry: {industry_loss_meter.avg:.4f}")
+            pbar.set_description(f"Total({epoch+1}/{config['training']['num_epochs']}): {train_loss_meter.avg:.4f} | Trend: {trend_loss_meter.avg:.4f} | Trend Metric: {trend_metric_meter.avg:.4f} | Stock: {stock_loss_meter.avg:.4f} | Industry: {industry_loss_meter.avg:.4f} | Returns: {returns_loss_meter.avg:.4f} | Returns Metric: {returns_metric_meter.avg:.4f}")
         
         scheduler.step()
 
