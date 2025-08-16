@@ -193,6 +193,8 @@ class ImagingPriceTrendDataset(Dataset):
             label_return_cols = []
             for i in range(5):
                 label_return_cols.append(f'label_return_{i+1}')
+
+            stock_data.sort_values(by='date', inplace=True)
             
             industry= self.indus_encoder.transform(stock_data['industry'].to_numpy())[0]
             price_data = stock_data[self.features].to_numpy()
