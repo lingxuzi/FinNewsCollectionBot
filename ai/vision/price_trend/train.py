@@ -174,7 +174,7 @@ def run_training(config):
     if config['training']['finetune']:
         try:
             state_dict = torch.load(config['training']['model_save_path'], map_location='cpu')
-            model.load_state_dict(state_dict, strict=False)
+            model.load_state_dict(state_dict, strict=True)
             print('finetune model loaded')
         except Exception as e:
             print(f'Load finetune model failed: {e}')
