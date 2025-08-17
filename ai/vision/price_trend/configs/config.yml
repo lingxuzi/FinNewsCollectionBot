@@ -45,7 +45,7 @@ training:
   num_epochs: 100
   model_save_path: "../fin_models/trend.pth"
   pretrained_path: "../fin_models/trend_pretrained.pth"
-  load_pretrained: true
+  load_pretrained: false
 
 # --- 设备配置 ---
 device: "cuda"              # 如果有GPU则使用cuda，否则使用cpu
