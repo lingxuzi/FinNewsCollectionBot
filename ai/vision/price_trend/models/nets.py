@@ -71,7 +71,7 @@ class StockNet(nn.Module):
         
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1)) # 全局平均池化
         
-        self.trend_classifier_vision = nn.Linear(trend_output_size, config["trend_classes"])
+        self.trend_classifier = nn.Linear(trend_output_size, config["trend_classes"])
         self.trend_classifier_fused = nn.Linear(regression_output_size, config["trend_classes"])
         self.stock_classifier = nn.Linear(regression_output_size, config["stock_classes"])
         self.industry_classifier = nn.Linear(regression_output_size, config["industry_classes"])
