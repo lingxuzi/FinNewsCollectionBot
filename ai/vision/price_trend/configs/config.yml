@@ -35,11 +35,11 @@ training:
   awl: false
   clip_norm: 0
   losses: ['trend', 'returns', 'stock', 'industry']
-  loss_weights: [1, 1, 1, 1]
+  loss_weights: [1, 1, 0.1, 0.1]
   optimizer: 'adamw'
   learning_rate: 0.00001
   min_learning_rate: 0.00001
-  weight_decay: 0.05
+  weight_decay: 0.1
   warmup_epochs: 5
   batch_size: 512
   num_epochs: 100
