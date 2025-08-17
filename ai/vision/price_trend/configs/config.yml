@@ -2,7 +2,7 @@
 # --- 数据参数 ---
 data:
   db_path: '../price_trend/cache'
-  sampler: false
+  sampler: true
   encoder_path: '../hamuna_stock_data/train_data/hist/encoder.joblib'
   scaler_path: '../hamuna_stock_data/train_data/hist/scaler.joblib'
   train:

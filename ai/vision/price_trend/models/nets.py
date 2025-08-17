@@ -71,7 +71,8 @@ class StockNet(nn.Module):
         
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1)) # 全局平均池化
         
-        self.trend_classifier = nn.Linear(trend_output_size, config["trend_classes"])
+        self.trend_classifier_vision = nn.Linear(trend_output_size, config["trend_classes"])
+        self.trend_classifier_fused = nn.Linear(regression_output_size, config["trend_classes"])
         self.stock_classifier = nn.Linear(regression_output_size, config["stock_classes"])
         self.industry_classifier = nn.Linear(regression_output_size, config["industry_classes"])
         self.returns_regression = nn.Linear(regression_output_size, 1)
@@ -97,13 +98,14 @@ class StockNet(nn.Module):
         if ts_seq is not None and ctx_seq is not None:
             ts_fused = self.ts_model((ts_seq, ctx_seq))
             ts_fused = torch.cat([x, ts_fused], dim=1)
+            trend_logits_fused = self.trend_classifier_fused(ts_fused)
             stock_logits = self.stock_classifier(ts_fused)
             industry_logits = self.industry_classifier(ts_fused)
             returns = self.returns_regression(ts_fused)
         else:
-            stock_logits, industry_logits, returns = None, None, None
+            trend_logits_fused, stock_logits, industry_logits, returns = None, None, None, None
 
-        return trend_logits, stock_logits, industry_logits, returns
+        return trend_logits, trend_logits_fused, stock_logits, industry_logits, returns
 
     def gradcam_layer(self):
         return eval(f'self.model.{self.config["gradlayer"]}')

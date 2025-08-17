@@ -182,9 +182,9 @@ def run_training(config):
     ema = ModelEmaV2(model, decay=0.9999, device=device)
 
     model = model.to(device)
-    criterion_trend = ASLSingleLabel() #focal_loss(alpha=0.3, gamma=2, num_classes=model_config['trend_classes'])
-    criterion_stock = ASLSingleLabel()
-    criterion_industry = ASLSingleLabel()
+    criterion_trend = nn.CrossEntropyLoss() #ASLSingleLabel() #focal_loss(alpha=0.3, gamma=2, num_classes=model_config['trend_classes'])
+    criterion_stock = nn.CrossEntropyLoss() #ASLSingleLabel()
+    criterion_industry = nn.CrossEntropyLoss() #ASLSingleLabel()
 
     parameters = []
     if config['training']['awl']:
@@ -232,16 +232,16 @@ def run_training(config):
         for _ in pbar:
             img, trend, returns, stock, industry, ts, ctx = train_iter.next()
             optimizer.zero_grad()
-            trend_pred, stock_pred, industry_pred, returns_pred = model(img, ts, ctx)
+            trend_pred, trend_pred_fused, stock_pred, industry_pred, returns_pred = model(img, ts, ctx)
 
             losses = {}
 
             if 'trend' in config['training']['losses']:
                 loss_trend = criterion_trend(trend_pred, trend.squeeze())
-                losses['trend'] = loss_trend
-                trend_loss_meter.update(loss_trend.item())
-
-                trend_metric_meter.update(balanced_accuracy_score(trend.squeeze().cpu().numpy(), trend_pred.argmax(axis=1).cpu().numpy()))
+                loss_trend_fused = criterion_trend(trend_pred_fused, trend.squeeze())
+                losses['trend'] = loss_trend + loss_trend_fused
+                trend_loss_meter.update(loss_trend.item() + loss_trend_fused.item())
+                trend_metric_meter.update(balanced_accuracy_score(trend.squeeze().cpu().numpy(), trend_pred_fused.argmax(axis=1).cpu().numpy()))
             
             if 'stock' in config['training']['losses']:
                 loss_stock = criterion_stock(stock_pred, stock.squeeze())
