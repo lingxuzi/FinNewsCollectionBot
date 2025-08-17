@@ -261,7 +261,11 @@ def run_training(config):
                 returns_loss_meter.update(loss_returns.item())
                 returns_metric_meter.update(r2_score(returns.squeeze().cpu().numpy(), returns_pred.detach().cpu().numpy()))
             
-            total_loss = sum(losses.values())
+            if config['training']['awl']:
+                losses = list(losses.values())
+                total_loss = awl(*losses)
+            else:
+                total_loss = sum([losses[lk] * w for w, lk in zip(config['training']['loss_weights'], config['training']['losses'])])
             total_loss.backward()
 
             clip_norm = config['training']['clip_norm']
