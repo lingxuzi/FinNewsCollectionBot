@@ -322,7 +322,7 @@ def generate_gradcam(model, dataset):
 
 def gradcam_forward(input_tensor, model):
     img, stock, industry, ts, ctx = input_tensor
-    trend_pred, stock_pred, industry_pred, returns = model(img, None, None)
+    trend_pred, trend_pred_fused, stock_pred, industry_pred, returns = model(img, None, None)
     return trend_pred
 
 def eval(model, dataset, config):
@@ -340,9 +340,9 @@ def eval(model, dataset, config):
             # y = y.to(device)
             img, trend, returns, stock, industry, ts, ctx = val_iter.next()
 
-            trend_pred, stock_pred, industry_pred, returns_pred = _model(img, ts, ctx)
+            trend_pred, trend_pred_fused, stock_pred, industry_pred, returns_pred = _model(img, ts, ctx)
 
-            trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred.cpu().numpy())
+            trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred_fused.cpu().numpy())
     # --- 计算整体 R² --
 
     scores = []
@@ -409,8 +409,8 @@ def run_eval(config):
 
             img, trend, returns, stock, industry, ts, ctx = test_iter.next()
 
-            trend_pred, stock_pred, industry_pred, returns_pred = model(img, ts, ctx)
-            trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred.cpu().numpy())
+            trend_pred, trend_pred_fused, stock_pred, industry_pred, returns_pred = model(img, ts, ctx)
+            trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred_fused.cpu().numpy())
 
         # --- 计算整体 R² ---
         _, trend_score = trend_metric.calculate()
