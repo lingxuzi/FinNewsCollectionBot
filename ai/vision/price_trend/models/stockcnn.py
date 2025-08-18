@@ -99,68 +99,59 @@ class StockChartNet(nn.Module):
 
     def forward_features(self, x):
         return self.layers(x)
-    
 
-class MixConv2d(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_sizes=[3, 5, 7], stride=1, padding='same', dilation=1, groups=1, bias=True):
-        super().__init__()
+class MixConv(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_sizes=[3, 5]):
+        super(MixConv, self).__init__()
+
+        channels_per_kernel = out_channels // len(kernel_sizes)
         self.convs = nn.ModuleList([
-            nn.Conv2d(in_channels, out_channels, k, stride,
-                      padding if padding != 'same' else k // 2, dilation, groups, bias)
-            for k in kernel_sizes
+            nn.Conv2d(in_channels, channels_per_kernel, kernel_size=kernel_size, stride=1, padding=kernel_size//2, groups=channels_per_kernel, bias=False)
+            for kernel_size in kernel_sizes
         ])
-        self.out_channels = out_channels
-
+    
     def forward(self, x):
-        return torch.cat([conv(x) for conv in self.convs], dim=1)
+        outputs = [conv(x) for conv in self.convs]
+        return torch.cat(outputs, dim=1)
 
-# 修改后的 MixNet 块
-class MixNetBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, stride=1, kernel_sizes=[5, 7], expansion_factor=2, attention=True, attention_mode='ca'):
-        super().__init__()
-        self.stride = stride
-        self.expansion_factor = expansion_factor
+class MixResidualBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, ratio=3, kernel_sizes=[3, 5], stride=1, attention=True, attention_mode='ca'):
+        super(MixResidualBlock, self).__init__()
         self.attention = attention
+        init_channels = ((out_channels * ratio) // len(kernel_sizes)) * len(kernel_sizes)
+        # pointwise
+        self.conv1 = nn.Conv2d(in_channels, init_channels, kernel_size=1, stride=1, padding=0, bias=False)
+        self.bn1 = nn.BatchNorm2d(init_channels)
+        self.relu = nn.SiLU(inplace=True) #nn.LeakyReLU(negative_slope=0.1, inplace=True)
+        # depthwise
+        self.conv2 = MixConv(init_channels, init_channels, kernel_sizes)
+        self.bn2 = nn.BatchNorm2d(init_channels)
+        self.ca = get_attention_module(init_channels, attention_mode)
 
-        hidden_dim = round(in_channels * expansion_factor)
-        self.use_residual = in_channels == out_channels and stride == 1
-
-        # 扩张阶段 (Expansion)
-        self.expand_conv = nn.Sequential(
-            nn.Conv2d(in_channels, hidden_dim, kernel_size=1, bias=False),
-            nn.BatchNorm2d(hidden_dim),
-            nn.Hardswish(inplace=True)
-        )
-
-        # 深度可分离卷积 (Depthwise Convolution)
-        self.depthwise_conv = nn.Sequential(
-            MixConv2d(hidden_dim, hidden_dim, kernel_sizes=kernel_sizes, stride=stride, groups=hidden_dim),
-            nn.BatchNorm2d(hidden_dim * len(kernel_sizes)),
-            nn.Hardswish(inplace=True)
-        )
-
-        if self.attention:
-            self.attention_module = get_attention_module(hidden_dim * len(kernel_sizes), attention_mode)
-        else:
-            self.attention_module = nn.Identity()
-
-        # 投影阶段 (Projection)
-        self.project_conv = nn.Sequential(
-            nn.Conv2d(hidden_dim * len(kernel_sizes), out_channels, kernel_size=1, bias=False),
-            nn.BatchNorm2d(out_channels)
-        )
-
+        # pw-linear
+        self.conv3 = nn.Conv2d(init_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False)
+        self.bn3 = nn.BatchNorm2d(out_channels)
+ 
+        self.shortcut = nn.Sequential()
+        if stride != 1 or in_channels != out_channels:
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(out_channels)
+            )
+ 
     def forward(self, x):
-        identity = x
-
-        out = self.expand_conv(x)
-        out = self.depthwise_conv(out)
-        out = self.attention_module(out) # 应用注意力机制
-        out = self.project_conv(out)
-
-        if self.use_residual:
-            out = out + identity
-
+        residual = x
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out = self.relu(out)
+        if self.attention:
+            out = self.ca(out)
+        out = self.conv3(out)
+        out = self.bn3(out)
+        out += self.shortcut(residual)
         return out
     
 class StockChartNetV2(nn.Module):
@@ -184,10 +175,10 @@ class StockChartNetV2(nn.Module):
             #nn.LeakyReLU(negative_slope=0.1, inplace=True)
         )
 
-        block2 = MixNetBlock(16, 24, stride=2, attention=False)
-        block3 = MixNetBlock(24, 40, stride=2, attention=False)
-        block4 = MixNetBlock(40, 80, stride=2, attention_mode=attention_mode)
-        block5 = MixNetBlock(80, 120, stride=2, attention_mode=attention_mode)
+        block2 = MixResidualBlock(16, 24, stride=2, attention=False)
+        block3 = MixResidualBlock(24, 40, stride=2, attention=False)
+        block4 = MixResidualBlock(40, 80, stride=2, attention_mode=attention_mode)
+        block5 = MixResidualBlock(80, 120, stride=2, attention_mode=attention_mode)
 
         self.layers = nn.Sequential(
             stem,
