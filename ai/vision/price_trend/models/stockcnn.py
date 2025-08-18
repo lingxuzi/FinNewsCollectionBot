@@ -105,7 +105,7 @@ class MixConv2d(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_sizes=[3, 5, 7], stride=1, padding='same', dilation=1, groups=1, bias=True):
         super().__init__()
         self.convs = nn.ModuleList([
-            nn.Conv2d(in_channels, out_channels // len(kernel_sizes), k, stride,
+            nn.Conv2d(in_channels, out_channels, k, stride,
                       padding if padding != 'same' else k // 2, dilation, groups, bias)
             for k in kernel_sizes
         ])
@@ -116,7 +116,7 @@ class MixConv2d(nn.Module):
 
 # 修改后的 MixNet 块
 class MixNetBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, stride=1, kernel_sizes=[3, 5, 7], expansion_factor=6, attention=True, attention_mode='ca'):
+    def __init__(self, in_channels, out_channels, stride=1, kernel_sizes=[5, 7], expansion_factor=2, attention=True, attention_mode='ca'):
         super().__init__()
         self.stride = stride
         self.expansion_factor = expansion_factor
@@ -135,18 +135,18 @@ class MixNetBlock(nn.Module):
         # 深度可分离卷积 (Depthwise Convolution)
         self.depthwise_conv = nn.Sequential(
             MixConv2d(hidden_dim, hidden_dim, kernel_sizes=kernel_sizes, stride=stride, groups=hidden_dim),
-            nn.BatchNorm2d(hidden_dim),
+            nn.BatchNorm2d(hidden_dim * len(kernel_sizes)),
             nn.Hardswish(inplace=True)
         )
 
         if self.attention:
-            self.attention_module = get_attention_module(hidden_dim, attention_mode)
+            self.attention_module = get_attention_module(hidden_dim * len(kernel_sizes), attention_mode)
         else:
             self.attention_module = nn.Identity()
 
         # 投影阶段 (Projection)
         self.project_conv = nn.Sequential(
-            nn.Conv2d(hidden_dim, out_channels, kernel_size=1, bias=False),
+            nn.Conv2d(hidden_dim * len(kernel_sizes), out_channels, kernel_size=1, bias=False),
             nn.BatchNorm2d(out_channels)
         )
 
@@ -185,9 +185,9 @@ class StockChartNetV2(nn.Module):
         )
 
         block2 = MixNetBlock(16, 24, stride=2, attention=False)
-        block3 = MixNetBlock(24, 48, stride=2, attention=False)
-        block4 = MixNetBlock(48, 80, stride=2, attention_mode=attention_mode)
-        block5 = MixNetBlock(80, 120, stride=1, attention_mode=attention_mode)
+        block3 = MixNetBlock(24, 40, stride=2, attention=False)
+        block4 = MixNetBlock(40, 80, stride=2, attention_mode=attention_mode)
+        block5 = MixNetBlock(80, 120, stride=2, attention_mode=attention_mode)
 
         self.layers = nn.Sequential(
             stem,

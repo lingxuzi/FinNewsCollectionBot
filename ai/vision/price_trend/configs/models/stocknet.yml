@@ -1,8 +1,8 @@
 trend_classes: 2
 dropout: 0.8
-backbone: 'stockchartnet'
-attention_mode: 'ca'
-gradlayer: 'layers[-2].conv2'
+backbone: 'stockchartnetv2'
+attention_mode: 'simam'
+gradlayer: 'layers[-2].project_conv[0]'
 ts_encoder:
   hidden_dim: 64
   num_layers: 2
