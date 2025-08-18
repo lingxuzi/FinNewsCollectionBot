@@ -36,8 +36,8 @@ training:
   clip_norm: 0
   losses: ['trend', 'returns']
   loss_weights: [1, 1]
-  optimizer: 'adamw'
-  learning_rate: 0.00001
+  optimizer: 'sgd'
+  learning_rate: 0.0001
   min_learning_rate: 0.00001
   weight_decay: 0.05
   warmup_epochs: 0
