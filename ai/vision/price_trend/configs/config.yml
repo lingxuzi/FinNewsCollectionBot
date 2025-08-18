@@ -2,7 +2,7 @@
 # --- 数据参数 ---
 data:
   db_path: '../price_trend/cache'
-  sampler: false
+  sampler: true
   encoder_path: '../hamuna_stock_data/train_data/hist/encoder.joblib'
   scaler_path: '../hamuna_stock_data/train_data/hist/scaler.joblib'
   train:
@@ -37,8 +37,8 @@ training:
   losses: ['trend', 'returns']
   loss_weights: [1, 1]
   optimizer: 'adamw'
-  learning_rate: 0.00001
-  min_learning_rate: 0.000001
+  learning_rate: 0.0001
+  min_learning_rate: 0.00001
   weight_decay: 0.05
   warmup_epochs: 5
   batch_size: 512
