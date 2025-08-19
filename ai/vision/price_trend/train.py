@@ -256,7 +256,7 @@ def run_training(config):
                 industry_metric_meter.update(balanced_accuracy_score(industry.squeeze().cpu().numpy(), trend_pred.argmax(axis=1).cpu().numpy()))
             
             if 'returns' in config['training']['losses']:
-                loss_returns = F.mse_loss(returns_pred, returns.squeeze())
+                loss_returns = F.huber_loss(returns_pred, returns.squeeze(), delta=0.1)
                 losses['returns'] = loss_returns
                 returns_loss_meter.update(loss_returns.item())
                 returns_metric_meter.update(r2_score(returns.squeeze().cpu().numpy(), returns_pred.detach().cpu().numpy()))
