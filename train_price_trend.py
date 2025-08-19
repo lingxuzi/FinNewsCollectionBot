@@ -46,6 +46,28 @@ def json_to_markdown(json_list):
         markdown += "| " + " | ".join(row) + " |\n"
     return markdown
 
+def analysis(inferencer: VisionInferencer, code, prob_thres):
+    df = inferencer.fetch_stock_data(code['code'])
+    if df is not None and df['date'].iloc[-1].date() >= datetime.now().date() - timedelta(days=2):
+        up_prob, down_prob, returns = inferencer.inference(df)
+        if up_prob > prob_thres:
+            return 'up', {
+                '股票代码': code['code'],
+                '股票名称': code['name'],
+                '信号': '买入',
+                '概率': up_prob,
+                '回报预测': returns
+            }
+        elif down_prob > prob_thres:
+            return 'down', {
+                '股票代码': code['code'],
+                '股票名称': code['name'],
+                '信号': '卖出',
+                '概率': down_prob,
+                '回报预测': returns
+            }
+    return None, None
+
 if __name__ == '__main__':
     warnings.filterwarnings("ignore")
     opts = parse_args()
@@ -60,6 +82,10 @@ if __name__ == '__main__':
         elif opts.mode == 'infer':
             from datetime import datetime, timedelta
             from tqdm import tqdm
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            import multiprocessing
+            multiprocessing.set_start_method('spawn', force=True)   
+            
             inferencer = VisionInferencer(config)
             
             engine = StockQueryEngine(host='10.26.0.8', port=2000, username='hmcz', password='Hmcz_12345678')
@@ -71,26 +97,14 @@ if __name__ == '__main__':
             sales = []
             prob_thres = 0.58
 
-            for code in tqdm(stock_list, desc='扫描大盘股票'):
-                df = inferencer.fetch_stock_data(code['code'])
-                if df is not None and df['date'].iloc[-1].date() >= datetime.now().date() - timedelta(days=2):
-                    up_prob, down_prob, returns = inferencer.inference(df)
-                    if up_prob > prob_thres:
-                        recomendations.append({
-                            '股票代码': code['code'],
-                            '股票名称': code['name'],
-                            '信号': '买入',
-                            '概率': up_prob,
-                            '回报预测': returns
-                        })
-                    elif down_prob > prob_thres:
-                        sales.append({
-                            '股票代码': code['code'],
-                            '股票名称': code['name'],
-                            '信号': '卖出',
-                            '概率': down_prob,
-                            '回报预测': returns
-                        })
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                futures = [executor.submit(analysis, inferencer, code, prob_thres) for code in stock_list]
+                for future in tqdm(as_completed(futures), desc='扫描大盘股票'):
+                    signal, data = future.result()
+                    if signal == 'up':
+                        recomendations.append(data)
+                    elif signal == 'down':
+                        sales.append(data)
             
             recomendations = sorted(recomendations, key=lambda x: x['概率'], reverse=True)
             sales = sorted(sales, key=lambda x: x['概率'], reverse=True)

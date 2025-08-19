@@ -84,6 +84,10 @@ class VisionInferencer:
         img = img.unsqueeze(0)
         ts_seq = ts_seq.unsqueeze(0)
         ctx_seq = ctx_seq.unsqueeze(0)
+        device = torch.device(self.config['device'] if torch.cuda.is_available() else "cpu")
+        img = img.to(device)
+        ts_seq = ts_seq.to(device)
+        ctx_seq = ctx_seq.to(device)
         # inference
         with torch.no_grad():
             trend_logits, trend_logits_fused, stock_logits, industry_logits, returns = self.model(img, ts_seq, ctx_seq)
