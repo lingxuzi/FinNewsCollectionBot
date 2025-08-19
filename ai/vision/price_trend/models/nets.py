@@ -91,7 +91,7 @@ class StockNet(nn.Module):
         x = x.view(x.size(0), -1)
 
         if self.config['dropout'] > 0.:
-            x = F.dropout(x, p=self.config['dropout'] // 2, training=self.training)
+            x = F.dropout(x, p=self.config['dropout'], training=self.training)
 
         trend_logits = self.trend_classifier(x)
         
