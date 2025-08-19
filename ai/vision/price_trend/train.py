@@ -182,6 +182,15 @@ def run_training(config):
     ema = ModelEmaV2(model, decay=0.9999, device=device)
 
     model = model.to(device)
+
+    if config['training']['freeze'] == 'ts':
+        model.freeze_ts()
+    elif config['training']['freeze'] == 'vision':
+        model.freeze_vision()
+    elif config['training']['freeze'] == 'all':
+        model.freeze_vision()
+        model.freeze_ts()
+
     criterion_trend = nn.CrossEntropyLoss() #ASLSingleLabel() #focal_loss(alpha=0.3, gamma=2, num_classes=model_config['trend_classes'])
     criterion_stock = nn.CrossEntropyLoss() #ASLSingleLabel()
     criterion_industry = nn.CrossEntropyLoss() #ASLSingleLabel()
@@ -189,7 +198,7 @@ def run_training(config):
     parameters = []
     if config['training']['awl']:
         parameters += [{'params': awl.parameters(), 'weight_decay': 0, 'lr': 1e-2}]
-    parameters += [{'params': model.parameters(), 'weight_decay': config['training']['weight_decay'], 'lr': config['training']['min_learning_rate'] if config['training']['warmup_epochs'] > 0 else config['training']['learning_rate']}]
+    parameters += [{'params': [p for p in model.parameters() if p.requires_grad], 'weight_decay': config['training']['weight_decay'], 'lr': config['training']['min_learning_rate'] if config['training']['warmup_epochs'] > 0 else config['training']['learning_rate']}]
     # print(list(model.named_parameters()))
     if config['training']['optimizer'] == 'sgd':
         optimizer = torch.optim.SGD(parameters, momentum=0.9, nesterov=True)

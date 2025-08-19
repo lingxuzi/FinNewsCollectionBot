@@ -80,6 +80,14 @@ class StockNet(nn.Module):
         if 'models.' not in config["backbone"]:
             initialize(self.model)
 
+    def freeze_vision(self):
+        for (name, param) in self.model.named_parameters():
+            param.requires_grad = False
+    
+    def freeze_ts(self):
+        for (name, param) in self.ts_model.named_parameters():
+            param.requires_grad = False
+
     def forward(self, x, ts_seq, ctx_seq):
         x = self.model.forward_features(x)
         x = self.global_pool(x)
