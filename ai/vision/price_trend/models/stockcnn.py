@@ -33,7 +33,10 @@ class ResidualBlock(nn.Module):
         # depthwise
         self.conv2 = nn.Conv2d(init_channels, init_channels, kernel_size=kernel_size, stride=stride, padding=kernel_size//2, groups=init_channels, bias=False)
         self.bn2 = nn.BatchNorm2d(init_channels)
-        self.ca = get_attention_module(init_channels, attention_mode)
+        if attention or attention_mode == 'simam':
+            self.ca = get_attention_module(init_channels, attention_mode)
+        else:
+            self.ca = nn.Identity()
 
         # pw-linear
         self.conv3 = nn.Conv2d(init_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False)
@@ -54,8 +57,7 @@ class ResidualBlock(nn.Module):
         out = self.conv2(out)
         out = self.bn2(out)
         out = self.relu(out)
-        if self.attention:
-            out = self.ca(out)
+        out = self.ca(out)
         out = self.conv3(out)
         out = self.bn3(out)
         out += self.shortcut(residual)
@@ -82,8 +84,8 @@ class StockChartNet(nn.Module):
             #nn.LeakyReLU(negative_slope=0.1, inplace=True)
         )
 
-        block2 = ResidualBlock(16, 32, stride=2, attention=False)
-        block3 = ResidualBlock(32, 64, stride=2, attention=False)
+        block2 = ResidualBlock(16, 32, stride=2, attention=False, attention_mode='simam')
+        block3 = ResidualBlock(32, 64, stride=2, attention=False, attention_mode='simam')
         block4 = ResidualBlock(64, 128, stride=2, attention_mode=attention_mode)
         block5 = ResidualBlock(128, 256, stride=1, attention_mode=attention_mode)
 
