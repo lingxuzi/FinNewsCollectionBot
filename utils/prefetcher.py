@@ -15,7 +15,6 @@ class DataPrefetcher():
         self.enable_queue = enable_queue
         self.preload_time = 0
 
-
         self.preload()
 
         if enable_queue:
