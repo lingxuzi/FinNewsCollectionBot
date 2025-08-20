@@ -8,7 +8,7 @@ import argparse
 def parse_args():
     parser = argparse.ArgumentParser(description='Train price trend model')
     parser.add_argument('--config', type=str, default='./ai/vision/price_trend/configs/config.yml', help='Path to the configuration file')
-    parser.add_argument('--mode', type=str, default='eval', help='Mode of operation: train or test')
+    parser.add_argument('--mode', type=str, default='train', help='Mode of operation: train or test')
     return parser.parse_args()
 
 

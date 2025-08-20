@@ -274,8 +274,10 @@ class ImagingPriceTrendDataset(Dataset):
             _trend = 1
         else:
             _trend = 0
+
+        returns = np.clip(returns, -0.1, 0.1) + 0.1 + 1e-4
         
-        return image, _trend, acu_return, code, industry, ts_seq, ctx_seq
+        return image, _trend, returns, code, industry, ts_seq, ctx_seq
     
     def __getitem__(self, idx):
         image, _trend, returns, code, industry, ts_seq, ctx_seq = self.parse_item(idx)
