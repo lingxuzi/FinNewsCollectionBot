@@ -67,14 +67,14 @@ class SEFusionBlock(nn.Module):
     
 
 class ResidualMLPBlock(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, dropout_rate, act=nn.Hardswish, use_batchnorm=True, bias=True, elsa=False):
+    def __init__(self, input_dim, hidden_dim, output_dim, dropout_rate, act=nn.Hardswish, use_batchnorm=True, elsa=False):
         super().__init__()
         self.p = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
+            nn.Linear(input_dim, hidden_dim, bias=not use_batchnorm),
             nn.LayerNorm(hidden_dim) if use_batchnorm else nn.Identity(),
             act() if not elsa else ELSA(activation=act()),
-            nn.Dropout(dropout_rate),
-            nn.Linear(hidden_dim, output_dim, bias=bias)
+            nn.Dropout(dropout_rate, inplace=True),
+            nn.Linear(hidden_dim, output_dim)
         )
         # 如果输入和输出维度不同，则需要一个跳跃连接的线性投影
         self.shortcut = nn.Linear(input_dim, output_dim) if input_dim != output_dim else nn.Identity()
@@ -91,7 +91,7 @@ class ResidualMLP(nn.Module):
     def __init__(self, input_dim, output_dim, act=nn.Hardswish, use_batchnorm=True, dropout_rate=0, elsa=False, residual=True):
         super().__init__()
         self.p = nn.Sequential(
-            nn.Linear(input_dim, output_dim),
+            nn.Linear(input_dim, output_dim, bias=not use_batchnorm),
             nn.LayerNorm(output_dim) if use_batchnorm else nn.Identity(),
             act() if not elsa else ELSA(activation=act()),
             nn.Dropout(dropout_rate, inplace=True) if dropout_rate > 0 else nn.Identity(),
