@@ -25,6 +25,7 @@ from ai.loss.focalloss import ASLSingleLabel
 from ai.optimizer import *
 from ai.scheduler.sched import *
 from ai.metrics import *
+from ai.logs.log_agent import LogAgent
 from utils.prefetcher import DataPrefetcher
 from utils.common import ModelEmaV2
 from sklearn.metrics import balanced_accuracy_score
@@ -34,6 +35,8 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 torch.manual_seed(42)
 np.random.seed(42)
 random.seed(42)
+
+log_agent = None
 
 def num_iters_per_epoch(loader, batch_size):
     return len(loader) // batch_size
@@ -160,8 +163,13 @@ def run_training(config):
     model_config['stock_classes'] = len(encoder[1].classes_)
     model_config['industry_classes'] = len(encoder[0].classes_)
     model_config['ts_encoder']['ts_input_dim'] = len(config['data']['ts_features']['features']) + len(config['data']['ts_features']['temporal'])
-    model_config['ts_encoder']['ctx_input_dim'] = len(config['data']['ts_features']['numerical']) + len(config['data']['categorical'])
+    model_config['ts_encoder']['ctx_input_dim'] = len(config['data']['ts_features']['numerical'])
     model = create_model(config['training']['model'], model_config)
+
+    log_agent = LogAgent(config['training']['model'], {
+        'basic': config,
+        'model': model_config
+    })
 
     if config['training']['load_pretrained']:
         try:
@@ -374,7 +382,13 @@ def eval(model, dataset, config):
     scores.append(trend_score)
     scores.append(ts_score)
     scores.append(vision_score)
-    scores.append(return_score)
+
+    log_agent.log({
+        'eval_trend_score': trend_score,
+        'eval_ts_score': ts_score,
+        'eval_vision_score': vision_score,
+        'eval_return_score': return_score,
+    })
 
     mean_r2 = sum(scores) / len(scores)
 
@@ -412,7 +426,7 @@ def run_eval(config):
     model_config['stock_classes'] = len(encoder[1].classes_)
     model_config['industry_classes'] = len(encoder[0].classes_)
     model_config['ts_encoder']['ts_input_dim'] = len(config['data']['ts_features']['features']) + len(config['data']['ts_features']['temporal'])
-    model_config['ts_encoder']['ctx_input_dim'] = len(config['data']['ts_features']['numerical']) + len(config['data']['categorical'])
+    model_config['ts_encoder']['ctx_input_dim'] = len(config['data']['ts_features']['numerical'])
 
     model = create_model(config['training']['model'], model_config).to(device)
 
