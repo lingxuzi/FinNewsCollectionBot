@@ -115,7 +115,9 @@ class StockNet(nn.Module):
         self.returns_regression = nn.Linear(regression_output_size, 1)
 
         if 'models.' not in config["backbone"]:
-            initialize(self.model)
+            initialize(self)
+        
+        orthogonal_init(self.ts_model)
 
         self.weights_initialize(self.trend_classifier)
         self.weights_initialize(self.trend_ts_classifier)
