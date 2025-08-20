@@ -36,8 +36,6 @@ torch.manual_seed(42)
 np.random.seed(42)
 random.seed(42)
 
-log_agent = None
-
 def num_iters_per_epoch(loader, batch_size):
     return len(loader) // batch_size
 
@@ -301,7 +299,7 @@ def run_training(config):
 
         # --- 5. 验证循环 ---
         _model = copy.deepcopy(ema.module)
-        mean_r2 = eval(_model, eval_dataset, config)
+        mean_r2 = eval(_model, eval_dataset, config, log_agent)
         
         # --- 6. 保存最佳模型 ---
         # 只保存性能最好的模型，避免存储过多文件
@@ -347,7 +345,7 @@ def gradcam_forward(input_tensor, model):
     trend_pred, ts_pred, trend_pred_fused, stock_pred, industry_pred, returns = model(img, None, None)
     return trend_pred
 
-def eval(model, dataset, config):
+def eval(model, dataset, config, log_agent):
     _model = model#copy.deepcopy(ema.module)
     _model.eval()
 
