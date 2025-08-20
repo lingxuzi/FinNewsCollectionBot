@@ -85,6 +85,13 @@ if __name__ == '__main__':
             from concurrent.futures import ThreadPoolExecutor, as_completed
             import multiprocessing
             multiprocessing.set_start_method('spawn', force=True)   
+
+
+            import os
+            server_chan_keys_env = os.getenv("SERVER_CHAN_KEYS")
+            if not server_chan_keys_env:
+                raise ValueError("环境变量 SERVER_CHAN_KEYS 未设置")
+            server_chan_keys = server_chan_keys_env.split(",")
             
             inferencer = VisionInferencer(config)
             
@@ -109,10 +116,5 @@ if __name__ == '__main__':
 
             markdowns = json_to_markdown(recomendations)
 
-            import os
-            server_chan_keys_env = os.getenv("SERVER_CHAN_KEYS")
-            if not server_chan_keys_env:
-                raise ValueError("环境变量 SERVER_CHAN_KEYS 未设置，请在Github Actions中设置此变量！")
-            server_chan_keys = server_chan_keys_env.split(",")
 
             send_to_wechat("股票推荐(测试)", markdowns)

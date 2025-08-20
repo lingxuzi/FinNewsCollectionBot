@@ -50,24 +50,22 @@ def initialize(module: nn.Module):
 class AdditiveAttention(nn.Module):
     def __init__(self, vision_feature_dim, ts_feature_dim, attention_dim):
         super().__init__()
-        self.W_v = nn.Linear(vision_feature_dim, attention_dim)
-        self.W_t = nn.Linear(ts_feature_dim, attention_dim)
+        self.W_v = nn.Linear(vision_feature_dim, attention_dim // 2)
+        self.W_t = nn.Linear(ts_feature_dim, attention_dim // 2)
         self.v = nn.Linear(attention_dim, 1)
 
     def forward(self, vision_features, ts_features):
         # 1. 计算注意力分数
-        attention_scores = self.v(torch.tanh(self.W_v(vision_features).unsqueeze(1) + self.W_t(ts_features).unsqueeze(2))).squeeze(2)  # (B, 1)
+        vision_mapper = self.W_v(vision_features)
+        ts_mapper = self.W_t(ts_features)
+
+        fused_features = torch.cat([vision_mapper, ts_mapper], dim=1)
+
+        attention_scores = self.v(F.tanh(fused_features))  # (B, 1)
 
         # 2. 计算注意力权重
         attention_weights = torch.softmax(attention_scores, dim=1)
-
-        # 3. 加权求和
-        attended_ts = ts_features * attention_weights
-        # 或者:
-        # attended_ts = torch.bmm(attention_weights.unsqueeze(1), ts_features.unsqueeze(1)).squeeze(1)
-
-        # 4. 融合
-        fused_features = torch.cat([vision_features, attended_ts], dim=1)
+        fused_features = attention_weights * fused_features
 
         return fused_features
 
@@ -156,7 +154,7 @@ class StockNet(nn.Module):
             else:
                 stock_logits, industry_logits, returns = None, None, None
         else:
-            trend_logits_fused, stock_logits, industry_logits, returns = None, None, None, None
+            ts_logits, trend_logits_fused, stock_logits, industry_logits, returns = None, None, None, None, None
 
         return trend_logits, ts_logits, trend_logits_fused, stock_logits, industry_logits, returns
 

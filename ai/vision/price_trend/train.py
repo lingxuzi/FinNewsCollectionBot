@@ -241,14 +241,15 @@ def run_training(config):
         for _ in pbar:
             img, trend, returns, stock, industry, ts, ctx = train_iter.next()
             optimizer.zero_grad()
-            trend_pred, trend_pred_fused, stock_pred, industry_pred, returns_pred = model(img, ts, ctx)
+            trend_pred, ts_pred, trend_pred_fused, stock_pred, industry_pred, returns_pred = model(img, ts, ctx)
 
             losses = {}
 
             if 'trend' in config['training']['losses']:
                 loss_trend = criterion_trend(trend_pred, trend.squeeze())
                 loss_trend_fused = criterion_trend(trend_pred_fused, trend.squeeze())
-                losses['trend'] = loss_trend + loss_trend_fused
+                loss_ts = criterion_trend(ts_pred, trend.squeeze())
+                losses['trend'] = loss_trend + loss_trend_fused + loss_ts
                 trend_loss_meter.update(loss_trend.item() + loss_trend_fused.item())
                 trend_metric_meter.update(balanced_accuracy_score(trend.squeeze().cpu().numpy(), trend_pred_fused.argmax(axis=1).cpu().numpy()))
             
@@ -335,7 +336,7 @@ def generate_gradcam(model, dataset):
 
 def gradcam_forward(input_tensor, model):
     img, stock, industry, ts, ctx = input_tensor
-    trend_pred, trend_pred_fused, stock_pred, industry_pred, returns = model(img, None, None)
+    trend_pred, ts_pred, trend_pred_fused, stock_pred, industry_pred, returns = model(img, None, None)
     return trend_pred
 
 def eval(model, dataset, config):
@@ -346,6 +347,7 @@ def eval(model, dataset, config):
     with torch.no_grad():
         val_iter = DataPrefetcher(val_loader, config['device'], enable_queue=False, num_threads=1)
         trend_metric = ClsMetric('trend')
+        ts_metric = ClsMetric('ts')
         vision_metric = ClsMetric('vision_trend')
         return_metric = Metric('returns')
 
@@ -355,9 +357,10 @@ def eval(model, dataset, config):
             # y = y.to(device)
             img, trend, returns, stock, industry, ts, ctx = val_iter.next()
 
-            trend_pred, trend_pred_fused, stock_pred, industry_pred, returns_pred = _model(img, ts, ctx)
+            trend_pred, ts_pred, trend_pred_fused, stock_pred, industry_pred, returns_pred = _model(img, ts, ctx)
 
             trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred_fused.cpu().numpy())
+            ts_metric.update(ts.squeeze().cpu().numpy(), ts_pred.cpu().numpy())
             vision_metric.update(trend.squeeze().cpu().numpy(), trend_pred.cpu().numpy())
             return_metric.update(returns.squeeze().cpu().numpy(), returns_pred.cpu().numpy())
     
@@ -365,9 +368,11 @@ def eval(model, dataset, config):
 
     scores = []
     _, trend_score = trend_metric.calculate()
+    _, ts_score = ts_metric.calculate()
     _, vision_score = vision_metric.calculate()
     _, return_score = return_metric.calculate()
     scores.append(trend_score)
+    scores.append(ts_score)
     scores.append(vision_score)
     scores.append(return_score)
 
@@ -421,6 +426,7 @@ def run_eval(config):
     model.eval()
 
     trend_metric = ClsMetric('trend')
+    ts_metric = ClsMetric('ts')
     vision_metric = ClsMetric('vision_trend')
     return_metric = Metric('returns')
     
@@ -433,12 +439,14 @@ def run_eval(config):
 
             img, trend, returns, stock, industry, ts, ctx = test_iter.next()
 
-            trend_pred, trend_pred_fused, stock_pred, industry_pred, returns_pred = model(img, ts, ctx)
+            trend_pred, ts_pred, trend_pred_fused, stock_pred, industry_pred, returns_pred = model(img, ts, ctx)
             trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred_fused.cpu().numpy())
+            ts_metric.update(ts.squeeze().cpu().numpy(), ts_pred.cpu().numpy())
             vision_metric.update(trend.squeeze().cpu().numpy(), trend_pred.cpu().numpy())
             return_metric.update(returns.squeeze().cpu().numpy(), returns_pred.cpu().numpy())
 
         # --- 计算整体 R² ---
         _, trend_score = trend_metric.calculate()
-        _, _ = vision_metric.calculate()
-        _, _ = return_metric.calculate()
+        _, ts_score = ts_metric.calculate()
+        _, vision_score = vision_metric.calculate()
+        _, return_score = return_metric.calculate()
