@@ -97,14 +97,12 @@ if __name__ == '__main__':
             sales = []
             prob_thres = 0.58
 
-            with ThreadPoolExecutor(max_workers=10) as executor:
-                futures = [executor.submit(analysis, inferencer, code, prob_thres) for code in stock_list]
-                for future in tqdm(as_completed(futures), desc='扫描大盘股票'):
-                    signal, data = future.result()
-                    if signal == 'up':
-                        recomendations.append(data)
-                    elif signal == 'down':
-                        sales.append(data)
+            for code in tqdm(stock_list, desc='扫描大盘股票'):
+                signal, data = analysis(inferencer, code, prob_thres)
+                if signal == 'up':
+                    recomendations.append(data)
+                elif signal == 'down':
+                    sales.append(data)
             
             recomendations = sorted(recomendations, key=lambda x: x['概率'], reverse=True)
             sales = sorted(sales, key=lambda x: x['概率'], reverse=True)
