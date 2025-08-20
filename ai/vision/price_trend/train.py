@@ -365,8 +365,12 @@ def eval(model, dataset, config):
 
     scores = []
     _, trend_score = trend_metric.calculate()
+    _, vision_score = vision_metric.calculate()
+    _, return_score = return_metric.calculate()
     scores.append(trend_score)
-    
+    scores.append(vision_score)
+    scores.append(return_score)
+
     mean_r2 = sum(scores) / len(scores)
 
     return mean_r2
@@ -417,6 +421,8 @@ def run_eval(config):
     model.eval()
 
     trend_metric = ClsMetric('trend')
+    vision_metric = ClsMetric('vision_trend')
+    return_metric = Metric('returns', appends=True)
     
     with torch.no_grad():
         test_iter = DataPrefetcher(test_loader, config['device'], enable_queue=False, num_threads=1)
@@ -429,6 +435,10 @@ def run_eval(config):
 
             trend_pred, trend_pred_fused, stock_pred, industry_pred, returns_pred = model(img, ts, ctx)
             trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred_fused.cpu().numpy())
+            vision_metric.update(trend.squeeze().cpu().numpy(), trend_pred.cpu().numpy())
+            return_metric.update(returns.squeeze().cpu().numpy(), returns_pred.cpu().numpy())
 
         # --- 计算整体 R² ---
         _, trend_score = trend_metric.calculate()
+        _, _ = vision_metric.calculate()
+        _, _ = return_metric.calculate()
