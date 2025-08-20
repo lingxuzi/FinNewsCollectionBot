@@ -134,3 +134,4 @@ def get_attention_module(channels, attention_mode='ca', **kwargs):
         return SimAM(channels, **kwargs)
     else:
         raise ValueError(f'Unknown attention mode: {attention_mode}')
+    

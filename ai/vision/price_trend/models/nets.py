@@ -47,11 +47,36 @@ def initialize(module: nn.Module):
             m.weight.data.normal_(0, 0.01)
             m.bias.data.zero_()
 
+class AdditiveAttention(nn.Module):
+    def __init__(self, vision_feature_dim, ts_feature_dim, attention_dim):
+        super().__init__()
+        self.W_v = nn.Linear(vision_feature_dim, attention_dim)
+        self.W_t = nn.Linear(ts_feature_dim, attention_dim)
+        self.v = nn.Linear(attention_dim, 1)
+
+    def forward(self, vision_features, ts_features):
+        # 1. 计算注意力分数
+        attention_scores = self.v(torch.tanh(self.W_v(vision_features).unsqueeze(1) + self.W_t(ts_features).unsqueeze(2))).squeeze(2)  # (B, 1)
+
+        # 2. 计算注意力权重
+        attention_weights = torch.softmax(attention_scores, dim=1)
+
+        # 3. 加权求和
+        attended_ts = ts_features * attention_weights
+        # 或者:
+        # attended_ts = torch.bmm(attention_weights.unsqueeze(1), ts_features.unsqueeze(1)).squeeze(1)
+
+        # 4. 融合
+        fused_features = torch.cat([vision_features, attended_ts], dim=1)
+
+        return fused_features
+
 @register_model('stocknet')
 class StockNet(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
+        self.infer_mode = False
         
         self.model = eval(f'{config["backbone"]}(pretrained=True, in_chans=1, attention_mode="{config["attention_mode"]}")')
         self.ts_model = TSEncoder(config['ts_encoder'])
@@ -66,12 +91,14 @@ class StockNet(nn.Module):
 
         self.hardswish = nn.Hardswish()
 
-        regression_output_size = 1280 + config['ts_encoder']['embedding_dim']
+        regression_output_size = 512 #1280 + config['ts_encoder']['embedding_dim']
         trend_output_size = 1280
         
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1)) # 全局平均池化
+        self.fusion = AdditiveAttention(trend_output_size, config['ts_encoder']['embedding_dim'], regression_output_size)
         
         self.trend_classifier = nn.Linear(trend_output_size, config["trend_classes"])
+        self.trend_ts_classifier = nn.Linear(config['ts_encoder']['embedding_dim'], config["trend_classes"])
         self.trend_classifier_fused = nn.Linear(regression_output_size, config["trend_classes"])
         self.stock_classifier = nn.Linear(regression_output_size, config["stock_classes"])
         self.industry_classifier = nn.Linear(regression_output_size, config["industry_classes"])
@@ -79,6 +106,10 @@ class StockNet(nn.Module):
 
         if 'models.' not in config["backbone"]:
             initialize(self.model)
+
+    def export(self):
+        self.eval()
+        self.infer_mode = True
 
     def freeze_vision(self):
         for (name, param) in self.model.named_parameters():
@@ -98,24 +129,36 @@ class StockNet(nn.Module):
 
         x = x.view(x.size(0), -1)
 
-        if self.config['dropout'] > 0.:
-            x = F.dropout(x, p=self.config['dropout'], training=self.training)
+        if not self.infer_mode:
+            if self.config['dropout'] > 0.:
+                x = F.dropout(x, p=self.config['dropout'], training=self.training)
 
-        trend_logits = self.trend_classifier(x)
+            trend_logits = self.trend_classifier(x)
+        else:
+            trend_logits = None
         
         if ts_seq is not None and ctx_seq is not None:
             ts_fused = self.ts_model((ts_seq, ctx_seq))
-            if self.config['dropout'] > 0.:
-                ts_fused = F.dropout(ts_fused, p=self.config['dropout'], training=self.training)
-            ts_fused = torch.cat([x, ts_fused], dim=1)
+            if not self.infer_mode:
+                if self.config['dropout'] > 0.:
+                    ts_fused = F.dropout(ts_fused, p=self.config['dropout'], training=self.training)
+                
+                ts_logits = self.trend_ts_classifier(ts_fused)
+            else:
+                ts_logits = None
+
+            ts_fused = self.fusion(x.detach(), ts_fused.detach())
             trend_logits_fused = self.trend_classifier_fused(ts_fused)
-            stock_logits = self.stock_classifier(ts_fused)
-            industry_logits = self.industry_classifier(ts_fused)
-            returns = self.returns_regression(ts_fused)
+            if not self.infer_mode:
+                stock_logits = self.stock_classifier(ts_fused)
+                industry_logits = self.industry_classifier(ts_fused)
+                returns = self.returns_regression(ts_fused)
+            else:
+                stock_logits, industry_logits, returns = None, None, None
         else:
             trend_logits_fused, stock_logits, industry_logits, returns = None, None, None, None
 
-        return trend_logits, trend_logits_fused, stock_logits, industry_logits, returns
+        return trend_logits, ts_logits, trend_logits_fused, stock_logits, industry_logits, returns
 
     def gradcam_layer(self):
         return eval(f'self.model.{self.config["gradlayer"]}')

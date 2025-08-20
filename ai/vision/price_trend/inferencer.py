@@ -51,7 +51,7 @@ class VisionInferencer:
         except Exception as e:
             print(f"Error loading model state dict: {e}")
 
-        model.eval()
+        model.export()
 
         self.model = model
 
