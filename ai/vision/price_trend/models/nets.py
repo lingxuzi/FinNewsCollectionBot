@@ -105,6 +105,13 @@ class StockNet(nn.Module):
         if 'models.' not in config["backbone"]:
             initialize(self.model)
 
+        self.weights_initialize(self.trend_classifier)
+        self.weights_initialize(self.trend_ts_classifier)
+        self.weights_initialize(self.trend_classifier_fused)
+        self.weights_initialize(self.stock_classifier)
+        self.weights_initialize(self.industry_classifier)
+        self.weights_initialize(self.returns_regression)
+
     def export(self):
         self.eval()
         self.infer_mode = True
@@ -157,6 +164,15 @@ class StockNet(nn.Module):
             ts_logits, trend_logits_fused, stock_logits, industry_logits, returns = None, None, None, None, None
 
         return trend_logits, ts_logits, trend_logits_fused, stock_logits, industry_logits, returns
+    
+    def weights_initialize(self, module):
+        print("🧠 Initializing prediction head for faster convergence...")
+        if isinstance(module, nn.Linear):
+            nn.init.xavier_uniform_(module.weight)
+            nn.init.zeros_(module.bias)
+            print(f"   -> Linear layer {module} has been zero-initialized.")
+        else:
+            print(f"   -> Module {type(module)} is not a Linear layer, skipping zero-initialization.")
 
     def gradcam_layer(self):
         return eval(f'self.model.{self.config["gradlayer"]}')
