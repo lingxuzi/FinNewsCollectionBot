@@ -346,6 +346,8 @@ def eval(model, dataset, config):
     with torch.no_grad():
         val_iter = DataPrefetcher(val_loader, config['device'], enable_queue=False, num_threads=1)
         trend_metric = ClsMetric('trend')
+        vision_metric = ClsMetric('vision_trend')
+        return_metric = Metric('returns', appends=True)
 
         for _ in tqdm(range(num_iters_per_epoch(dataset, config['training']['batch_size'])), desc="[Validation]"):
             # ts_sequences = ts_sequences.to(device)
@@ -356,6 +358,9 @@ def eval(model, dataset, config):
             trend_pred, trend_pred_fused, stock_pred, industry_pred, returns_pred = _model(img, ts, ctx)
 
             trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred_fused.cpu().numpy())
+            vision_metric.update(trend.squeeze().cpu().numpy(), trend_pred.cpu().numpy())
+            return_metric.update(returns.squeeze().cpu().numpy(), returns_pred.cpu().numpy())
+    
     # --- 计算整体 R² --
 
     scores = []
