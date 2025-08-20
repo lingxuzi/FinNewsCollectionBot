@@ -46,7 +46,8 @@ def initialize(module: nn.Module):
             m.bias.data.zero_()
         elif isinstance(m, nn.Linear):
             m.weight.data.normal_(0, 0.01)
-            m.bias.data.zero_()
+            if m.bias is not None:
+                m.bias.data.zero_()
 
 
 def orthogonal_init(model):
