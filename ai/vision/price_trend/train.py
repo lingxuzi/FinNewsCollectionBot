@@ -360,7 +360,7 @@ def eval(model, dataset, config):
             trend_pred, ts_pred, trend_pred_fused, stock_pred, industry_pred, returns_pred = _model(img, ts, ctx)
 
             trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred_fused.cpu().numpy())
-            ts_metric.update(ts.squeeze().cpu().numpy(), ts_pred.cpu().numpy())
+            ts_metric.update(trend.squeeze().cpu().numpy(), ts_pred.cpu().numpy())
             vision_metric.update(trend.squeeze().cpu().numpy(), trend_pred.cpu().numpy())
             return_metric.update(returns.squeeze().cpu().numpy(), returns_pred.cpu().numpy())
     
@@ -441,7 +441,7 @@ def run_eval(config):
 
             trend_pred, ts_pred, trend_pred_fused, stock_pred, industry_pred, returns_pred = model(img, ts, ctx)
             trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred_fused.cpu().numpy())
-            ts_metric.update(ts.squeeze().cpu().numpy(), ts_pred.cpu().numpy())
+            ts_metric.update(trend.squeeze().cpu().numpy(), ts_pred.cpu().numpy())
             vision_metric.update(trend.squeeze().cpu().numpy(), trend_pred.cpu().numpy())
             return_metric.update(returns.squeeze().cpu().numpy(), returns_pred.cpu().numpy())
 
