@@ -347,7 +347,7 @@ def eval(model, dataset, config):
         val_iter = DataPrefetcher(val_loader, config['device'], enable_queue=False, num_threads=1)
         trend_metric = ClsMetric('trend')
         vision_metric = ClsMetric('vision_trend')
-        return_metric = Metric('returns', appends=True)
+        return_metric = Metric('returns')
 
         for _ in tqdm(range(num_iters_per_epoch(dataset, config['training']['batch_size'])), desc="[Validation]"):
             # ts_sequences = ts_sequences.to(device)
@@ -422,7 +422,7 @@ def run_eval(config):
 
     trend_metric = ClsMetric('trend')
     vision_metric = ClsMetric('vision_trend')
-    return_metric = Metric('returns', appends=True)
+    return_metric = Metric('returns')
     
     with torch.no_grad():
         test_iter = DataPrefetcher(test_loader, config['device'], enable_queue=False, num_threads=1)
