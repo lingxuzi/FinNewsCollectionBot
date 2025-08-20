@@ -167,7 +167,7 @@ def run_training(config):
     log_agent = LogAgent(config['training']['model'], {
         'basic': config,
         'model': model_config
-    })
+    }, name='vision_price_trend')
 
     if config['training']['load_pretrained']:
         try:
