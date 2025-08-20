@@ -36,8 +36,9 @@ def initialize(module: nn.Module):
         #print(m)
         if isinstance(m, nn.Conv2d):
             #print(m.weight.size())
-            n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-            m.weight.data.normal_(0, math.sqrt(2. / n))
+            # n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+            # m.weight.data.normal_(0, math.sqrt(2. / n))
+            nn.init.xavier_uniform_(m.weight)
             if m.bias is not None:
                 m.bias.data.zero_()
         elif isinstance(m, nn.BatchNorm2d):
@@ -47,12 +48,23 @@ def initialize(module: nn.Module):
             m.weight.data.normal_(0, 0.01)
             m.bias.data.zero_()
 
+
+def orthogonal_init(model):
+    for name, param in model.named_parameters():
+        if 'bias' in name:
+            torch.nn.init.constant_(param, 0.0)
+        elif 'weight' in name:
+            if len(param.shape) >= 2: # 仅初始化权重矩阵
+                torch.nn.init.orthogonal_(param)
+
 class AdditiveAttention(nn.Module):
     def __init__(self, vision_feature_dim, ts_feature_dim, attention_dim):
         super().__init__()
         self.W_v = nn.Linear(vision_feature_dim, attention_dim // 2)
         self.W_t = nn.Linear(ts_feature_dim, attention_dim // 2)
         self.v = nn.Linear(attention_dim, 1)
+
+        initialize(self)
 
     def forward(self, vision_features, ts_features):
         # 1. 计算注意力分数
