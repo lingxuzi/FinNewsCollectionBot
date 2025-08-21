@@ -72,7 +72,7 @@ class AdditiveAttention(nn.Module):
         vision_mapper = self.W_v(vision_features)
         ts_mapper = self.W_t(ts_features)
 
-        fused_features = torch.cat([vision_mapper, ts_mapper], dim=1)
+        fused_features = vision_mapper + ts_mapper
 
         attention_scores = self.v(F.tanh(fused_features))  # (B, attention)
 
