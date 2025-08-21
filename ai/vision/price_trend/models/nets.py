@@ -61,8 +61,8 @@ def orthogonal_init(model):
 class AdditiveAttention(nn.Module):
     def __init__(self, vision_feature_dim, ts_feature_dim, attention_dim):
         super().__init__()
-        self.W_v = nn.Linear(vision_feature_dim, attention_dim // 2)
-        self.W_t = nn.Linear(ts_feature_dim, attention_dim // 2)
+        self.W_v = nn.Linear(vision_feature_dim, attention_dim)
+        self.W_t = nn.Linear(ts_feature_dim, attention_dim)
         self.v = nn.Linear(attention_dim, attention_dim)
 
         initialize(self)
