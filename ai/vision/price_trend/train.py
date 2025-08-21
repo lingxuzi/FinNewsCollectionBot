@@ -379,9 +379,9 @@ def eval(model, dataset, config, log_agent):
     _, vision_score = vision_metric.calculate()
     _, return_score = return_metric.calculate()
     if config['training']['freeze'] == 'vision':
-        scores.append(vision_score)
-    elif config['training']['freeze'] == 'ts':
         scores.append(ts_score)
+    elif config['training']['freeze'] == 'ts':
+        scores.append(vision_score)
     else:
         scores.append(trend_score)
 
