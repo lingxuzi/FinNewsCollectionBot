@@ -193,6 +193,8 @@ def run_training(config):
         model.freeze_ts()
     elif config['training']['freeze'] == 'vision':
         model.freeze_vision()
+    elif config['training']['freeze'] == 'backbone':
+        model.freeze_backbone()
     elif config['training']['freeze'] == 'all':
         model.freeze_vision()
         model.freeze_ts()
