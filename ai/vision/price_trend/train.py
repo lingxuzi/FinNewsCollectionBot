@@ -378,9 +378,12 @@ def eval(model, dataset, config, log_agent):
     _, ts_score = ts_metric.calculate()
     _, vision_score = vision_metric.calculate()
     _, return_score = return_metric.calculate()
-    scores.append(trend_score)
-    scores.append(ts_score)
-    scores.append(vision_score)
+    if config['training']['freeze'] == 'vision':
+        scores.append(vision_score)
+    elif config['training']['freeze'] == 'ts':
+        scores.append(ts_score)
+    else:
+        scores.append(trend_score)
 
     log_agent.log({
         'eval_trend_score': trend_score,

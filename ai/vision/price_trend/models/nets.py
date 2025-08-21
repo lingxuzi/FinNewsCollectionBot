@@ -134,6 +134,9 @@ class StockNet(nn.Module):
     def freeze_vision(self):
         for (name, param) in self.model.named_parameters():
             param.requires_grad = False
+        
+        for name, param in self.fusion.named_parameters():
+            param.requires_grad = False
 
         self.last_conv.requires_grad = False
         self.trend_classifier.requires_grad = False
