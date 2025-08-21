@@ -93,7 +93,7 @@ class AdditiveAttention(nn.Module):
 
         # 2. 计算注意力权重
         attention_scores = F.softmax(attention_scores, dim=-1)
-        fused_features = F.dropout(attention_scores, p=0.2) * fused_features
+        fused_features = F.dropout(attention_scores, p=0.1) * fused_features
 
         return fused_features
 
