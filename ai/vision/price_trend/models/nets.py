@@ -199,6 +199,7 @@ class StockNet(nn.Module):
                 ts_logits = None
 
             ts_fused = self.fusion(x, ts_fused)
+            ts_fused = F.dropout(ts_fused, p=0.5, training=self.training)
             trend_logits_fused = self.trend_classifier_fused(ts_fused)
             if not self.infer_mode:
                 stock_logits = self.stock_classifier(ts_fused)
