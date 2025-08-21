@@ -167,8 +167,8 @@ class StockNet(nn.Module):
         for (name, param) in self.ts_model.named_parameters():
             param.requires_grad = False
 
-        self.trend_classifier.requires_grad_(False)
-        self.trend_ts_classifier.requires_grad_(False)
+        # self.trend_classifier.requires_grad_(False)
+        # self.trend_ts_classifier.requires_grad_(False)
 
     def forward(self, x, ts_seq, ctx_seq):
         x = self.model.forward_features(x)
