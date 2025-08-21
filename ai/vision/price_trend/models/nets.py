@@ -158,6 +158,15 @@ class StockNet(nn.Module):
         self.industry_classifier.requires_grad_(False)
         self.returns_regression.requires_grad_(False)
 
+    def freeze_backbone(self):
+        for (name, param) in self.model.named_parameters():
+            param.requires_grad = False
+
+        self.last_conv.requires_grad_(False)
+
+        for (name, param) in self.ts_model.named_parameters():
+            param.requires_grad = False
+
     def forward(self, x, ts_seq, ctx_seq):
         x = self.model.forward_features(x)
         x = self.global_pool(x)
