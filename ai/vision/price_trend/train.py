@@ -202,7 +202,7 @@ def run_training(config):
     criterion_trend = nn.CrossEntropyLoss() #ASLSingleLabel() #focal_loss(alpha=0.3, gamma=2, num_classes=model_config['trend_classes'])
     criterion_stock = nn.CrossEntropyLoss() #ASLSingleLabel()
     criterion_industry = nn.CrossEntropyLoss() #ASLSingleLabel()
-    criterion_return = HuberTrendLoss(tildeq=True)
+    criterion_return = HuberTrendLoss(tildeq=False)
 
     parameters = []
     if config['training']['awl']:
