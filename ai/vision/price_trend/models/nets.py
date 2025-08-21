@@ -63,7 +63,7 @@ class AdditiveAttention(nn.Module):
         super().__init__()
         self.W_v = nn.Linear(vision_feature_dim, attention_dim // 2)
         self.W_t = nn.Linear(ts_feature_dim, attention_dim // 2)
-        self.v = nn.Linear(attention_dim, 1)
+        self.v = nn.Linear(attention_dim, attention_dim)
 
         initialize(self)
 
@@ -74,7 +74,7 @@ class AdditiveAttention(nn.Module):
 
         fused_features = torch.cat([vision_mapper, ts_mapper], dim=1)
 
-        attention_scores = self.v(F.tanh(fused_features))  # (B, 1)
+        attention_scores = self.v(F.tanh(fused_features))  # (B, attention)
 
         # 2. 计算注意力权重
         attention_weights = torch.softmax(attention_scores, dim=1)
