@@ -58,14 +58,29 @@ def orthogonal_init(model):
             if len(param.shape) >= 2: # 仅初始化权重矩阵
                 torch.nn.init.orthogonal_(param)
 
+
+def masked_softmax(X, valid_lens):
+    """通过在最后一个轴上掩蔽元素来执行softmax操作"""
+    # X:3D张量，valid_lens:1D或2D张量
+    if valid_lens is None:
+        return nn.functional.softmax(X, dim=-1)
+    else:
+        shape = X.shape
+        if valid_lens.dim() == 1:
+            valid_lens = torch.repeat_interleave(valid_lens, shape[1])
+        else:
+            valid_lens = valid_lens.reshape(-1)
+        # 最后一轴上被掩蔽的元素使用一个非常大的负值替换，从而其softmax输出为0
+        X = d2l.sequence_mask(X.reshape(-1, shape[-1]), valid_lens, value=-1e6)
+        return nn.functional.softmax(X.reshape(shape), dim=-1)
+
+
 class AdditiveAttention(nn.Module):
     def __init__(self, vision_feature_dim, ts_feature_dim, attention_dim):
         super().__init__()
-        self.W_v = nn.Linear(vision_feature_dim, attention_dim)
-        self.W_t = nn.Linear(ts_feature_dim, attention_dim)
-        self.v = nn.Linear(attention_dim, attention_dim)
-
-        initialize(self)
+        self.W_v = nn.Linear(vision_feature_dim, attention_dim, bias=False)
+        self.W_t = nn.Linear(ts_feature_dim, attention_dim, bias=False)
+        self.v = nn.Linear(attention_dim, attention_dim, bias=False)
 
     def forward(self, vision_features, ts_features):
         # 1. 计算注意力分数
@@ -77,8 +92,8 @@ class AdditiveAttention(nn.Module):
         attention_scores = self.v(F.tanh(fused_features))  # (B, attention)
 
         # 2. 计算注意力权重
-        attention_weights = torch.softmax(attention_scores, dim=1)
-        fused_features = attention_weights * fused_features
+        attention_scores = F.softmax(attention_scores, dim=-1)
+        fused_features = F.dropout(attention_scores, p=0.2) * fused_features
 
         return fused_features
 
