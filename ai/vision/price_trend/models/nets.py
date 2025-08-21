@@ -134,10 +134,21 @@ class StockNet(nn.Module):
     def freeze_vision(self):
         for (name, param) in self.model.named_parameters():
             param.requires_grad = False
+
+        self.last_conv.requires_grad = False
+        self.trend_classifier.requires_grad = False
+        self.trend_classifier_fused.requires_grad = False
+        self.stock_classifier.requires_grad = False
+        self.industry_classifier.requires_grad = False
     
     def freeze_ts(self):
         for (name, param) in self.ts_model.named_parameters():
             param.requires_grad = False
+            
+        self.trend_ts_classifier.requires_grad = False
+        self.trend_classifier_fused.requires_grad = False
+        self.stock_classifier.requires_grad = False
+        self.industry_classifier.requires_grad = False
 
     def forward(self, x, ts_seq, ctx_seq):
         x = self.model.forward_features(x)
