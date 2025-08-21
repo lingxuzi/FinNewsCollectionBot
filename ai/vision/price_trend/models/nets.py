@@ -148,6 +148,9 @@ class StockNet(nn.Module):
         for (name, param) in self.ts_model.named_parameters():
             param.requires_grad = False
             
+        for name, param in self.fusion.named_parameters():
+            param.requires_grad = False
+            
         self.trend_ts_classifier.requires_grad = False
         self.trend_classifier_fused.requires_grad = False
         self.stock_classifier.requires_grad = False
