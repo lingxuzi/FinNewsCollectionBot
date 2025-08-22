@@ -278,7 +278,7 @@ def run_training(config):
                 loss_returns = criterion_return(returns_pred, returns.squeeze())
                 losses['returns'] = loss_returns
                 returns_loss_meter.update(loss_returns.item())
-                returns_metric_meter.update(r2_score(returns.squeeze().cpu().numpy(), returns_pred.squeeze().cpu().numpy()))
+                returns_metric_meter.update(r2_score(returns.squeeze().cpu().numpy(), returns_pred.detach().squeeze().cpu().numpy()))
             
             if config['training']['awl']:
                 losses = list(losses.values())
