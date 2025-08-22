@@ -81,7 +81,6 @@ class AdditiveAttention(nn.Module):
         # self.W_v = nn.Linear(vision_feature_dim, attention_dim, bias=False)
         # self.W_t = nn.Linear(ts_feature_dim, attention_dim, bias=False)
         self.v = nn.Linear(ts_feature_dim + vision_feature_dim, attention_dim)
-        self.norm = nn.LayerNorm(attention_dim)
 
     def forward(self, vision_features, ts_features):
         # 1. 计算注意力分数
@@ -90,7 +89,6 @@ class AdditiveAttention(nn.Module):
 
         fused_features = torch.cat([vision_features, ts_features], dim=-1)
         fused_features = self.v(fused_features)
-        fused_features = self.norm(fused_features)
 
         return fused_features
 
