@@ -93,7 +93,7 @@ class AdditiveAttention(nn.Module):
 
         # 2. 计算注意力权重
         attention_scores = F.softmax(attention_scores, dim=-1)
-        fused_features = F.dropout(attention_scores, p=0.1) * fused_features
+        fused_features = attention_scores * fused_features
 
         return fused_features
 
@@ -117,11 +117,11 @@ class StockNet(nn.Module):
 
         self.hardswish = nn.Hardswish()
 
-        regression_output_size = 1280 + config['ts_encoder']['embedding_dim']
+        regression_output_size = 512 #1280 + config['ts_encoder']['embedding_dim']
         trend_output_size = 1280
         
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1)) # 全局平均池化
-        self.fusion = lambda x: torch.cat(x, dim=-1) #AdditiveAttention(trend_output_size, config['ts_encoder']['embedding_dim'], regression_output_size)
+        self.fusion = AdditiveAttention(trend_output_size, config['ts_encoder']['embedding_dim'], regression_output_size)
         
         self.trend_classifier = nn.Linear(trend_output_size, config["trend_classes"])
         self.trend_ts_classifier = nn.Linear(config['ts_encoder']['embedding_dim'], config["trend_classes"])
