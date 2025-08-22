@@ -202,7 +202,7 @@ def run_training(config):
     criterion_trend = nn.CrossEntropyLoss() #ASLSingleLabel() #focal_loss(alpha=0.3, gamma=2, num_classes=model_config['trend_classes'])
     criterion_stock = nn.CrossEntropyLoss() #ASLSingleLabel()
     criterion_industry = nn.CrossEntropyLoss() #ASLSingleLabel()
-    criterion_return = HuberTrendLoss(tildeq=True)
+    criterion_return = nn.HuberLoss(delta=0.1) #HuberTrendLoss(tildeq=True)
 
     parameters = []
     if config['training']['awl']:
@@ -275,10 +275,10 @@ def run_training(config):
                 industry_metric_meter.update(balanced_accuracy_score(industry.squeeze().cpu().numpy(), trend_pred.argmax(axis=1).cpu().numpy()))
             
             if 'returns' in config['training']['losses']:
-                loss_returns, sim = criterion_return(returns_pred, returns.squeeze())
+                loss_returns = criterion_return(returns_pred, returns.squeeze())
                 losses['returns'] = loss_returns
                 returns_loss_meter.update(loss_returns.item())
-                returns_metric_meter.update(sim)
+                returns_metric_meter.update(r2_score(returns.squeeze().cpu().numpy(), returns_pred.squeeze().cpu().numpy()))
             
             if config['training']['awl']:
                 losses = list(losses.values())
