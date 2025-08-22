@@ -78,22 +78,19 @@ def masked_softmax(X, valid_lens):
 class AdditiveAttention(nn.Module):
     def __init__(self, vision_feature_dim, ts_feature_dim, attention_dim):
         super().__init__()
-        self.W_v = nn.Linear(vision_feature_dim, attention_dim)
-        self.W_t = nn.Linear(ts_feature_dim, attention_dim)
-        self.v = nn.Linear(attention_dim, attention_dim)
+        # self.W_v = nn.Linear(vision_feature_dim, attention_dim, bias=False)
+        # self.W_t = nn.Linear(ts_feature_dim, attention_dim, bias=False)
+        self.v = nn.Linear(ts_feature_dim + vision_feature_dim, attention_dim)
+        self.norm = nn.LayerNorm(attention_dim)
 
     def forward(self, vision_features, ts_features):
         # 1. 计算注意力分数
-        vision_mapper = self.W_v(vision_features)
-        ts_mapper = self.W_t(ts_features)
+        # vision_mapper = self.W_v(vision_features)
+        # ts_mapper = self.W_t(ts_features)
 
-        fused_features = vision_mapper + ts_mapper
-
-        attention_scores = self.v(F.tanh(fused_features))  # (B, attention)
-
-        # 2. 计算注意力权重
-        attention_scores = F.softmax(attention_scores, dim=-1)
-        fused_features = attention_scores * fused_features
+        fused_features = torch.cat([vision_features, ts_features], dim=-1)
+        fused_features = self.v(fused_features)
+        fused_features = self.norm(fused_features)
 
         return fused_features
 
