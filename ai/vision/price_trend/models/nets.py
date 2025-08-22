@@ -80,7 +80,7 @@ class AdditiveAttention(nn.Module):
         super().__init__()
         # self.W_v = nn.Linear(vision_feature_dim, attention_dim, bias=False)
         # self.W_t = nn.Linear(ts_feature_dim, attention_dim, bias=False)
-        self.v = nn.Linear(ts_feature_dim + vision_feature_dim, attention_dim)
+        # self.v = nn.Linear(ts_feature_dim + vision_feature_dim, attention_dim)
 
     def forward(self, vision_features, ts_features):
         # 1. 计算注意力分数
@@ -88,7 +88,7 @@ class AdditiveAttention(nn.Module):
         # ts_mapper = self.W_t(ts_features)
 
         fused_features = torch.cat([vision_features, ts_features], dim=-1)
-        fused_features = self.v(fused_features)
+        # fused_features = self.v(fused_features)
 
         return fused_features
 
@@ -112,7 +112,7 @@ class StockNet(nn.Module):
 
         self.hardswish = nn.Hardswish()
 
-        regression_output_size = 512 #1280 + config['ts_encoder']['embedding_dim']
+        regression_output_size = 1280 + config['ts_encoder']['embedding_dim']
         trend_output_size = 1280
         
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1)) # 全局平均池化
@@ -210,7 +210,7 @@ class StockNet(nn.Module):
                 ts_logits = None
 
             ts_fused = self.fusion(x, ts_fused)
-            trend_logits_fused = (ts_logits + trend_logits) / 2 #self.trend_classifier_fused(ts_fused)
+            trend_logits_fused = self.trend_classifier_fused(ts_fused)
             if not self.infer_mode:
                 stock_logits = self.stock_classifier(ts_fused)
                 industry_logits = self.industry_classifier(ts_fused)
