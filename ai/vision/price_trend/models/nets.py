@@ -121,7 +121,7 @@ class StockNet(nn.Module):
         trend_output_size = 1280
         
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1)) # 全局平均池化
-        self.fusion = AdditiveAttention(trend_output_size, config['ts_encoder']['embedding_dim'], regression_output_size)
+        self.fusion = lambda x: torch.cat(x, dim=-1) #AdditiveAttention(trend_output_size, config['ts_encoder']['embedding_dim'], regression_output_size)
         
         self.trend_classifier = nn.Linear(trend_output_size, config["trend_classes"])
         self.trend_ts_classifier = nn.Linear(config['ts_encoder']['embedding_dim'], config["trend_classes"])
@@ -213,7 +213,7 @@ class StockNet(nn.Module):
             else:
                 ts_logits = None
 
-            ts_fused = self.fusion(x, ts_fused)
+            ts_fused = self.fusion([x, ts_fused])
             ts_fused = F.dropout(ts_fused, p=0.5, training=self.training)
             trend_logits_fused = self.trend_classifier_fused(ts_fused)
             if not self.infer_mode:
