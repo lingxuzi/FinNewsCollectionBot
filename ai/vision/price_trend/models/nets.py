@@ -75,20 +75,18 @@ def masked_softmax(X, valid_lens):
         return nn.functional.softmax(X.reshape(shape), dim=-1)
 
 
-class AdditiveAttention(nn.Module):
-    def __init__(self, vision_feature_dim, ts_feature_dim, attention_dim):
+class FeatureFusedAttention(nn.Module):
+    def __init__(self, attention_dim):
         super().__init__()
-        # self.W_v = nn.Linear(vision_feature_dim, attention_dim, bias=False)
-        # self.W_t = nn.Linear(ts_feature_dim, attention_dim, bias=False)
-        # self.v = nn.Linear(ts_feature_dim + vision_feature_dim, attention_dim)
+        self.v = nn.Linear(attention_dim, attention_dim, bias=False)
 
     def forward(self, vision_features, ts_features):
-        # 1. 计算注意力分数
-        # vision_mapper = self.W_v(vision_features)
-        # ts_mapper = self.W_t(ts_features)
+        # 2. 计算注意力权重
+        attention_scores = self.v(torch.tanh(vision_features + ts_features))
+        attention_weights = F.softmax(attention_scores, dim=1)
 
-        fused_features = torch.cat([vision_features, ts_features], dim=-1)
-        # fused_features = self.v(fused_features)
+        # 3. 加权求和
+        fused_features = torch.sum(attention_weights * ts_features, dim=1)
 
         return fused_features
 
@@ -112,11 +110,13 @@ class StockNet(nn.Module):
 
         self.hardswish = nn.Hardswish()
 
-        regression_output_size = 1280 + config['ts_encoder']['embedding_dim']
+        self.ts_last_projector = nn.Linear(config['ts_encoder']['embedding_dim'], 1280, bias=False)
+
+        regression_output_size = 1280
         trend_output_size = 1280
         
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1)) # 全局平均池化
-        self.fusion = AdditiveAttention(trend_output_size, config['ts_encoder']['embedding_dim'], regression_output_size)
+        self.fusion = FeatureFusedAttention(regression_output_size)
         
         self.trend_classifier = nn.Linear(trend_output_size, config["trend_classes"])
         self.trend_ts_classifier = nn.Linear(config['ts_encoder']['embedding_dim'], config["trend_classes"])
@@ -201,6 +201,7 @@ class StockNet(nn.Module):
         
         if ts_seq is not None and ctx_seq is not None:
             ts_fused = self.ts_model((ts_seq, ctx_seq))
+            ts_fused = self.ts_last_projector(ts_fused)
             if not self.infer_mode:
                 if self.config['dropout'] > 0.:
                     ts_fused = F.dropout(ts_fused, p=self.config['dropout'], training=self.training)
@@ -209,7 +210,7 @@ class StockNet(nn.Module):
             else:
                 ts_logits = None
 
-            ts_fused = self.fusion(x, ts_fused)
+            ts_fused = self.fusion(x.detach(), ts_fused.detach())
             trend_logits_fused = self.trend_classifier_fused(ts_fused)
             if not self.infer_mode:
                 stock_logits = self.stock_classifier(ts_fused)
