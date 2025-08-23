@@ -1,4 +1,4 @@
-from ai.embedding.models.layers import ALSTMEncoder, ResidualMLPBlock, nn, torch
+from ai.embedding.models.layers import ALSTMEncoder, ResidualMLPBlock, nn, torch, F
 
 
 class TSEncoder(nn.Module):
@@ -19,4 +19,5 @@ class TSEncoder(nn.Module):
         emb = self.embedding_projector(emb)
         emb = self.embedding_norm(emb)
         emb = self.fusion_block(emb)
+        emb = F.hardswish(emb)
         return emb
