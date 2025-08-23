@@ -246,7 +246,7 @@ def run_training(config):
         returns_metric_meter = AverageMeter()
 
         # 使用tqdm显示进度条
-        pbar = tqdm(range(num_iters_per_epoch(train_dataset, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training]")
+        pbar = tqdm(range(num_iters_per_epoch(train_sampler, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training]")
         for _ in pbar:
             img, trend, returns, stock, industry, ts, ctx = train_iter.next()
             optimizer.zero_grad()
