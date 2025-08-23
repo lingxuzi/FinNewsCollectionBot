@@ -15,8 +15,11 @@ class TrendSampler(torch.utils.data.sampler.Sampler):
 
         if len(cls_indices) == 0:
             for i in tqdm(range(len(dataset)), desc='Trend Sampler'):
-                _, trend, _, _, _, _, _ = dataset.parse_item(i)
-
+                _, trend, acu_return, _, _, _, _ = dataset.parse_item(i)
+                if acu_return == 0:
+                    print('zero return item')
+                    continue
+                    
                 if trend not in cls_indices:
                     cls_indices[trend] = []
                 
