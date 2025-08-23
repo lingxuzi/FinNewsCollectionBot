@@ -58,21 +58,14 @@ def orthogonal_init(model):
             if len(param.shape) >= 2: # 仅初始化权重矩阵
                 torch.nn.init.orthogonal_(param)
 
-
-def masked_softmax(X, valid_lens):
-    """通过在最后一个轴上掩蔽元素来执行softmax操作"""
-    # X:3D张量，valid_lens:1D或2D张量
-    if valid_lens is None:
-        return nn.functional.softmax(X, dim=-1)
+def weights_initialize(module):
+    print("🧠 Initializing prediction head for faster convergence...")
+    if isinstance(module, nn.Linear):
+        nn.init.xavier_uniform_(module.weight)
+        nn.init.zeros_(module.bias)
+        print(f"   -> Linear layer {module} has been zero-initialized.")
     else:
-        shape = X.shape
-        if valid_lens.dim() == 1:
-            valid_lens = torch.repeat_interleave(valid_lens, shape[1])
-        else:
-            valid_lens = valid_lens.reshape(-1)
-        # 最后一轴上被掩蔽的元素使用一个非常大的负值替换，从而其softmax输出为0
-        X = d2l.sequence_mask(X.reshape(-1, shape[-1]), valid_lens, value=-1e6)
-        return nn.functional.softmax(X.reshape(shape), dim=-1)
+        print(f"   -> Module {type(module)} is not a Linear layer, skipping zero-initialization.")
 
 
 class FeatureFusedAttention(nn.Module):
@@ -89,6 +82,23 @@ class FeatureFusedAttention(nn.Module):
         fused_features = torch.sum(attention_weights * ts_features, dim=1)
 
         return fused_features
+    
+class DropoutPredictionHead(nn.Module):
+    def __init__(self, dropout=0.0, feature_dim=1280, classes=1, regression=False):
+        super().__init__()
+        if dropout > 0.0:
+            self.dropout = nn.Dropout(dropout)
+        else:
+            self.dropout = None
+
+        self.classifier = nn.Linear(feature_dim, classes)
+        if regression:
+            weights_initialize(self.classifier)
+
+    def forward(self, x):
+        if self.dropout is not None:
+            x = self.dropout(x)
+        return self.classifier(x)
 
 @register_model('stocknet')
 class StockNet(nn.Module):
@@ -118,24 +128,17 @@ class StockNet(nn.Module):
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1)) # 全局平均池化
         self.fusion = FeatureFusedAttention(regression_output_size)
         
-        self.trend_classifier = nn.Linear(trend_output_size, config["trend_classes"])
-        self.trend_ts_classifier = nn.Linear(config['ts_encoder']['embedding_dim'], config["trend_classes"])
-        self.trend_classifier_fused = nn.Linear(regression_output_size, config["trend_classes"])
-        self.stock_classifier = nn.Linear(regression_output_size, config["stock_classes"])
-        self.industry_classifier = nn.Linear(regression_output_size, config["industry_classes"])
-        self.returns_regression = nn.Linear(regression_output_size, 1)
+        self.trend_classifier = DropoutPredictionHead(feature_dim=trend_output_size, classes=config["trend_classes"], dropout=self.config['dropout'])
+        self.trend_ts_classifier = DropoutPredictionHead(feature_dim=config['ts_encoder']['embedding_dim'], classes=config["trend_classes"], dropout=self.config['dropout'])
+        self.trend_classifier_fused = DropoutPredictionHead(feature_dim=regression_output_size, classes=config["trend_classes"], dropout=self.config['dropout'])
+        self.stock_classifier = DropoutPredictionHead(feature_dim=regression_output_size, classes=config["stock_classes"], dropout=self.config['dropout'])
+        self.industry_classifier = DropoutPredictionHead(feature_dim=regression_output_size, classes=config["industry_classes"], dropout=self.config['dropout'])
+        self.returns_regression = DropoutPredictionHead(feature_dim=regression_output_size, classes=1, dropout=self.config['dropout'], regression=True)
 
         if 'models.' not in config["backbone"]:
             initialize(self)
         
         orthogonal_init(self.ts_model)
-
-        self.weights_initialize(self.trend_classifier)
-        self.weights_initialize(self.trend_ts_classifier)
-        self.weights_initialize(self.trend_classifier_fused)
-        self.weights_initialize(self.stock_classifier)
-        self.weights_initialize(self.industry_classifier)
-        self.weights_initialize(self.returns_regression)
 
     def export(self):
         self.eval()
@@ -192,9 +195,6 @@ class StockNet(nn.Module):
         x = x.view(x.size(0), -1)
 
         if not self.infer_mode:
-            if self.config['dropout'] > 0.:
-                x = F.dropout(x, p=self.config['dropout'], training=self.training)
-
             trend_logits = self.trend_classifier(x)
         else:
             trend_logits = None
@@ -203,9 +203,6 @@ class StockNet(nn.Module):
             ts_fused = self.ts_model((ts_seq, ctx_seq))
             ts_fused = self.ts_last_projector(ts_fused)
             if not self.infer_mode:
-                if self.config['dropout'] > 0.:
-                    ts_fused = F.dropout(ts_fused, p=self.config['dropout'], training=self.training)
-                
                 ts_logits = self.trend_ts_classifier(ts_fused)
             else:
                 ts_logits = None
@@ -222,15 +219,6 @@ class StockNet(nn.Module):
             ts_logits, trend_logits_fused, stock_logits, industry_logits, returns = None, None, None, None, None
 
         return trend_logits, ts_logits, trend_logits_fused, stock_logits, industry_logits, returns
-    
-    def weights_initialize(self, module):
-        print("🧠 Initializing prediction head for faster convergence...")
-        if isinstance(module, nn.Linear):
-            nn.init.xavier_uniform_(module.weight)
-            nn.init.zeros_(module.bias)
-            print(f"   -> Linear layer {module} has been zero-initialized.")
-        else:
-            print(f"   -> Module {type(module)} is not a Linear layer, skipping zero-initialization.")
 
     def gradcam_layer(self):
         return eval(f'self.model.{self.config["gradlayer"]}')
