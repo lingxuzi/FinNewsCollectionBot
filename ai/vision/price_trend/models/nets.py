@@ -79,7 +79,7 @@ class FeatureFusedAttention(nn.Module):
         attention_weights = F.softmax(attention_scores, dim=1)
 
         # 3. 加权求和
-        fused_features = torch.sum(attention_weights * ts_features, dim=1)
+        fused_features = attention_weights * ts_features
 
         return fused_features
     
@@ -199,7 +199,6 @@ class StockNet(nn.Module):
         
         if ts_seq is not None and ctx_seq is not None:
             ts_fused = self.ts_model((ts_seq, ctx_seq))
-            ts_fused = self.ts_last_projector(ts_fused)
             if not self.infer_mode:
                 ts_logits = self.trend_ts_classifier(ts_fused)
             else:
