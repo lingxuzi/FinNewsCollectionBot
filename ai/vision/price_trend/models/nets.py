@@ -36,18 +36,21 @@ def initialize(module: nn.Module):
         #print(m)
         if isinstance(m, nn.Conv2d):
             #print(m.weight.size())
-            # n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-            # m.weight.data.normal_(0, math.sqrt(2. / n))
-            nn.init.xavier_uniform_(m.weight)
+            n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+            m.weight.data.normal_(0, math.sqrt(2. / n))
+            # nn.init.xavier_uniform_(m.weight)
             if m.bias is not None:
                 m.bias.data.zero_()
         elif isinstance(m, nn.BatchNorm2d):
             m.weight.data.fill_(1)
             m.bias.data.zero_()
         elif isinstance(m, nn.Linear):
-            m.weight.data.normal_(0, 0.01)
+            nn.init.xavier_normal_(m.weight)
             if m.bias is not None:
                 m.bias.data.zero_()
+        elif isinstance(module, nn.LayerNorm):
+            nn.init.ones_(module.weight)
+            nn.init.zeros_(module.bias)
 
 
 def orthogonal_init(model):
@@ -101,7 +104,8 @@ class DropoutPredictionHead(nn.Module):
             self.dropout = None
 
         self.classifier = nn.Linear(feature_dim, classes)
-        weights_initialize(self.classifier)
+        if regression:
+            weights_initialize(self.classifier)
 
     def forward(self, x):
         if self.dropout is not None:
@@ -132,7 +136,7 @@ class StockNet(nn.Module):
         trend_output_size = 1280
         
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1)) # 全局平均池化
-        self.fusion = FeatureFusedAttention(regression_output_size, regression_output_size // 2)
+        self.fusion = FeatureFusedAttention(regression_output_size, regression_output_size // 4)
         
         self.trend_classifier = DropoutPredictionHead(feature_dim=trend_output_size, classes=config["trend_classes"], dropout=self.config['dropout'])
         self.trend_ts_classifier = DropoutPredictionHead(feature_dim=config['ts_encoder']['embedding_dim'], classes=config["trend_classes"], dropout=self.config['dropout'])

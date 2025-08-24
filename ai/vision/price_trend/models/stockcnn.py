@@ -22,7 +22,7 @@ class SPPF(nn.Module):
         return x
     
 class ResidualBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, ratio=2, kernel_size=5, stride=1, attention=True, attention_mode='ca'):
+    def __init__(self, in_channels, out_channels, ratio=4, kernel_size=5, stride=1, attention=True, attention_mode='ca'):
         super(ResidualBlock, self).__init__()
         self.attention = attention
         init_channels = out_channels // ratio
