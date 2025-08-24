@@ -214,7 +214,7 @@ def run_training(config):
     elif config['training']['optimizer'] == 'adam':
         optimizer = torch.optim.Adam(parameters)
     elif config['training']['optimizer'] == 'adamw':
-        optimizer = torch.optim.AdamW(parameters)
+        optimizer = torch.optim.AdamW(parameters, betas=(0.9, 0.95))
         
     if config['training']['clip_norm'] == 0.01:
         optimizer = QuantileClip.as_optimizer(optimizer=optimizer, quantile=0.9, history_length=1000)
@@ -258,7 +258,7 @@ def run_training(config):
                 loss_trend = criterion_trend(trend_pred, trend.squeeze())
                 loss_trend_fused = criterion_trend(trend_pred_fused, trend.squeeze())
                 loss_ts = criterion_trend(ts_pred, trend.squeeze())
-                losses['trend'] = loss_trend + loss_trend_fused + loss_ts
+                losses['trend'] = loss_trend + loss_trend_fused * 0.5 + loss_ts
                 trend_loss_meter.update(losses['trend'].item())
                 trend_metric_meter.update(balanced_accuracy_score(trend.squeeze().cpu().numpy(), trend_pred_fused.argmax(axis=1).cpu().numpy()))
             

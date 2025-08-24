@@ -239,6 +239,9 @@ class ImagingPriceTrendDataset(Dataset):
                 if len(ts_seq) < self.seq_length:
                     return None, None, None, None, None
                 
+                if self.accumulative_return(labels[i + self.seq_length - 1]) == 0:
+                    continue
+                
                 img_path = os.path.join(self.img_caching_path, code, f'{i}.png')
                 os.makedirs(os.path.dirname(img_path), exist_ok=True)
                 if not os.path.isfile(img_path):
