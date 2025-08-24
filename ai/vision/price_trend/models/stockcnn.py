@@ -22,7 +22,7 @@ class SPPF(nn.Module):
         return x
     
 class ResidualBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, ratio=4, kernel_size=5, stride=1, attention=True, attention_mode='ca'):
+    def __init__(self, in_channels, out_channels, ratio=2, kernel_size=5, stride=1, attention=True, attention_mode='ca'):
         super(ResidualBlock, self).__init__()
         self.attention = attention
         init_channels = out_channels // ratio
@@ -84,8 +84,8 @@ class StockChartNet(nn.Module):
 
         block2 = ResidualBlock(16, 32, stride=2, attention=False)
         block3 = ResidualBlock(32, 64, stride=2, attention=False)
-        block4 = ResidualBlock(64, 128, stride=2, attention_mode=attention_mode)
-        block5 = ResidualBlock(128, 256, stride=1, attention_mode=attention_mode)
+        block4 = ResidualBlock(64, 128, stride=2, ratio=4, attention_mode=attention_mode)
+        block5 = ResidualBlock(128, 256, stride=1, ratio=4, attention_mode=attention_mode)
 
         self.layers = nn.Sequential(
             stem,
