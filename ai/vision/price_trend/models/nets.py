@@ -201,17 +201,15 @@ class StockNet(nn.Module):
             ts_fused = self.ts_model((ts_seq, ctx_seq))
             if not self.infer_mode:
                 ts_logits = self.trend_ts_classifier(ts_fused)
+                stock_logits = self.stock_classifier(ts_fused)
+                industry_logits = self.industry_classifier(ts_fused)
             else:
-                ts_logits = None
+                ts_logits, stock_logits, industry_logits = None, None, None
+            
+            returns = self.returns_regression(ts_fused)
 
             ts_fused = self.fusion(x.detach(), ts_fused.detach())
             trend_logits_fused = self.trend_classifier_fused(ts_fused)
-            if not self.infer_mode:
-                stock_logits = self.stock_classifier(ts_fused)
-                industry_logits = self.industry_classifier(ts_fused)
-                returns = self.returns_regression(ts_fused)
-            else:
-                stock_logits, industry_logits, returns = None, None, None
         else:
             ts_logits, trend_logits_fused, stock_logits, industry_logits, returns = None, None, None, None, None
 
