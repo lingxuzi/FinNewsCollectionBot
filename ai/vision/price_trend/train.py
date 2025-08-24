@@ -259,7 +259,7 @@ def run_training(config):
                 loss_trend = criterion_trend(trend_pred, trend.squeeze())
                 loss_trend_fused = criterion_trend(trend_pred_fused, trend.squeeze())
                 loss_ts = criterion_trend(ts_pred, trend.squeeze())
-                losses['trend'] = loss_trend + loss_trend_fused * 0.5 + loss_ts
+                losses['trend'] = loss_trend + loss_trend_fused + loss_ts
                 trend_loss_meter.update(losses['trend'].item())
                 trend_metric_meter.update(balanced_accuracy_score(trend.squeeze().cpu().numpy(), trend_pred_fused.argmax(axis=1).cpu().numpy()))
             
