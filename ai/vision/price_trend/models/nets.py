@@ -78,10 +78,17 @@ class FeatureFusedAttention(nn.Module):
             nn.Softmax(dim=1)
         )
 
+        self.final_projector = nn.Sequential(
+            nn.Linear(fused_dim * 2, fused_dim, bias=False),
+            nn.LayerNorm(fused_dim)
+        )
+
     def forward(self, vision_features, ts_features):
         fused_features = vision_features + ts_features
-        att_weights = self.att_net(fused_features)
-        fused_features = att_weights * fused_features
+        att_features = self.att_net(fused_features)
+        att_features = att_features * fused_features
+
+        fused_features = self.final_projector(torch.cat([att_features, fused_features], dim=1))
 
         return fused_features
     
