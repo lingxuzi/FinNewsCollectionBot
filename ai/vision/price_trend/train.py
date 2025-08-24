@@ -148,6 +148,7 @@ def run_training(config):
         train_sampler = TrendSampler(train_dataset, config['training']['batch_size'], tag='train' if not config['training']['finetune'] else 'finetune')
         train_loader = DataLoader(train_dataset, num_workers=config['training']['workers'], pin_memory=False, shuffle=False, drop_last=False, batch_sampler=train_sampler)
     else:
+        train_sampler = None
         train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], num_workers=config['training']['workers'], pin_memory=False, shuffle=True, drop_last=True)
 
     print(f"Training data size: {len(train_dataset)}, Validation data size: {len(eval_dataset)}")
@@ -214,7 +215,7 @@ def run_training(config):
     elif config['training']['optimizer'] == 'adam':
         optimizer = torch.optim.Adam(parameters)
     elif config['training']['optimizer'] == 'adamw':
-        optimizer = torch.optim.AdamW(parameters, betas=(0.9, 0.95))
+        optimizer = torch.optim.AdamW(parameters)
         
     if config['training']['clip_norm'] == 0.01:
         optimizer = QuantileClip.as_optimizer(optimizer=optimizer, quantile=0.9, history_length=1000)
@@ -246,7 +247,7 @@ def run_training(config):
         returns_metric_meter = AverageMeter()
 
         # 使用tqdm显示进度条
-        pbar = tqdm(range(num_iters_per_epoch(train_sampler, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training]")
+        pbar = tqdm(range(num_iters_per_epoch(train_dataset if train_sampler is None else train_sampler, config['training']['batch_size'])), desc=f"Epoch {epoch+1}/{config['training']['num_epochs']} [Training]")
         for _ in pbar:
             img, trend, returns, stock, industry, ts, ctx = train_iter.next()
             optimizer.zero_grad()

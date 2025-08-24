@@ -67,19 +67,21 @@ def weights_initialize(module):
     else:
         print(f"   -> Module {type(module)} is not a Linear layer, skipping zero-initialization.")
 
-
 class FeatureFusedAttention(nn.Module):
-    def __init__(self, attention_dim):
+    def __init__(self, fused_dim, hidden_dim):
         super().__init__()
-        self.v = nn.Linear(attention_dim, attention_dim, bias=False)
+        self.att_net = nn.Sequential(
+            nn.Linear(in_features=fused_dim, out_features=hidden_dim),
+            nn.Dropout(0.1),
+            nn.Tanh(),
+            nn.Linear(in_features=hidden_dim, out_features=1, bias=False),
+            nn.Softmax(dim=1)
+        )
 
     def forward(self, vision_features, ts_features):
-        # 2. 计算注意力权重
-        attention_scores = self.v(torch.tanh(vision_features + ts_features))
-        attention_weights = F.softmax(attention_scores, dim=1)
-
-        # 3. 加权求和
-        fused_features = attention_weights * ts_features
+        fused_features = vision_features + ts_features
+        att_weights = self.att_net(fused_features)
+        fused_features = att_weights * fused_features
 
         return fused_features
     
@@ -92,8 +94,7 @@ class DropoutPredictionHead(nn.Module):
             self.dropout = None
 
         self.classifier = nn.Linear(feature_dim, classes)
-        if regression:
-            weights_initialize(self.classifier)
+        weights_initialize(self.classifier)
 
     def forward(self, x):
         if self.dropout is not None:
@@ -124,7 +125,7 @@ class StockNet(nn.Module):
         trend_output_size = 1280
         
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1)) # 全局平均池化
-        self.fusion = FeatureFusedAttention(regression_output_size)
+        self.fusion = FeatureFusedAttention(regression_output_size, regression_output_size // 2)
         
         self.trend_classifier = DropoutPredictionHead(feature_dim=trend_output_size, classes=config["trend_classes"], dropout=self.config['dropout'])
         self.trend_ts_classifier = DropoutPredictionHead(feature_dim=config['ts_encoder']['embedding_dim'], classes=config["trend_classes"], dropout=self.config['dropout'])
