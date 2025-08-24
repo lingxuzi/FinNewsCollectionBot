@@ -214,7 +214,7 @@ def run_training(config):
     elif config['training']['optimizer'] == 'adam':
         optimizer = torch.optim.Adam(parameters)
     elif config['training']['optimizer'] == 'adamw':
-        optimizer = torch.optim.AdamW(parameters, betas=(0.9, 0.95))
+        optimizer = torch.optim.AdamW(parameters)
         
     if config['training']['clip_norm'] == 0.01:
         optimizer = QuantileClip.as_optimizer(optimizer=optimizer, quantile=0.9, history_length=1000)
