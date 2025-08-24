@@ -75,7 +75,6 @@ class FeatureFusedAttention(nn.Module):
         super().__init__()
         self.att_net = nn.Sequential(
             nn.Linear(in_features=fused_dim, out_features=hidden_dim),
-            nn.Dropout(0.1),
             nn.Tanh(),
             nn.Linear(in_features=hidden_dim, out_features=1, bias=False),
             nn.Softmax(dim=1)
