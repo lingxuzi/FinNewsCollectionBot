@@ -6,6 +6,7 @@ import timm.models as models
 from ai.vision.price_trend.models import register_model
 from .stockcnn import StockChartNet as stockchartnet
 from .stockcnn import StockChartNetV2 as stockchartnetv2
+from .fuse import get_fusing_layer
 from .ts_encoder import TSEncoder
 
 class cnn20d(nn.Module):
@@ -70,33 +71,6 @@ def weights_initialize(module):
     else:
         print(f"   -> Module {type(module)} is not a Linear layer, skipping zero-initialization.")
 
-class FeatureFusedAttention(nn.Module):
-    def __init__(self, fused_dim, hidden_dim):
-        super().__init__()
-        self.projector = nn.Linear(fused_dim, hidden_dim)
-        self.att_net = nn.Sequential(
-            nn.Linear(in_features=hidden_dim, out_features=hidden_dim // 2),
-            nn.Tanh(),
-            nn.Linear(in_features=hidden_dim // 2, out_features=hidden_dim, bias=False),
-            nn.Softmax(dim=1)
-        )
-
-        self.final_projector = nn.Sequential(
-            nn.Linear(hidden_dim * 2, fused_dim, bias=False),
-            nn.LayerNorm(fused_dim)
-        )
-
-    def forward(self, vision_features, ts_features):
-        fused_features = vision_features + ts_features
-        fused_features = self.projector(fused_features)
-
-        att_features = self.att_net(fused_features)
-        att_features = att_features * fused_features
-
-        fused_features = self.final_projector(torch.cat([fused_features, att_features], dim=1))
-
-        return fused_features
-    
 class DropoutPredictionHead(nn.Module):
     def __init__(self, dropout=0.0, feature_dim=1280, classes=1, regression=False):
         super().__init__()
@@ -138,7 +112,7 @@ class StockNet(nn.Module):
         trend_output_size = 1280
         
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1)) # 全局平均池化
-        self.fusion = FeatureFusedAttention(regression_output_size, regression_output_size // 4)
+        self.fusion = get_fusing_layer(config['fused_method'], fused_dim=regression_output_size, hidden_dim=regression_output_size // 4) #CrossFused(regression_output_size, regression_output_size // 4) #eatureFusedAttention(regression_output_size, regression_output_size // 4)
         
         self.trend_classifier = DropoutPredictionHead(feature_dim=trend_output_size, classes=config["trend_classes"], dropout=self.config['dropout'])
         self.trend_ts_classifier = DropoutPredictionHead(feature_dim=config['ts_encoder']['embedding_dim'], classes=config["trend_classes"], dropout=self.config['dropout'])
