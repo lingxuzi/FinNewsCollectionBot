@@ -73,24 +73,27 @@ def weights_initialize(module):
 class FeatureFusedAttention(nn.Module):
     def __init__(self, fused_dim, hidden_dim):
         super().__init__()
+        self.projector = nn.Linear(fused_dim, hidden_dim)
         self.att_net = nn.Sequential(
-            nn.Linear(in_features=fused_dim, out_features=hidden_dim),
+            nn.Linear(in_features=hidden_dim, out_features=hidden_dim // 2),
             nn.Tanh(),
-            nn.Linear(in_features=hidden_dim, out_features=1, bias=False),
+            nn.Linear(in_features=hidden_dim // 2, out_features=hidden_dim, bias=False),
             nn.Softmax(dim=1)
         )
 
         self.final_projector = nn.Sequential(
-            nn.Linear(fused_dim * 2, fused_dim, bias=False),
+            nn.Linear(hidden_dim * 2, fused_dim, bias=False),
             nn.LayerNorm(fused_dim)
         )
 
     def forward(self, vision_features, ts_features):
         fused_features = vision_features + ts_features
+        fused_features = self.projector(fused_features)
+
         att_features = self.att_net(fused_features)
         att_features = att_features * fused_features
 
-        fused_features = self.final_projector(torch.cat([att_features, fused_features], dim=1))
+        fused_features = self.final_projector(torch.cat([fused_features, att_features], dim=1))
 
         return fused_features
     
