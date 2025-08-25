@@ -28,11 +28,11 @@ class CrossFused(nn.Module):
 class FeatureFusedAttention(nn.Module):
     def __init__(self, fused_dim, hidden_dim):
         super().__init__()
-        self.projector = nn.Linear(fused_dim, hidden_dim)
+        self.projector = nn.Linear(fused_dim * 2, hidden_dim)
         self.att_net = nn.Sequential(
-            nn.Linear(in_features=hidden_dim, out_features=hidden_dim // 2),
-            nn.Tanh(),
-            nn.Linear(in_features=hidden_dim // 2, out_features=hidden_dim, bias=False),
+            nn.Linear(in_features=hidden_dim * 2, out_features=hidden_dim),
+            nn.SiLU(),
+            nn.Linear(in_features=hidden_dim, out_features=hidden_dim, bias=False),
             nn.Softmax(dim=1)
         )
 
@@ -42,7 +42,7 @@ class FeatureFusedAttention(nn.Module):
         )
 
     def forward(self, vision_features, ts_features):
-        fused_features = vision_features + ts_features
+        fused_features = torch.cat([vision_features, ts_features], dim=1)
         fused_features = self.projector(fused_features)
 
         att_features = self.att_net(fused_features)

@@ -230,7 +230,7 @@ def run_training(config):
     best_val_loss = float('inf') if early_stopper.direction == 'down' else -float('inf')
     for epoch in range(config['training']['num_epochs']):
 
-        # generate_gradcam(model, eval_dataset)
+        generate_gradcam(model, eval_dataset)
 
         if not config['data']['sampler']:
             train_iter = DataPrefetcher(train_loader, config['device'], enable_queue=False, num_threads=1)
@@ -392,7 +392,7 @@ def eval(model, dataset, config, log_agent):
         'eval_trend_score': trend_score,
         'eval_ts_score': ts_score,
         'eval_vision_score': vision_score,
-        'eval_return_score': return_score,
+        'eval_return_score': return_score
     })
 
     mean_r2 = sum(scores) / len(scores)
