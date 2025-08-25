@@ -182,7 +182,7 @@ class StockNet(nn.Module):
             trend_logits = None
         
         if ts_seq is not None and ctx_seq is not None:
-            ts_fused = self.ts_model((ts_seq.detach(), ctx_seq.detach()))
+            ts_fused = self.ts_model((ts_seq, ctx_seq))
             if not self.infer_mode:
                 ts_logits = self.trend_ts_classifier(ts_fused)
             else:

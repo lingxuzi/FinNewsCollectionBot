@@ -78,7 +78,6 @@ class ResidualMLPBlock(nn.Module):
         )
         # 如果输入和输出维度不同，则需要一个跳跃连接的线性投影
         self.shortcut = nn.Linear(input_dim, output_dim) if input_dim != output_dim else nn.Identity()
-        self.act = nn.Hardswish(inplace=True)
 
     def forward(self, x):
         residual = self.shortcut(x)
@@ -86,7 +85,7 @@ class ResidualMLPBlock(nn.Module):
         out = self.p(x)
         
         # 将残差加到输出上
-        return self.act(out + residual)
+        return out + residual
 
 class ResidualMLP(nn.Module):
     def __init__(self, input_dim, output_dim, act=nn.Hardswish, use_batchnorm=True, dropout_rate=0, elsa=False, residual=True):

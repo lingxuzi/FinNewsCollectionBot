@@ -71,7 +71,7 @@ class StockChartNet(nn.Module):
         super(StockChartNet, self).__init__()
         channels = [16, 32, 64, 128, 256]
         self.groups = groups
-        self.group_weights = nn.Parameter(torch.tensor([0.5 /  2 ** (2 - i) for i in range(groups)]), requires_grad=False) #[nn.Parameter(0.5 / 2^(2 - i)) for i in range(groups)]
+        self.group_weights = nn.Parameter(torch.tensor([0.5 /  2 ** (2 - i) for i in range(groups)]), requires_grad=False)
         
         if groups == 1:
             self.layers = self.build_conv_groups(in_chans, groups, channels, 5, attention_mode)
@@ -90,7 +90,7 @@ class StockChartNet(nn.Module):
 
             block2 = ResidualBlock(channels[0], channels[1], kernel_size=kernel_size, stride=2, attention=False)
             block3 = ResidualBlock(channels[1], channels[2], kernel_size=kernel_size, stride=2, attention=False)
-            block4 = ResidualBlock(channels[2], channels[3], kernel_size=kernel_size, stride=2, ratio=4, attention_mode=attention_mode)
+            block4 = ResidualBlock(channels[2], channels[3], kernel_size=kernel_size, stride=2, attention_mode=attention_mode)
             block5 = ResidualBlock(channels[3], channels[4], kernel_size=kernel_size, stride=1, ratio=4, attention_mode=attention_mode)
 
             layers = nn.Sequential(
