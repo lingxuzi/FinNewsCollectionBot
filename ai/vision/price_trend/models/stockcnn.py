@@ -82,8 +82,8 @@ class StockChartNet(nn.Module):
             #nn.LeakyReLU(negative_slope=0.1, inplace=True)
         )
 
-        block2 = ResidualBlock(16, 32, kernel_sizes=5, stride=2, attention=False)
-        block3 = ResidualBlock(32, 64, kernel_sizes=5, stride=2, attention=False)
+        block2 = ResidualBlock(16, 32, kernel_size=5, stride=2, attention=False)
+        block3 = ResidualBlock(32, 64, kernel_size=5, stride=2, attention=False)
         block4 = MixResidualBlock(64, 128, kernel_sizes=[3, 5, 7], stride=2, ratio=1, attention_mode=attention_mode)
         block5 = ResidualBlock(128, 256, stride=1, ratio=4, attention_mode=attention_mode)
 
