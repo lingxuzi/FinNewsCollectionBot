@@ -61,6 +61,46 @@ class ResidualBlock(nn.Module):
         out += self.shortcut(residual)
         return out
     
+class LightweightResidualBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, ratio=2, kernel_size=5, stride=1, attention=True, attention_mode='ca'):
+        super(ResidualBlock, self).__init__()
+        self.attention = attention
+        init_channels = out_channels // ratio
+        # pointwise
+        self.conv1 = nn.Conv2d(in_channels, init_channels, kernel_size=1, stride=1, padding=0, bias=False)
+        self.bn1 = nn.BatchNorm2d(init_channels)
+        self.relu = nn.SiLU(inplace=True) #nn.LeakyReLU(negative_slope=0.1, inplace=True)
+        # depthwise
+        self.conv2 = nn.Conv2d(init_channels, init_channels, kernel_size=kernel_size, stride=stride, padding=kernel_size//2, groups=init_channels, bias=False)
+        self.bn2 = nn.BatchNorm2d(init_channels)
+        self.ca = get_attention_module(init_channels, attention_mode)
+
+        # pw-linear
+        self.conv3 = nn.Conv2d(init_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False)
+        self.bn3 = nn.BatchNorm2d(out_channels)
+ 
+        self.shortcut = nn.Sequential()
+        if stride != 1 or in_channels != out_channels:
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(out_channels)
+            )
+ 
+    def forward(self, x):
+        residual = x
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out = self.relu(out)
+        if self.attention:
+            out = self.ca(out)
+        out = self.conv3(out)
+        out = self.bn3(out)
+        out += self.shortcut(residual)
+        return out
+
 class StockChartNet(nn.Module):
     """
     一个集成了CBAM注意力机制的轻量级单一分支CNN模型。
@@ -83,7 +123,7 @@ class StockChartNet(nn.Module):
     def build_conv_groups(self, in_chans, groups=4, channels=[16, 32, 64, 128, 256], kernel_size = 5, attention_mode='ca'):
         if groups == 1:
             stem = nn.Sequential(
-                nn.Conv2d(in_chans, channels[0], kernel_size=kernel_size, stride=2, padding=2, bias=False),
+                nn.Conv2d(in_chans, channels[0], kernel_size=kernel_size, stride=2, padding=kernel_size // 2, bias=False),
                 nn.BatchNorm2d(channels[0]),
                 nn.SiLU(inplace=True),
             )

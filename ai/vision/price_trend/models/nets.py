@@ -46,7 +46,7 @@ def initialize(module: nn.Module):
             m.weight.data.fill_(1)
             m.bias.data.zero_()
         elif isinstance(m, nn.Linear):
-            nn.init.xavier_normal_(m.weight)
+            m.weight.data.normal_(0, 0.01)
             if m.bias is not None:
                 m.bias.data.zero_()
         elif isinstance(module, nn.LayerNorm):
@@ -197,6 +197,33 @@ class StockNet(nn.Module):
             ts_logits, trend_logits_fused, stock_logits, industry_logits, returns = None, None, None, None, None
 
         return trend_logits, ts_logits, trend_logits_fused, stock_logits, industry_logits, returns
+
+    def vision_features(self, x):
+        x = self.model.forward_features(x)
+        x = self.global_pool(x)
+        # x = torch.cat([x, ts_emb.unsqueeze(2).unsqueeze(3)], dim=1)
+        
+        x = self.last_conv(x)
+        x = self.hardswish(x)
+
+        x = x.view(x.size(0), -1)
+        return x
+    
+    def classify_vision(self, vision_features):
+        trend_logits = self.trend_classifier(vision_features)
+        return trend_logits
+    
+    def ts_features(self, ts_seq, ctx_seq):
+        ts_fused = self.ts_model((ts_seq, ctx_seq))
+        return ts_fused
+    
+    def classify_ts(self, ts_features):
+        trend_logits = self.trend_ts_classifier(ts_features)
+        return trend_logits
+    
+    def fuse_vision_ts(self, vision_features, ts_features):
+        fused_features = self.fusion(vision_features, ts_features)
+        return fused_features
 
     def gradcam_layer(self):
         return eval(f'self.model.{self.config["gradlayer"]}')
