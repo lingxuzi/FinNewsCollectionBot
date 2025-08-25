@@ -112,7 +112,7 @@ class StockNet(nn.Module):
         trend_output_size = 1280
         
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1)) # 全局平均池化
-        self.fusion = get_fusing_layer(config['fused_method'], fused_dim=regression_output_size, hidden_dim=regression_output_size // 4) #CrossFused(regression_output_size, regression_output_size // 4) #eatureFusedAttention(regression_output_size, regression_output_size // 4)
+        self.fusion = get_fusing_layer(config['fused_method'], fused_dim=regression_output_size, hidden_dim=regression_output_size // 2) #CrossFused(regression_output_size, regression_output_size // 4) #eatureFusedAttention(regression_output_size, regression_output_size // 4)
         
         self.trend_classifier = DropoutPredictionHead(feature_dim=trend_output_size, classes=config["trend_classes"], dropout=self.config['dropout'])
         self.trend_ts_classifier = DropoutPredictionHead(feature_dim=config['ts_encoder']['embedding_dim'], classes=config["trend_classes"], dropout=self.config['dropout'])
