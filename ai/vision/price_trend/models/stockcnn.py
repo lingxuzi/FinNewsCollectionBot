@@ -155,7 +155,7 @@ class MixResidualBlock(nn.Module):
         self.attention = attention
         init_channels = ((out_channels * ratio) // len(kernel_sizes)) * len(kernel_sizes)
         # pointwise
-        self.conv1 = GroupedConv2d(in_channels, init_channels, kernel_size=1, stride=1, padding=0)
+        self.conv1 = GroupedConv2d(in_channels, init_channels, kernel_size=[1], stride=1, padding=0)
         self.bn1 = nn.BatchNorm2d(init_channels)
         self.relu = nn.SiLU(inplace=True) #nn.LeakyReLU(negative_slope=0.1, inplace=True)
         # depthwise
@@ -164,7 +164,7 @@ class MixResidualBlock(nn.Module):
         self.ca = get_attention_module(init_channels, attention_mode)
 
         # pw-linear
-        self.conv3 = GroupedConv2d(init_channels, out_channels, kernel_size=1, stride=1, padding=0)
+        self.conv3 = GroupedConv2d(init_channels, out_channels, kernel_size=[1], stride=1, padding=0)
         self.bn3 = nn.BatchNorm2d(out_channels)
  
         self.shortcut = nn.Sequential()
