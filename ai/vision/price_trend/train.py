@@ -304,6 +304,10 @@ def run_training(config):
         # --- 5. 验证循环 ---
         _model = copy.deepcopy(ema.module)
         mean_r2 = eval(_model, eval_dataset, config, log_agent)
+
+        log_agent.log({
+            'lr': scheduler.learning_rate
+        })
         
         # --- 6. 保存最佳模型 ---
         # 只保存性能最好的模型，避免存储过多文件
