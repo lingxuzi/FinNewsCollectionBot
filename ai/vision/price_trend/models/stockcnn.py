@@ -99,19 +99,25 @@ class StockChartNet(nn.Module):
 
     def forward_features(self, x):
         return self.layers(x)
+    
+def _SplitChannels(channels, num_groups):
+    split_channels = [channels // num_groups for _ in range(num_groups)]
+    split_channels[0] += channels - sum(split_channels)
+    return split_channels
 
 class MixConv(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_sizes=[3, 5], stride=1):
+    def __init__(self, channels, kernel_sizes=[3, 5], stride=1):
         super(MixConv, self).__init__()
 
-        channels_per_kernel = out_channels // len(kernel_sizes)
+        self.split_channels = _SplitChannels(channels, len(kernel_sizes))
         self.convs = nn.ModuleList([
-            nn.Conv2d(in_channels, channels_per_kernel, kernel_size=kernel_size, stride=stride, padding=kernel_size//2, groups=channels_per_kernel, bias=False)
-            for kernel_size in kernel_sizes
+            nn.Conv2d(self.split_channels[i], self.split_channels[i], kernel_size=kernel_size, stride=stride, padding=kernel_size//2, groups=self.split_channels[i], bias=False)
+            for i, kernel_size in enumerate(kernel_sizes)
         ])
     
     def forward(self, x):
-        outputs = [conv(x) for conv in self.convs]
+        x_split = torch.split(x, self.split_channels, dim=1)
+        outputs = [conv(x_split[i]) for i, conv in enumerate(self.convs)]
         return torch.cat(outputs, dim=1)
 
 class MixResidualBlock(nn.Module):
