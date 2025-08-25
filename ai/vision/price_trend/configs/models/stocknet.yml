@@ -1,7 +1,7 @@
 trend_classes: 2
 dropout: 0.8
 fused_method: 'default'
-backbone: 'stockchartnetv2'
+backbone: 'stockchartnet'
 attention_mode: 'ca'
 gradlayer: 'layers[-2].conv2'
 ts_encoder:
