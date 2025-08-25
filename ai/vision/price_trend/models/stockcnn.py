@@ -130,7 +130,7 @@ class MixResidualBlock(nn.Module):
         self.bn1 = nn.BatchNorm2d(init_channels)
         self.relu = nn.SiLU(inplace=True) #nn.LeakyReLU(negative_slope=0.1, inplace=True)
         # depthwise
-        self.conv2 = MixConv(init_channels, init_channels, kernel_sizes, stride=stride)
+        self.conv2 = MixConv(init_channels, kernel_sizes, stride=stride)
         self.bn2 = nn.BatchNorm2d(init_channels)
         self.ca = get_attention_module(init_channels, attention_mode)
 
