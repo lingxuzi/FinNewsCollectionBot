@@ -270,7 +270,7 @@ def run_training(config):
                 trend_loss_meter.update(loss_ts.item())
                 trend_metric_meter.update(trend_logits['ts_logits'].argmax(dim=1).eq(trend.squeeze()).float().mean().item())
             elif config['training']['module_train'] == 'fusion':
-                trend_logits = model.fusion_logits(img, ts, ctx)
+                trend_logits = model.fuse_logits(img, ts, ctx)
                 losses['trend'] = criterion_trend(trend_logits['fused_trend_logits'], trend.squeeze())
                 losses['stock'] = criterion_stock(trend_logits['stock_logits'], stock.squeeze())
                 losses['industry'] = criterion_industry(trend_logits['industry_logits'], industry.squeeze())
@@ -374,12 +374,16 @@ def eval(model, dataset, config, log_agent):
             # y = y.to(device)
             img, trend, returns, stock, industry, ts, ctx = val_iter.next()
 
-            trend_pred, ts_pred, trend_pred_fused, stock_pred, industry_pred, returns_pred = _model(img, ts, ctx)
-
-            trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred_fused.cpu().numpy())
-            ts_metric.update(trend.squeeze().cpu().numpy(), ts_pred.cpu().numpy())
-            vision_metric.update(trend.squeeze().cpu().numpy(), trend_pred.cpu().numpy())
-            return_metric.update(returns.squeeze().cpu().numpy(), returns_pred.cpu().numpy())
+            if config['training']['module_train'] == 'vision':
+                trend_logits = model.vision_logits(img)
+                trend_metric.update(trend.squeeze().cpu().numpy(), trend_logits['vision_logits'].cpu().numpy())
+            elif config['training']['module_train'] == 'ts':
+                trend_logits = model.ts_logits(ts, ctx)
+                trend_metric.update(trend.squeeze().cpu().numpy(), trend_logits['ts_logits'].cpu().numpy())
+            elif config['training']['module_train'] == 'fusion':
+                trend_logits = model.fuse_logits(img, ts, ctx)
+                trend_metric.update(trend.squeeze().cpu().numpy(), trend_logits['fused_trend_logits'].cpu().numpy())
+                return_metric.update(returns.squeeze().cpu().numpy(), trend_logits['returns'].cpu().numpy())
     
     # --- 计算整体 R² --
 
@@ -440,7 +444,13 @@ def run_eval(config):
     model_config['ts_encoder']['ts_input_dim'] = len(config['data']['ts_features']['features']) + len(config['data']['ts_features']['temporal'])
     model_config['ts_encoder']['ctx_input_dim'] = len(config['data']['ts_features']['numerical'])
 
-    model = create_model(config['training']['model'], model_config).to(device)
+    model = create_model(config['training']['model'], model_config)
+
+    model.build_ts()
+    model.build_vision()
+    model.build_fusion()
+
+    model.to(device)
 
     device = torch.device(config['device'] if torch.cuda.is_available() else "cpu")
     state_dict = torch.load(config['training']['model_save_path'], map_location=device)
@@ -452,8 +462,6 @@ def run_eval(config):
     model.eval()
 
     trend_metric = ClsMetric('trend')
-    ts_metric = ClsMetric('ts')
-    vision_metric = ClsMetric('vision_trend')
     return_metric = Metric('returns')
     
     with torch.no_grad():
@@ -465,14 +473,10 @@ def run_eval(config):
 
             img, trend, returns, stock, industry, ts, ctx = test_iter.next()
 
-            trend_pred, ts_pred, trend_pred_fused, stock_pred, industry_pred, returns_pred = model(img, ts, ctx)
-            trend_metric.update(trend.squeeze().cpu().numpy(), trend_pred_fused.cpu().numpy())
-            ts_metric.update(trend.squeeze().cpu().numpy(), ts_pred.cpu().numpy())
-            vision_metric.update(trend.squeeze().cpu().numpy(), trend_pred.cpu().numpy())
-            return_metric.update(returns.squeeze().cpu().numpy(), returns_pred.cpu().numpy())
+            trend_logits = model.fuse_logits(img, ts, ctx)
+            trend_metric.update(trend.squeeze().cpu().numpy(), trend_logits['fused_trend_logits'].cpu().numpy())
+            return_metric.update(returns.squeeze().cpu().numpy(), trend_logits['returns'].cpu().numpy())
 
         # --- 计算整体 R² ---
         _, trend_score = trend_metric.calculate()
-        _, ts_score = ts_metric.calculate()
-        _, vision_score = vision_metric.calculate()
         _, return_score = return_metric.calculate()
