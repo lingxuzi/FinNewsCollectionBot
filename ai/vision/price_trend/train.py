@@ -230,7 +230,7 @@ def run_training(config):
     best_val_loss = float('inf') if early_stopper.direction == 'down' else -float('inf')
     for epoch in range(config['training']['num_epochs']):
 
-        generate_gradcam(model, eval_dataset)
+        # generate_gradcam(model, eval_dataset)
 
         if not config['data']['sampler']:
             train_iter = DataPrefetcher(train_loader, config['device'], enable_queue=False, num_threads=1)
