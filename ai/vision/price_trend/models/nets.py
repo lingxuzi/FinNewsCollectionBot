@@ -106,7 +106,7 @@ class StockNet(nn.Module):
             padding=0,
             bias=False)
 
-        self.hardswish = nn.SiLU()
+        self.hardswish = nn.SiLU(inplace=True)
 
         regression_output_size = config['ts_encoder']['embedding_dim']
         trend_output_size = 1280
@@ -188,7 +188,7 @@ class StockNet(nn.Module):
             else:
                 ts_logits = None
             
-            ts_fused = self.fusion(x.detach(), ts_fused.detach())
+            ts_fused = self.fusion(x, ts_fused)
             trend_logits_fused = self.trend_classifier_fused(ts_fused)
             stock_logits = self.stock_classifier(ts_fused)
             industry_logits = self.industry_classifier(ts_fused)
