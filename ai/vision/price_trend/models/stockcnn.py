@@ -67,38 +67,57 @@ class StockChartNet(nn.Module):
     - 输入: (batch_size, 1, 60, 60) 的图像张量。
     - 输出: (batch_size, 1) 的预测收益率张量。
     """
-    def __init__(self, pretrained=False, in_chans=1, attention_mode='ca'):
+    def __init__(self, pretrained=False, in_chans=1, groups=4, attention_mode='ca'):
         super(StockChartNet, self).__init__()
+        channels = [16, 32, 64, 128, 256]
+        self.groups = groups
+        self.group_weights = nn.Parameter(torch.tensor([0.5 /  2 ** (2 - i) for i in range(groups)]), requires_grad=False) #[nn.Parameter(0.5 / 2^(2 - i)) for i in range(groups)]
         
-        # --- 主干网络 ---
-        # self.conv1 = nn.Conv2d(1, 16, kernel_size=3, stride=2, padding=1)
-        # self.bn1 = nn.BatchNorm2d(16)
-        # self.relu1 = nn.ReLU(inplace=True)
+        if groups == 1:
+            self.layers = self.build_conv_groups(in_chans, groups, channels, 5, attention_mode)
+        else:
+            self.layers = nn.ModuleList(self.build_conv_groups(in_chans, groups, channels, attention_mode))
 
-        stem = nn.Sequential(
-            nn.Conv2d(1, 16, kernel_size=5, stride=2, padding=2, bias=False),
-            nn.BatchNorm2d(16),
-            nn.SiLU(inplace=True),
-            #nn.LeakyReLU(negative_slope=0.1, inplace=True)
-        )
+        self.num_features = channels[-1]
 
-        block2 = ResidualBlock(16, 32, kernel_size=5, stride=2, attention=False)
-        block3 = ResidualBlock(32, 64, kernel_size=5, stride=2, attention=False)
-        block4 = MixResidualBlock(64, 128, kernel_sizes=[3, 5, 7], stride=2, ratio=1, attention_mode=attention_mode)
-        block5 = ResidualBlock(128, 256, stride=1, ratio=4, attention_mode=attention_mode)
+    def build_conv_groups(self, in_chans, groups=4, channels=[16, 32, 64, 128, 256], kernel_size = 5, attention_mode='ca'):
+        if groups == 1:
+            stem = nn.Sequential(
+                nn.Conv2d(in_chans, channels[0], kernel_size=kernel_size, stride=2, padding=2, bias=False),
+                nn.BatchNorm2d(channels[0]),
+                nn.SiLU(inplace=True)
+            )
 
-        self.layers = nn.Sequential(
-            stem,
-            block2,
-            block3,
-            block4,
-            block5
-        )
+            block2 = ResidualBlock(channels[0], channels[1], kernel_size=kernel_size, stride=2, attention=False)
+            block3 = ResidualBlock(channels[1], channels[2], kernel_size=kernel_size, stride=2, attention=False)
+            block4 = ResidualBlock(channels[2], channels[3], kernel_size=kernel_size, stride=2, ratio=4, attention_mode=attention_mode)
+            block5 = ResidualBlock(channels[3], channels[4], kernel_size=kernel_size, stride=1, ratio=4, attention_mode=attention_mode)
 
-        self.num_features = 256
+            layers = nn.Sequential(
+                stem,
+                block2,
+                block3,
+                block4,
+                block5
+            )
+            return layers
+        else:
+            _groups = nn.ModuleList()
+            _channels = [channels[i] // groups for i in range(len(channels))]
+            for i in range(groups):
+                _groups.append(self.build_conv_groups(in_chans, 1, _channels, 3, attention_mode))
+            return _groups
 
     def forward_features(self, x):
-        return self.layers(x)
+        if self.groups == 1:
+            return self.layers(x)
+        
+        # 切分输入图像
+        x = torch.split(x, _SplitChannels(x.shape[-1], self.groups), dim=-1)
+        # 每个组分别处理
+        x = [self.layers[i](x[i]) * self.group_weights[i] for i in range(self.groups)]
+        x = torch.cat(x, dim=1)
+        return x
     
 def _SplitChannels(channels, num_groups):
     split_channels = [channels // num_groups for _ in range(num_groups)]

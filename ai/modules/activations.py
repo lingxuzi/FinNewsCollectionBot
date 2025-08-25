@@ -6,8 +6,8 @@ import torch.nn.functional as F
 class AReLU(nn.Module):
     def __init__(self, alpha=0.90, beta=2.0):
         super().__init__()
-        self.alpha = nn.Parameter(torch.tensor([alpha]))
-        self.beta = nn.Parameter(torch.tensor([beta]))
+        self.alpha = nn.Parameter(torch.tensor([alpha]), requires_grad=True)
+        self.beta = nn.Parameter(torch.tensor([beta]), requires_grad=True)
 
     def forward(self, input):
         alpha = torch.clamp(self.alpha, min=0.01, max=0.99)
@@ -19,8 +19,8 @@ class AReLU(nn.Module):
 class ELSA(nn.Module):
     def __init__(self, alpha=0.9, beta=2.0, activation=nn.ReLU()):
         super().__init__()
-        self.alpha = nn.Parameter(torch.tensor([alpha]))
-        self.beta = nn.Parameter(torch.tensor([beta]))
+        self.alpha = nn.Parameter(torch.tensor([alpha]), requires_grad=True)
+        self.beta = nn.Parameter(torch.tensor([beta]), requires_grad=True)
         self.activation = activation
 
     def forward(self, x):
