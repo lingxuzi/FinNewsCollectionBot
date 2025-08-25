@@ -101,12 +101,12 @@ class StockChartNet(nn.Module):
         return self.layers(x)
 
 class MixConv(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_sizes=[3, 5]):
+    def __init__(self, in_channels, out_channels, kernel_sizes=[3, 5], stride=1):
         super(MixConv, self).__init__()
 
         channels_per_kernel = out_channels // len(kernel_sizes)
         self.convs = nn.ModuleList([
-            nn.Conv2d(in_channels, channels_per_kernel, kernel_size=kernel_size, stride=1, padding=kernel_size//2, groups=channels_per_kernel, bias=False)
+            nn.Conv2d(in_channels, channels_per_kernel, kernel_size=kernel_size, stride=stride, padding=kernel_size//2, groups=channels_per_kernel, bias=False)
             for kernel_size in kernel_sizes
         ])
     
@@ -124,7 +124,7 @@ class MixResidualBlock(nn.Module):
         self.bn1 = nn.BatchNorm2d(init_channels)
         self.relu = nn.SiLU(inplace=True) #nn.LeakyReLU(negative_slope=0.1, inplace=True)
         # depthwise
-        self.conv2 = MixConv(init_channels, init_channels, kernel_sizes)
+        self.conv2 = MixConv(init_channels, init_channels, kernel_sizes, stride=stride)
         self.bn2 = nn.BatchNorm2d(init_channels)
         self.ca = get_attention_module(init_channels, attention_mode)
 
