@@ -387,26 +387,19 @@ def eval(model, dataset, config, log_agent):
     
     # --- 计算整体 R² --
 
-    scores = []
+    scores = {
+    }
+    
     _, trend_score = trend_metric.calculate()
-    _, ts_score = ts_metric.calculate()
-    _, vision_score = vision_metric.calculate()
-    _, return_score = return_metric.calculate()
-    if config['training']['freeze'] == 'vision':
-        scores.append(ts_score)
-    elif config['training']['freeze'] == 'ts':
-        scores.append(vision_score)
-    else:
-        scores.append(trend_score)
+    scores['trend_score'] = trend_score
+    
+    if config['training']['module_train'] == 'fusion':
+        _, return_score = return_metric.calculate()
+        scores['return_score'] = return_score
+    
+    log_agent.log(scores)
 
-    log_agent.log({
-        'eval_trend_score': trend_score,
-        'eval_ts_score': ts_score,
-        'eval_vision_score': vision_score,
-        'eval_return_score': return_score
-    })
-
-    mean_r2 = sum(scores) / len(scores)
+    mean_r2 = sum(scores.values()) / len(scores)
 
     return mean_r2
 
