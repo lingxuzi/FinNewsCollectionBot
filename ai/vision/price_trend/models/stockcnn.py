@@ -85,10 +85,13 @@ class StockChartNet(nn.Module):
             stem = nn.Sequential(
                 nn.Conv2d(in_chans, channels[0], kernel_size=kernel_size, stride=2, padding=2, bias=False),
                 nn.BatchNorm2d(channels[0]),
-                nn.SiLU(inplace=True)
+                nn.ReLU(inplace=True),
+                MixConv(channels[0], kernel_sizes=[3, 5, 7]),
+                nn.BatchNorm2d(channels[0]),
+                nn.ReLU(inplace=True)
             )
 
-            block2 = ResidualBlock(channels[0], channels[1], kernel_size=kernel_size, stride=2, attention=False)
+            block2 = ResidualBlock(channels[0], channels[1], kernel_size=kernel_size, stride=2, attention=False, )
             block3 = ResidualBlock(channels[1], channels[2], kernel_size=kernel_size, stride=2, attention=False)
             block4 = ResidualBlock(channels[2], channels[3], kernel_size=kernel_size, stride=2, ratio=4, attention_mode=attention_mode)
             block5 = ResidualBlock(channels[3], channels[4], kernel_size=kernel_size, stride=1, ratio=4, attention_mode=attention_mode)
