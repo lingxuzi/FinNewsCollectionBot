@@ -119,6 +119,35 @@ class MixConv(nn.Module):
         x_split = torch.split(x, self.split_channels, dim=1)
         outputs = [conv(x_split[i]) for i, conv in enumerate(self.convs)]
         return torch.cat(outputs, dim=1)
+    
+class GroupedConv2d(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0):
+        super(GroupedConv2d, self).__init__()
+
+        self.num_groups = len(kernel_size)
+        self.split_in_channels = _SplitChannels(in_channels, self.num_groups)
+        self.split_out_channels = _SplitChannels(out_channels, self.num_groups)
+        print(self.split_in_channels)
+        self.grouped_conv = nn.ModuleList()
+        for i in range(self.num_groups):
+            self.grouped_conv.append(nn.Conv2d(
+                self.split_in_channels[i],
+                self.split_out_channels[i],
+                kernel_size[i],
+                stride=stride,
+                padding=padding,
+                bias=False
+            ))
+
+    def forward(self, x):
+        if self.num_groups == 1:
+            return self.grouped_conv[0](x)
+
+        x_split = torch.split(x, self.split_in_channels, dim=1)
+        x = [conv(t) for conv, t in zip(self.grouped_conv, x_split)]
+        x = torch.cat(x, dim=1)
+
+        return x
 
 class MixResidualBlock(nn.Module):
     def __init__(self, in_channels, out_channels, ratio=3, kernel_sizes=[3, 5], stride=1, attention=True, attention_mode='ca'):
@@ -126,7 +155,7 @@ class MixResidualBlock(nn.Module):
         self.attention = attention
         init_channels = ((out_channels * ratio) // len(kernel_sizes)) * len(kernel_sizes)
         # pointwise
-        self.conv1 = nn.Conv2d(in_channels, init_channels, kernel_size=1, stride=1, padding=0, bias=False)
+        self.conv1 = GroupedConv2d(in_channels, init_channels, kernel_size=1, stride=1, padding=0)
         self.bn1 = nn.BatchNorm2d(init_channels)
         self.relu = nn.SiLU(inplace=True) #nn.LeakyReLU(negative_slope=0.1, inplace=True)
         # depthwise
@@ -135,7 +164,7 @@ class MixResidualBlock(nn.Module):
         self.ca = get_attention_module(init_channels, attention_mode)
 
         # pw-linear
-        self.conv3 = nn.Conv2d(init_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False)
+        self.conv3 = GroupedConv2d(init_channels, out_channels, kernel_size=1, stride=1, padding=0)
         self.bn3 = nn.BatchNorm2d(out_channels)
  
         self.shortcut = nn.Sequential()
