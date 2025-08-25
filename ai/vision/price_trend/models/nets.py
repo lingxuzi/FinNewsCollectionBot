@@ -106,7 +106,7 @@ class StockNet(nn.Module):
             padding=0,
             bias=False)
 
-        self.hardswish = nn.Hardswish()
+        self.hardswish = nn.SiLU()
 
         regression_output_size = config['ts_encoder']['embedding_dim']
         trend_output_size = 1280
