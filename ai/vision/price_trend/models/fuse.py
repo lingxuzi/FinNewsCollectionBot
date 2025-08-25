@@ -40,7 +40,8 @@ class FeatureFusedAttention(nn.Module):
 
         self.final_projector = nn.Sequential(
             nn.Linear(hidden_dim * 2, fused_dim, bias=False),
-            nn.LayerNorm(fused_dim)
+            nn.LayerNorm(fused_dim),
+            nn.Dropout(0.1, inplace=True)
         )
 
     def forward(self, vision_features, ts_features):
