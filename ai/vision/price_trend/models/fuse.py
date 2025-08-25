@@ -30,9 +30,10 @@ class FeatureFusedAttention(nn.Module):
         super().__init__()
         self.projector = nn.Linear(fused_dim * 2, hidden_dim)
         self.att_net = nn.Sequential(
-            nn.Linear(in_features=hidden_dim, out_features=hidden_dim),
+            nn.Linear(in_features=hidden_dim, out_features=hidden_dim // 2),
+            nn.Dropout(0.1, inplace=True),
             nn.SiLU(),
-            nn.Linear(in_features=hidden_dim, out_features=hidden_dim, bias=False),
+            nn.Linear(in_features=hidden_dim // 2, out_features=hidden_dim, bias=False),
             nn.Sigmoid(),
             nn.Dropout(p=0.5)
         )
