@@ -164,6 +164,9 @@ def run_training(config):
     model_config['ts_encoder']['ts_input_dim'] = len(config['data']['ts_features']['features']) + len(config['data']['ts_features']['temporal'])
     model_config['ts_encoder']['ctx_input_dim'] = len(config['data']['ts_features']['numerical'])
     model = create_model(config['training']['model'], model_config)
+    model.build_ts()
+    model.build_vision()
+    model.build_fusion()
 
     log_agent = LogAgent(config['training']['model'], {
         'basic': config,
@@ -190,15 +193,18 @@ def run_training(config):
 
     model = model.to(device)
 
-    if config['training']['freeze'] == 'ts':
-        model.freeze_ts()
-    elif config['training']['freeze'] == 'vision':
-        model.freeze_vision()
-    elif config['training']['freeze'] == 'backbone':
-        model.freeze_backbone()
-    elif config['training']['freeze'] == 'all':
-        model.freeze_vision()
-        model.freeze_ts()
+    # if config['training']['module_train'] == 'ts':
+    #     model.build_ts()
+    # elif config['training']['module_train'] == 'vision':
+    #     model.build_vision()
+    # elif config['training']['module_train'] == 'fusion':
+    #     model.build_ts()
+    #     model.build_vision()
+    #     model.build_fusion()
+    # elif config['training']['module_train'] == 'all':
+    #     model.build_ts()
+    #     model.build_vision()
+    #     model.build_fusion()
 
     criterion_trend = nn.CrossEntropyLoss() #ASLSingleLabel() #focal_loss(alpha=0.3, gamma=2, num_classes=model_config['trend_classes'])
     criterion_stock = nn.CrossEntropyLoss() #ASLSingleLabel()
@@ -242,8 +248,6 @@ def run_training(config):
         returns_loss_meter = AverageMeter()
 
         trend_metric_meter = AverageMeter()
-        stock_metric_meter = AverageMeter()
-        industry_metric_meter = AverageMeter()
         returns_metric_meter = AverageMeter()
 
         # 使用tqdm显示进度条
@@ -251,41 +255,39 @@ def run_training(config):
         for _ in pbar:
             img, trend, returns, stock, industry, ts, ctx = train_iter.next()
             optimizer.zero_grad()
-            trend_pred, ts_pred, trend_pred_fused, stock_pred, industry_pred, returns_pred = model(img, ts, ctx)
 
             losses = {}
-
-            if 'trend' in config['training']['losses']:
-                loss_trend = criterion_trend(trend_pred, trend.squeeze())
-                loss_trend_fused = criterion_trend(trend_pred_fused, trend.squeeze())
-                loss_ts = criterion_trend(ts_pred, trend.squeeze())
-                losses['trend'] = (loss_trend + loss_trend_fused + loss_ts) / 3
+            if config['training']['module_train'] == 'vision':
+                trend_logits = model.vision_logits(img)
+                loss_vision = criterion_trend(trend_logits['vision_logits'], trend.squeeze())
+                losses['trend'] = loss_vision
+                trend_loss_meter.update(loss_vision.item())
+                trend_metric_meter.update(trend_logits['vision_logits'].argmax(dim=1).eq(trend.squeeze()).float().mean().item())
+            elif config['training']['module_train'] == 'ts':
+                trend_logits = model.ts_logits(ts, ctx)
+                loss_ts = criterion_trend(trend_logits['ts_logits'], trend.squeeze())
+                losses['trend'] = loss_ts
+                trend_loss_meter.update(loss_ts.item())
+                trend_metric_meter.update(trend_logits['ts_logits'].argmax(dim=1).eq(trend.squeeze()).float().mean().item())
+            elif config['training']['module_train'] == 'fusion':
+                trend_logits = model.fusion_logits(img, ts, ctx)
+                losses['trend'] = criterion_trend(trend_logits['fused_trend_logits'], trend.squeeze())
+                losses['stock'] = criterion_stock(trend_logits['stock_logits'], stock.squeeze())
+                losses['industry'] = criterion_industry(trend_logits['industry_logits'], industry.squeeze())
+                losses['returns'] = criterion_return(trend_logits['returns'], returns.squeeze())
                 trend_loss_meter.update(losses['trend'].item())
-                trend_metric_meter.update(balanced_accuracy_score(trend.squeeze().cpu().numpy(), trend_pred_fused.argmax(axis=1).cpu().numpy()))
-            
-            if 'stock' in config['training']['losses']:
-                loss_stock = criterion_stock(stock_pred, stock.squeeze())
-                losses['stock'] = loss_stock
-                stock_loss_meter.update(loss_stock.item())
-                stock_metric_meter.update(balanced_accuracy_score(stock.squeeze().cpu().numpy(), trend_pred.argmax(axis=1).cpu().numpy()))
-            
-            if 'industry' in config['training']['losses']:
-                loss_industry = criterion_industry(industry_pred, industry.squeeze())
-                losses['industry'] = loss_industry
-                industry_loss_meter.update(loss_industry.item())
-                industry_metric_meter.update(balanced_accuracy_score(industry.squeeze().cpu().numpy(), trend_pred.argmax(axis=1).cpu().numpy()))
-            
-            if 'returns' in config['training']['losses']:
-                loss_returns = criterion_return(returns_pred, returns.squeeze())
-                losses['returns'] = loss_returns
-                returns_loss_meter.update(loss_returns.item())
-                returns_metric_meter.update(r2_score(returns.squeeze().cpu().numpy(), returns_pred.detach().squeeze().cpu().numpy()))
+                stock_loss_meter.update(losses['stock'].item())
+                industry_loss_meter.update(losses['industry'].item())
+                returns_loss_meter.update(losses['returns'].item())
+                trend_metric_meter.update(trend_logits['fused_trend_logits'].argmax(dim=1).eq(trend.squeeze()).float().mean().item())
+                returns_metric_meter.update(trend_logits['returns'].abs().mean().item())
+
             
             if config['training']['awl']:
                 losses = list(losses.values())
                 total_loss = awl(*losses)
             else:
-                total_loss = sum([losses[lk] * w for w, lk in zip(config['training']['loss_weights'], config['training']['losses'])])
+                total_loss = sum(losses.values())
             total_loss.backward()
 
             clip_norm = config['training']['clip_norm']
@@ -298,7 +300,8 @@ def run_training(config):
             train_loss_meter.update(total_loss.item())
             #| Pred Loss: {pred_loss_meter.avg}
             pbar.set_description(f"Total({epoch+1}/{config['training']['num_epochs']}): {train_loss_meter.avg:.4f} | Trend: {trend_loss_meter.avg:.4f} | Trend Metric: {trend_metric_meter.avg:.4f} | Stock: {stock_loss_meter.avg:.4f} | Industry: {industry_loss_meter.avg:.4f} | Returns: {returns_loss_meter.avg:.4f} | Returns Metric: {returns_metric_meter.avg:.4f}")
-        
+            del img, trend, returns, stock, industry, ts, ctx
+            del total_loss, losses
         scheduler.step()
 
         # --- 5. 验证循环 ---

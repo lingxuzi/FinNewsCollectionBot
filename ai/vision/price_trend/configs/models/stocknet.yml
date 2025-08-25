@@ -1,13 +1,14 @@
 trend_classes: 2
-dropout: 0.9
+dropout: 0.8
 fused_method: 'default'
 backbone: 'stockchartnet'
 attention_mode: 'ca'
 gradlayer: 'layers[-2].conv2'
+embedding_dim: 128
 ts_encoder:
   hidden_dim: 64
   num_layers: 2
-  ts_embedding_dim: 128
+  ts_embedding_dim: 160
   ctx_embedding_dim: 32
-  dropout: 0.2
-  embedding_dim: 1280
+  embedding_dim: 128
+  dropout: 0.1

@@ -92,79 +92,40 @@ class DropoutPredictionHead(nn.Module):
 class StockNet(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.config = config
         self.infer_mode = False
-        
-        self.model = eval(f'{config["backbone"]}(pretrained=True, in_chans=1, attention_mode="{config["attention_mode"]}")')
-        self.ts_model = TSEncoder(config['ts_encoder'])
+        self.config = config
 
+    def build_vision(self):
+        self.model = eval(f'{self.config["backbone"]}(pretrained=True, in_chans=1, attention_mode="{self.config["attention_mode"]}")')
         self.last_conv = nn.Conv2d(
             in_channels=self.model.num_features,
-            out_channels=1280,  
+            out_channels=self.config['embedding_dim'],  
             kernel_size=1,
             stride=1,
             padding=0,
             bias=False)
-
         self.hardswish = nn.SiLU(inplace=True)
-
-        regression_output_size = config['ts_encoder']['embedding_dim']
-        trend_output_size = 1280
-        
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1)) # 全局平均池化
-        self.fusion = get_fusing_layer(config['fused_method'], fused_dim=regression_output_size, hidden_dim=regression_output_size // 2) #CrossFused(regression_output_size, regression_output_size // 4) #eatureFusedAttention(regression_output_size, regression_output_size // 4)
-        
-        self.trend_classifier = DropoutPredictionHead(feature_dim=trend_output_size, classes=config["trend_classes"], dropout=self.config['dropout'])
-        self.trend_ts_classifier = DropoutPredictionHead(feature_dim=config['ts_encoder']['embedding_dim'], classes=config["trend_classes"], dropout=self.config['dropout'])
-        self.trend_classifier_fused = DropoutPredictionHead(feature_dim=regression_output_size, classes=config["trend_classes"], dropout=self.config['dropout'])
-        self.stock_classifier = DropoutPredictionHead(feature_dim=regression_output_size, classes=config["stock_classes"], dropout=self.config['dropout'])
-        self.industry_classifier = DropoutPredictionHead(feature_dim=regression_output_size, classes=config["industry_classes"], dropout=self.config['dropout'])
-        self.returns_regression = DropoutPredictionHead(feature_dim=regression_output_size, classes=1, dropout=self.config['dropout'], regression=True)
-
-        if 'models.' not in config["backbone"]:
-            initialize(self)
-        
+        self.trend_classifier = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=self.config["trend_classes"], dropout=self.config['dropout'])
+        if 'models.' not in self.config["backbone"]:
+            initialize(self.model)
+    
+    def build_ts(self):
+        self.ts_model = TSEncoder(self.config['ts_encoder'])
+        self.trend_ts_classifier = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=self.config["trend_classes"], dropout=self.config['dropout'])
         orthogonal_init(self.ts_model)
+
+    def build_fusion(self):
+        self.fusion = get_fusing_layer(self.config['fused_method'], fused_dim=self.config['embedding_dim'], hidden_dim=self.config['embedding_dim'] // 2)
+
+        self.trend_classifier_fused = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=self.config["trend_classes"], dropout=0)
+        self.stock_classifier = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=self.config["stock_classes"], dropout=0)
+        self.industry_classifier = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=self.config["industry_classes"], dropout=0)
+        self.returns_regression = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=1, dropout=0, regression=True)
 
     def export(self):
         self.eval()
         self.infer_mode = True
-
-    def freeze_vision(self):
-        for (name, param) in self.model.named_parameters():
-            param.requires_grad = False
-        
-        for name, param in self.fusion.named_parameters():
-            param.requires_grad = False
-
-        self.last_conv.requires_grad_(False)
-        self.trend_classifier.requires_grad_(False)
-    
-    def freeze_ts(self):
-        for (name, param) in self.ts_model.named_parameters():
-            param.requires_grad = False
-
-        for name, param in self.fusion.named_parameters():
-            param.requires_grad = False
-            
-        self.trend_ts_classifier.requires_grad_(False)
-        self.trend_classifier_fused.requires_grad_(False)
-        self.stock_classifier.requires_grad_(False)
-        self.industry_classifier.requires_grad_(False)
-        self.returns_regression.requires_grad_(False)
-
-    def freeze_backbone(self):
-        for (name, param) in self.model.named_parameters():
-            param.requires_grad = False
-
-        self.last_conv.requires_grad_(False)
-
-        for (name, param) in self.ts_model.named_parameters():
-            param.requires_grad = False
-
-        self.last_conv.requires_grad_(False)
-        self.trend_ts_classifier.requires_grad_(False)
-        self.trend_classifier.requires_grad_(False)
 
     def forward(self, x, ts_seq, ctx_seq):
         x = self.model.forward_features(x)
@@ -198,7 +159,7 @@ class StockNet(nn.Module):
 
         return trend_logits, ts_logits, trend_logits_fused, stock_logits, industry_logits, returns
 
-    def vision_features(self, x):
+    def __vision_features(self, x):
         x = self.model.forward_features(x)
         x = self.global_pool(x)
         # x = torch.cat([x, ts_emb.unsqueeze(2).unsqueeze(3)], dim=1)
@@ -209,21 +170,48 @@ class StockNet(nn.Module):
         x = x.view(x.size(0), -1)
         return x
     
-    def classify_vision(self, vision_features):
+    def __classify_vision(self, vision_features):
         trend_logits = self.trend_classifier(vision_features)
         return trend_logits
     
-    def ts_features(self, ts_seq, ctx_seq):
-        ts_fused = self.ts_model((ts_seq, ctx_seq))
-        return ts_fused
+    def vision_logits(self, x):
+        vision_features = self.__vision_features(x)
+        trend_logits = self.__classify_vision(vision_features)
+        return {
+            'vision_logits': trend_logits
+        }
+
+    def __ts_features(self, ts_seq, ctx_seq):
+        ts_features = self.ts_model((ts_seq, ctx_seq))
+        return ts_features
     
-    def classify_ts(self, ts_features):
+    def __classify_ts(self, ts_features):
         trend_logits = self.trend_ts_classifier(ts_features)
         return trend_logits
     
-    def fuse_vision_ts(self, vision_features, ts_features):
-        fused_features = self.fusion(vision_features, ts_features)
-        return fused_features
+    def ts_logits(self, ts_seq, ctx_seq):
+        ts_features = self.__ts_features(ts_seq, ctx_seq)
+        trend_logits = self.__classify_ts(ts_features)
+        return {
+            'ts_logits': trend_logits
+        }
+    
+    def fuse_logits(self, x, ts_seq, ctx_seq):
+        with torch.no_grad():
+            vision_features = self.__vision_features(x)
+            ts_features = self.__ts_features(ts_seq, ctx_seq)
+        fused_features = self.fusion(vision_features.detach(), ts_features.detach())
+        fused_features = F.dropout(fused_features, p=self.config['dropout'], training=self.training)
+        trend_logits_fused = self.trend_classifier_fused(fused_features)
+        stock_logits = self.stock_classifier(fused_features)
+        industry_logits = self.industry_classifier(fused_features)
+        returns = self.returns_regression(fused_features)
+        return {
+            'fused_trend_logits': trend_logits_fused,
+            'stock_logits': stock_logits,
+            'industry_logits': industry_logits,
+            'returns': returns
+        }
 
     def gradcam_layer(self):
         return eval(f'self.model.{self.config["gradlayer"]}')
