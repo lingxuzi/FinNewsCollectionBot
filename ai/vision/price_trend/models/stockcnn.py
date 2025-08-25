@@ -166,13 +166,14 @@ class MixResidualBlock(nn.Module):
         # pw-linear
         self.conv3 = GroupedConv2d(init_channels, out_channels, kernel_size=[1], stride=1, padding=0)
         self.bn3 = nn.BatchNorm2d(out_channels)
- 
-        self.shortcut = nn.Sequential()
-        if stride != 1 or in_channels != out_channels:
-            self.shortcut = nn.Sequential(
-                nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm2d(out_channels)
-            )
+
+        self.residual_connection = (stride == 1 and in_channels == out_channels)
+        # self.shortcut = nn.Sequential()
+        # if stride != 1 or in_channels != out_channels:
+        #     self.shortcut = nn.Sequential(
+        #         nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=False),
+        #         nn.BatchNorm2d(out_channels)
+        #     )
  
     def forward(self, x):
         residual = x
@@ -186,7 +187,8 @@ class MixResidualBlock(nn.Module):
             out = self.ca(out)
         out = self.conv3(out)
         out = self.bn3(out)
-        out += self.shortcut(residual)
+        if self.residual_connection:
+            out += residual
         return out
     
 class StockChartNetV2(nn.Module):
