@@ -8,7 +8,7 @@ import argparse
 def parse_args():
     parser = argparse.ArgumentParser(description='Train price trend model')
     parser.add_argument('--config', type=str, default='./ai/vision/price_trend/configs/config.yml', help='Path to the configuration file')
-    parser.add_argument('--mode', type=str, default='eval', help='Mode of operation: train or test')
+    parser.add_argument('--mode', type=str, default='test', help='Mode of operation: train or test')
     return parser.parse_args()
 
 
@@ -76,7 +76,7 @@ if __name__ == '__main__':
         config = yaml.safe_load(f)
         if opts.mode == 'train':
             run_training(config)
-        elif opts.mode == 'eval':
+        elif opts.mode == 'test':
             print("Running in test mode, no training will be performed.")
             run_eval(config)
         elif opts.mode == 'infer':

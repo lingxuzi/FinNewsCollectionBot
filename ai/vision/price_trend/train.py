@@ -60,7 +60,7 @@ def generate_encoder(hist_data_files, ts_features, ts_numerical, categorical):
 
     return (indus_encoder, code_encoder), scaler
 
-def run_training(config):
+def run_training(config, mode='train'):
     # set random seed
     """主训练函数"""
     # --- 1. 加载配置 ---
@@ -192,6 +192,12 @@ def run_training(config):
     ema = ModelEmaV2(model, decay=0.9999, device=device)
 
     model = model.to(device)
+
+    if mode == 'eval':
+        _model = copy.deepcopy(ema.module)
+        mean_r2 = eval(_model, eval_dataset, config, log_agent)
+
+        return mean_r2
 
     # if config['training']['module_train'] == 'ts':
     #     model.build_ts()
