@@ -129,7 +129,7 @@ def run_training(config, mode='train'):
             is_train=False
         )
 
-        eval_dataset = ImagingPriceTrendDataset(
+        eval_dataset = ImagingPriceTrendDataset( 
             db_path=config['data']['db_path'],
             img_caching_path=config['data']['test']['img_caching_path'],
             stock_list_file=config['data']['test']['stock_list_file'],
@@ -195,6 +195,10 @@ def run_training(config, mode='train'):
 
     if mode == 'eval':
         _model = copy.deepcopy(ema.module)
+        if 'eval_model' in config:
+            state_dict = torch.load(config['eval_model'], map_location='cpu')
+            _model.load_state_dict(state_dict, strict=True)
+            print('eval model loaded')
         mean_r2 = eval(_model, eval_dataset, config, log_agent)
 
         return mean_r2
@@ -370,8 +374,6 @@ def eval(model, dataset, config, log_agent):
     with torch.no_grad():
         val_iter = DataPrefetcher(val_loader, config['device'], enable_queue=False, num_threads=1)
         trend_metric = ClsMetric('trend')
-        ts_metric = ClsMetric('ts')
-        vision_metric = ClsMetric('vision_trend')
         return_metric = Metric('returns')
 
         for _ in tqdm(range(num_iters_per_epoch(dataset, config['training']['batch_size'])), desc="[Validation]"):

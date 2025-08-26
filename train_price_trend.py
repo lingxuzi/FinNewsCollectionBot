@@ -9,6 +9,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Train price trend model')
     parser.add_argument('--config', type=str, default='./ai/vision/price_trend/configs/config.yml', help='Path to the configuration file')
     parser.add_argument('--mode', type=str, default='test', help='Mode of operation: train or test')
+    parser.add_argument('--eval-model', type=str, default='')
     return parser.parse_args()
 
 
@@ -75,11 +76,15 @@ if __name__ == '__main__':
     with open(opts.config, 'r') as f:
         config = yaml.safe_load(f)
         if opts.mode == 'train':
+            import shutil
+            shutil.rmtree('./swanlog', ignore_errors=True)
             run_training(config, mode='train')
         elif opts.mode == 'eval':
             run_training(config, mode='eval')
         elif opts.mode == 'test':
             print("Running in test mode, no training will be performed.")
+            if opts.eval_model:
+                config['eval_model'] = opts.eval_model
             run_eval(config)
         elif opts.mode == 'infer':
             from datetime import datetime, timedelta
