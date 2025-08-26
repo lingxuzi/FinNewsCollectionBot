@@ -8,7 +8,7 @@ embedding_dim: 128
 ts_encoder:
   hidden_dim: 64
   num_layers: 2
-  ts_embedding_dim: 160
+  ts_embedding_dim: 128
   ctx_embedding_dim: 32
   embedding_dim: 128
   dropout: 0.1
