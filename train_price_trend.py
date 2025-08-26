@@ -80,11 +80,11 @@ if __name__ == '__main__':
             shutil.rmtree('./swanlog', ignore_errors=True)
             run_training(config, mode='train')
         elif opts.mode == 'eval':
+            if opts.eval_model:
+                config['eval_model'] = opts.eval_model
             run_training(config, mode='eval')
         elif opts.mode == 'test':
             print("Running in test mode, no training will be performed.")
-            if opts.eval_model:
-                config['eval_model'] = opts.eval_model
             run_eval(config)
         elif opts.mode == 'infer':
             from datetime import datetime, timedelta
