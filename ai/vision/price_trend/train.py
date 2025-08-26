@@ -282,8 +282,8 @@ def run_training(config, mode='train'):
             elif config['training']['module_train'] == 'fusion':
                 trend_logits = model.fuse_logits(img, ts, ctx)
                 losses['trend'] = criterion_trend(trend_logits['fused_trend_logits'], trend.squeeze())
-                # losses['stock'] = criterion_stock(trend_logits['stock_logits'], stock.squeeze())
-                # losses['industry'] = criterion_industry(trend_logits['industry_logits'], industry.squeeze())
+                losses['stock'] = criterion_stock(trend_logits['stock_logits'], stock.squeeze())
+                losses['industry'] = criterion_industry(trend_logits['industry_logits'], industry.squeeze())
                 losses['returns'] = criterion_return(trend_logits['returns'], returns.squeeze())
                 trend_loss_meter.update(losses['trend'].item())
                 # stock_loss_meter.update(losses['stock'].item())
