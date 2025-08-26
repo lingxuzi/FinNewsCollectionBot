@@ -391,7 +391,7 @@ def eval(model, dataset, config, log_agent):
             elif config['training']['module_train'] == 'fusion':
                 trend_logits = model.fuse_logits(img, ts, ctx)
                 trend_metric.update(trend.squeeze().cpu().numpy(), trend_logits['fused_trend_logits'].cpu().numpy())
-                return_metric.update(returns.squeeze().cpu().numpy(), trend_logits['returns'].cpu().numpy())
+                return_metric.update(returns.squeeze().cpu().numpy(), trend_logits['returns'].detach().cpu().numpy())
     
     # --- 计算整体 R² --
 
