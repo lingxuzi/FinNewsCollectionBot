@@ -75,7 +75,9 @@ if __name__ == '__main__':
     with open(opts.config, 'r') as f:
         config = yaml.safe_load(f)
         if opts.mode == 'train':
-            run_training(config)
+            run_training(config, mode='train')
+        elif opts.mode == 'eval':
+            run_training(config, mode='eval')
         elif opts.mode == 'test':
             print("Running in test mode, no training will be performed.")
             run_eval(config)
