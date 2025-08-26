@@ -290,7 +290,7 @@ def run_training(config, mode='train'):
                 industry_loss_meter.update(losses['industry'].item())
                 returns_loss_meter.update(losses['returns'].item())
                 trend_metric_meter.update(trend_logits['fused_trend_logits'].argmax(dim=1).eq(trend.squeeze()).float().mean().item())
-                returns_metric_meter.update(trend_logits['returns'].abs().mean().item())
+                returns_metric_meter.update(r2_score(returns.squeeze().cpu().numpy(), trend_logits['returns'].cpu().numpy()))
 
             
             if config['training']['awl']:

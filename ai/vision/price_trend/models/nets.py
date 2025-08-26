@@ -118,10 +118,10 @@ class StockNet(nn.Module):
     def build_fusion(self):
         self.fusion = get_fusing_layer(self.config['fused_method'], fused_dim=self.config['embedding_dim'], hidden_dim=self.config['embedding_dim'] // 2)
 
-        self.trend_classifier_fused = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=self.config["trend_classes"], dropout=0)
-        self.stock_classifier = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=self.config["stock_classes"], dropout=0)
-        self.industry_classifier = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=self.config["industry_classes"], dropout=0)
-        self.returns_regression = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=1, dropout=0, regression=True)
+        self.trend_classifier_fused = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=self.config["trend_classes"], dropout=self.config['dropout'])
+        self.stock_classifier = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=self.config["stock_classes"], dropout=self.config['dropout'])
+        self.industry_classifier = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=self.config["industry_classes"], dropout=self.config['dropout'])
+        self.returns_regression = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=1, dropout=self.config['dropout'], regression=True)
 
     def export(self):
         self.eval()
@@ -201,7 +201,7 @@ class StockNet(nn.Module):
             vision_features = self.__vision_features(x)
             ts_features = self.__ts_features(ts_seq, ctx_seq)
         fused_features = self.fusion(vision_features.detach(), ts_features.detach())
-        fused_features = F.dropout(fused_features, p=self.config['dropout'], training=self.training)
+        # fused_features = F.dropout(fused_features, p=self.config['dropout'], training=self.training)
         trend_logits_fused = self.trend_classifier_fused(fused_features)
         stock_logits = self.stock_classifier(fused_features)
         industry_logits = self.industry_classifier(fused_features)
