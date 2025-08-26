@@ -406,7 +406,7 @@ def eval(model, dataset, config, log_agent):
     
     log_agent.log(scores)
 
-    mean_r2 = sum(scores.values()) / len(scores)
+    mean_r2 = trend_score
 
     return mean_r2
 
