@@ -38,10 +38,7 @@ class FeatureFusedAttention(nn.Module):
             nn.Dropout(0.5, inplace=True)
         )
 
-        self.final_projector = nn.Sequential(
-            nn.Linear(hidden_dim * 2, fused_dim, bias=False),
-            nn.LayerNorm(fused_dim)
-        )
+        self.final_projector = nn.Linear(hidden_dim * 2, fused_dim)
 
     def forward(self, vision_features, ts_features):
         fused_features = torch.cat([vision_features, ts_features], dim=1)
