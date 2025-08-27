@@ -240,7 +240,7 @@ def run_training(config, mode='train'):
 
     if config['training']['clip_norm'] == 0.01:
         optimizer = QuantileClip.as_optimizer(optimizer=optimizer, quantile=0.9, history_length=1000)
-    early_stopper = EarlyStopping(patience=40, direction='up')
+    early_stopper = EarlyStopping(patience=4, direction='up')
     
     if config['data']['sampler']:
         train_iter = DataPrefetcher(train_loader, config['device'], enable_queue=False, num_threads=1)
