@@ -2,6 +2,7 @@ from utils.async_mongo import AsyncMongoEngine
 from datetime import datetime
 from utils.singleton_wrapper import Singleton
 import asyncio
+import itertools
 
 class StockQueryEngine(Singleton):
     def __init__(self, host, port, username, password):
@@ -93,6 +94,35 @@ class StockQueryEngine(Singleton):
     def _format_code(self, code):
         prefix = self._get_code_prefix(code)
         return f'{prefix}.{code}'.lower()
+    
+    def get_stock_datas(self, codes, start_date, end_date):
+        if isinstance(start_date, str):
+            if '-' in start_date:
+                start_date = datetime.strptime(start_date, '%Y-%m-%d')
+            else:
+                start_date = datetime.strptime(start_date, '%Y%m%d')
+        if isinstance(end_date, str):
+            if '-' in end_date:
+                end_date = datetime.strptime(end_date, '%Y-%m-%d')
+            else:
+                end_date = datetime.strptime(end_date, '%Y%m%d')
+        
+        codes = [self._format_code(code) for code in codes]
+
+        query = {
+            'code': {
+                '$in': codes
+            },
+            'date': {'$gte': start_date, '$lte': end_date}
+        }
+        stock_data = asyncio.run(self.db.query_and_sort(self._cluster(), self._kline_daily(), query))
+        stock_data = itertools.groupby(stock_data, lambda x: x['code'])
+        
+        data = {}
+        for key, group in stock_data:
+            data[key] = list(group)
+
+        return [data[key] for key in codes]
     
     def get_stock_data(self, code, start_date, end_date):
         if len(code) < 9:

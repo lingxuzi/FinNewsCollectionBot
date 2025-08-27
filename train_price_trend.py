@@ -95,6 +95,7 @@ if __name__ == '__main__':
             import multiprocessing
             import os
             import time
+            import pandas as pd
             multiprocessing.set_start_method('spawn', force=True)   
 
             load_dotenv()
@@ -112,29 +113,14 @@ if __name__ == '__main__':
             sales = []
             prob_thres = 0.6
 
-            # for code in tqdm(stock_list, desc='扫描大盘股票'):
-            #     signal, data = analysis(inferencer, code, prob_thres)
-            #     if signal == 'up':
-            #         recomendations.append(data)
-            #     elif signal == 'down':
-            #         sales.append(data)
-
-            source = BaoSource()
 
             end_date = datetime.now()
             start_date = end_date - timedelta(days=config['data']['sequence_length'] * 10)
-            stock_df = []
-            codes = []
-            with ProcessPoolExecutor(max_workers=4) as executor:
-                futures = {executor.submit(source.get_kline_daily, code['code'], start_date.date(), end_date.date(), True, False): code for code in stock_list}
-                for future in tqdm(as_completed(futures), total=len(futures), desc='获取股票数据', ncols=120):
-                    try:
-                        result = future.result()
-                        stock_df.append(result)
-                        codes.append(futures[future])
-                    except Exception as e:
-                        print(f"处理时发生错误: {e}")
-                        time.sleep(1)
+
+
+            stock_df = engine.get_stock_datas([code['code'] for code in stock_list], start_date, end_date)
+            stock_df = [pd.DataFrame(df).sort_values('date') for df in stock_df]
+            codes = stock_list
 
             inferencer = VisionInferencer(config)
 

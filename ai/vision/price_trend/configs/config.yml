@@ -44,6 +44,7 @@ training:
   num_epochs: 100
   model_save_path: "../fin_models/trend.pth"
   pretrained_path: "../fin_models/trend_pretrained.pth"
+  finetune_path: "../fin_models/trend_finetune.pth"
   load_pretrained: false
 
 # --- 设备配置 ---
