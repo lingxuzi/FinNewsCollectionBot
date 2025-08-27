@@ -274,6 +274,9 @@ class ImagingPriceTrendDataset(Dataset):
     def parse_item(self, idx):
         image, returns, code, industry, ts_seq, ctx_seq = self.cache.get(idx)
 
+        assert np.isnan(ts_seq).sum() == 0
+        assert np.isnan(ctx_seq).sum() == 0
+
         acu_return = self.accumulative_return(returns)
         # if acu_return > 0.01:
         #     _trend = 2
