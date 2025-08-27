@@ -9,6 +9,7 @@ import pandas as pd
 import copy
 import random
 import ai.vision.price_trend.models.base
+from pytorch_optimizer import Lion
 from autoclip.torch import QuantileClip
 from torch.utils.data import DataLoader, random_split
 from ai.optimizer.muon import MuonClip
@@ -234,6 +235,8 @@ def run_training(config, mode='train'):
         optimizer = torch.optim.AdamW(parameters)
     elif config['training']['optimizer'] == 'rmsprop':
         optimizer = torch.optim.RMSprop(parameters)
+    elif config['training']['optimizer'] == 'lion':
+        optimizer = Lion(parameters)
 
     if config['training']['clip_norm'] == 0.01:
         optimizer = QuantileClip.as_optimizer(optimizer=optimizer, quantile=0.9, history_length=1000)
