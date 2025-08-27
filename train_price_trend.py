@@ -5,10 +5,11 @@ import requests
 import yaml
 import warnings
 import argparse
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Train price trend model')
     parser.add_argument('--config', type=str, default='./ai/vision/price_trend/configs/config.yml', help='Path to the configuration file')
-    parser.add_argument('--mode', type=str, default='eval', help='Mode of operation: train or test')
+    parser.add_argument('--mode', type=str, default='infer', help='Mode of operation: train or test')
     parser.add_argument('--eval_model', type=str, default='')
     return parser.parse_args()
 
@@ -47,8 +48,7 @@ def json_to_markdown(json_list):
         markdown += "| " + " | ".join(row) + " |\n"
     return markdown
 
-def analysis(inferencer: VisionInferencer, code, prob_thres):
-    df = inferencer.fetch_stock_data(code['code'])
+def analysis(inferencer: VisionInferencer, df, code, prob_thres):
     if df is not None and df['date'].iloc[-1].date() >= datetime.now().date() - timedelta(days=2):
         up_prob, down_prob, returns = inferencer.inference(df)
         if up_prob > prob_thres:
@@ -87,32 +87,59 @@ if __name__ == '__main__':
             print("Running in test mode, no training will be performed.")
             run_eval(config)
         elif opts.mode == 'infer':
+            from dotenv import load_dotenv
             from datetime import datetime, timedelta
             from tqdm import tqdm
-            from concurrent.futures import ThreadPoolExecutor, as_completed
+            from concurrent.futures import ProcessPoolExecutor, as_completed
+            from datasource.stock_basic.baostock_source import BaoSource
             import multiprocessing
+            import os
+            import time
             multiprocessing.set_start_method('spawn', force=True)   
 
-
-            import os
+            load_dotenv()
             server_chan_keys_env = os.getenv("SERVER_CHAN_KEYS")
             if not server_chan_keys_env:
                 raise ValueError("环境变量 SERVER_CHAN_KEYS 未设置")
             server_chan_keys = server_chan_keys_env.split(",")
             
-            inferencer = VisionInferencer(config)
-            
-            engine = StockQueryEngine(host='10.26.0.8', port=2000, username='hmcz', password='Hmcz_12345678')
+            engine = StockQueryEngine(host='10.126.126.5', port=2000, username='hmcz', password='Hmcz_12345678')
             engine.connect_async()
             stock_list = engine.stock_list_with_rate_range(3, 8)
             stock_list = [s['stock_code'] for s in stock_list if 'ST' not in s['stock_code']['name']]
 
             recomendations = []
             sales = []
-            prob_thres = 0.58
+            prob_thres = 0.6
 
-            for code in tqdm(stock_list, desc='扫描大盘股票'):
-                signal, data = analysis(inferencer, code, prob_thres)
+            # for code in tqdm(stock_list, desc='扫描大盘股票'):
+            #     signal, data = analysis(inferencer, code, prob_thres)
+            #     if signal == 'up':
+            #         recomendations.append(data)
+            #     elif signal == 'down':
+            #         sales.append(data)
+
+            source = BaoSource()
+
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=config['data']['sequence_length'] * 10)
+            stock_df = []
+            codes = []
+            with ProcessPoolExecutor(max_workers=4) as executor:
+                futures = {executor.submit(source.get_kline_daily, code['code'], start_date.date(), end_date.date(), True, False): code for code in stock_list}
+                for future in tqdm(as_completed(futures), total=len(futures), desc='获取股票数据', ncols=120):
+                    try:
+                        result = future.result()
+                        stock_df.append(result)
+                        codes.append(futures[future])
+                    except Exception as e:
+                        print(f"处理时发生错误: {e}")
+                        time.sleep(1)
+
+            inferencer = VisionInferencer(config)
+
+            for df, code in tqdm(zip(stock_df, codes), desc='分析中...'):
+                signal, data = analysis(inferencer, df, code, prob_thres)
                 if signal == 'up':
                     recomendations.append(data)
                 elif signal == 'down':
@@ -120,8 +147,15 @@ if __name__ == '__main__':
             
             recomendations = sorted(recomendations, key=lambda x: x['概率'], reverse=True)
             sales = sorted(sales, key=lambda x: x['概率'], reverse=True)
+            if len(recomendations) > 0:
+                ret, e = engine.insert_recommends({
+                    'recommends': recomendations,
+                    'sales': sales,
+                    'date': datetime.now().date().strftime('%Y-%m-%d'),
+                    'timetag': datetime.now().timestamp()
+                })
 
-            markdowns = json_to_markdown(recomendations)
-
-
-            send_to_wechat("股票推荐(测试)", markdowns)
+                markdowns = json_to_markdown(recomendations)
+                send_to_wechat("股票推荐(测试)", markdowns)
+            
+            

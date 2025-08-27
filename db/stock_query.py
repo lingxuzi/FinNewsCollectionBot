@@ -24,6 +24,9 @@ class StockQueryEngine(Singleton):
 
     def _news(self):
         return 'news'
+    
+    def _recommends(self):
+        return 'recommends'
 
     def connect_async(self):
         asyncio.run(self.db.connect_async())
@@ -163,4 +166,8 @@ class StockQueryEngine(Singleton):
 
     def insert_news(self, news):
         ret, e = asyncio.run(self.db.add_many(self._cluster(), self._news(), news))
+        return ret
+    
+    def insert_recommends(self, recommends):
+        ret, e = asyncio.run(self.db.add_one(self._cluster(), self._recommends(), recommends))
         return ret

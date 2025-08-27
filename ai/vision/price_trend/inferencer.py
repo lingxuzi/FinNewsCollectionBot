@@ -15,8 +15,6 @@ class VisionInferencer:
         self.load_scaler_and_encoders()
         self.load_model()
         self.source = BaoSource()
-        self.source._login_baostock()
-
         self.transforms = transforms.Compose([
             transforms.Resize(self.config['data']['image_size']),
             transforms.ToTensor()
@@ -43,7 +41,11 @@ class VisionInferencer:
         model_config['ts_encoder']['ts_input_dim'] = len(self.config['data']['ts_features']['features']) + len(self.config['data']['ts_features']['temporal'])
         model_config['ts_encoder']['ctx_input_dim'] = len(self.config['data']['ts_features']['numerical'])
 
-        model = create_model(self.config['training']['model'], model_config).to(device)
+        model = create_model(self.config['training']['model'], model_config)
+        model.build_ts()
+        model.build_vision()
+        model.build_fusion()
+        model = model.to(device)
         state_dict = torch.load(self.config['training']['model_save_path'], map_location=device)
         try:
             model.load_state_dict(state_dict, strict=True)
@@ -54,12 +56,6 @@ class VisionInferencer:
         model.export()
 
         self.model = model
-
-    def fetch_stock_data(self, code):
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=self.config['data']['sequence_length'] * 10)
-        df = self.source.get_kline_daily(code, start_date.date(), end_date.date(), include_industry=True)
-        return df
 
     def preprocess(self, df):
         df = self.source.calculate_indicators(df)
@@ -90,11 +86,11 @@ class VisionInferencer:
         ctx_seq = ctx_seq.to(device)
         # inference
         with torch.no_grad():
-            trend_logits, trend_logits_fused, stock_logits, industry_logits, returns = self.model(img, ts_seq, ctx_seq)
-            trend_probs = F.softmax(trend_logits, dim=1).cpu().numpy()
-            returns = returns.cpu().numpy()
+            trend_logits = self.model.fuse_logits(img, ts_seq, ctx_seq)
+            trend_probs = F.softmax(trend_logits['fused_trend_logits'], dim=1).cpu().numpy()
+            returns = trend_logits['returns'].cpu().numpy()
             up_prob = trend_probs[0][1]
             down_prob = trend_probs[0][0]
             
-        return up_prob, down_prob, returns
+        return float(up_prob), float(down_prob), float(returns)
 
