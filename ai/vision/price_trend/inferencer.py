@@ -86,7 +86,7 @@ class VisionInferencer:
         ctx_seq = ctx_seq.to(device)
         # inference
         with torch.no_grad():
-            trend_logits = self.model.fuse_logits(img, ts_seq, ctx_seq)
+            trend_logits = self.model(img, ts_seq, ctx_seq)
             trend_probs = F.softmax(trend_logits['fused_trend_logits'], dim=1).cpu().numpy()
             returns = trend_logits['returns'].cpu().numpy()
             up_prob = trend_probs[0][1]

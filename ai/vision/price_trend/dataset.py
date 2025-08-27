@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import os
 import traceback
+import copy
 from PIL import Image
 from torchvision import transforms
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -122,11 +123,6 @@ def get_image_with_price(price):
 
 def normalize(df, features, numerical):
     df['prev_close'] = df.groupby('code')['close'].shift(1)
-    df['ori_vwap'] = df['vwap'].copy()
-    df['ori_close'] = df['close'].copy()
-    if 'MBRevenue' in df.columns:
-        df.drop(columns=['MBRevenue'], axis=1, inplace=True)
-    df.dropna(inplace=True)
     
     price_cols = ['open', 'high', 'low', 'close']
     for col in price_cols:
@@ -139,6 +135,7 @@ def normalize(df, features, numerical):
     df['month'] = df['date'].dt.month / 12
     df['day'] = df['date'].dt.day / 31
     df['weekday'] = df['date'].dt.weekday + 1 / 7
+    df.bfill()
 
     return df
 
@@ -171,8 +168,8 @@ class ImagingPriceTrendDataset(Dataset):
             # all_data_df['day'] = all_data_df['date'].dt.day / 31
             # all_data_df['weekday'] = all_data_df['date'].dt.weekday + 1 / 7
 
-            ts_df = normalize(all_data_df, self.ts_features['features'], self.ts_features['numerical'])
-            ts_df[self.ts_features['features'] + self.ts_features['numerical']] = scaler.transform(all_data_df[self.ts_features['features'] + self.ts_features['numerical']])
+            ts_df = normalize(copy.deepcopy(all_data_df), self.ts_features['features'], self.ts_features['numerical'])
+            ts_df[self.ts_features['features'] + self.ts_features['numerical']] = scaler.transform(ts_df[self.ts_features['features'] + self.ts_features['numerical']])
 
             images = []
             trends = []

@@ -9,7 +9,7 @@ import argparse
 def parse_args():
     parser = argparse.ArgumentParser(description='Train price trend model')
     parser.add_argument('--config', type=str, default='./ai/vision/price_trend/configs/config.yml', help='Path to the configuration file')
-    parser.add_argument('--mode', type=str, default='infer', help='Mode of operation: train or test')
+    parser.add_argument('--mode', type=str, default='train', help='Mode of operation: train or test')
     parser.add_argument('--eval_model', type=str, default='')
     return parser.parse_args()
 
@@ -133,9 +133,9 @@ if __name__ == '__main__':
                     elif signal == 'down':
                         sales.append(data)
             
-            recomendations = sorted(recomendations, key=lambda x: x['概率'], reverse=True)
-            sales = sorted(sales, key=lambda x: x['概率'], reverse=True)
             if len(recomendations) > 0:
+                recomendations = sorted(recomendations, key=lambda x: x['概率'], reverse=True)
+                sales = sorted(sales, key=lambda x: x['概率'], reverse=True)
                 print('uploading to database...')
                 ret = engine.insert_recommends({
                     'recommends': recomendations,
@@ -149,5 +149,7 @@ if __name__ == '__main__':
                 markdowns = '# 上涨推荐 \n\n' + json_to_markdown(recomendations) + '\n\n #下跌预警 \n\n'
                 markdowns += json_to_markdown(sales) + '\n\n'
                 send_to_wechat("股票推荐(测试)", markdowns)
+            else:
+                print('no recommendations.')
             
             

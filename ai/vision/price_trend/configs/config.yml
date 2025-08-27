@@ -22,14 +22,14 @@ data:
     hist_data_file: '../hamuna_stock_data/train_data/hist/fundamental_test.pkl'
     img_caching_path: '../price_trend/test'
     #, 'ATR', 'OBV', 'CCI', 'ADX'
-  features: ['open', 'high', 'low', 'close', 'MA20', 'volume']
+  features: ['open', 'high', 'low', 'close', 'MA20', 'turn_over']
   categorical: ['industry', 'code']
   ts_features:
     features: ['open', 'high', 'low', 'close', 'volume', 'turn_over', 'MA5', 'MA10', 'MA20', 'RSI', 'MACD', 'ATR', 'OBV', 'CCI', 'ADX', 'vwap']
     temporal: ['month', 'day', 'weekday']
     numerical: ['pe_ttm', 'pb', 'ps_ttm', 'pcf_ncf_ttm']
-  sequence_length: 20       # K线序列长度
-  image_size: 60
+  sequence_length: 10       # K线序列长度
+  image_size: 30
 
 # --- 训练参数 ---
 training:

@@ -128,36 +128,8 @@ class StockNet(nn.Module):
         self.infer_mode = True
 
     def forward(self, x, ts_seq, ctx_seq):
-        x = self.model.forward_features(x)
-        x = self.global_pool(x)
-        # x = torch.cat([x, ts_emb.unsqueeze(2).unsqueeze(3)], dim=1)
-        
-        x = self.last_conv(x)
-        x = self.hardswish(x)
-
-        x = x.view(x.size(0), -1)
-
-        if not self.infer_mode:
-            trend_logits = self.trend_classifier(x)
-        else:
-            trend_logits = None
-        
-        if ts_seq is not None and ctx_seq is not None:
-            ts_fused = self.ts_model((ts_seq, ctx_seq))
-            if not self.infer_mode:
-                ts_logits = self.trend_ts_classifier(ts_fused)
-            else:
-                ts_logits = None
-            
-            ts_fused = self.fusion(x, ts_fused)
-            trend_logits_fused = self.trend_classifier_fused(ts_fused)
-            stock_logits = self.stock_classifier(ts_fused)
-            industry_logits = self.industry_classifier(ts_fused)
-            returns = self.returns_regression(ts_fused)
-        else:
-            ts_logits, trend_logits_fused, stock_logits, industry_logits, returns = None, None, None, None, None
-
-        return trend_logits, ts_logits, trend_logits_fused, stock_logits, industry_logits, returns
+        if self.infer_mode:
+            return self.fuse_logits(x, ts_seq, ctx_seq)
 
     def __vision_features(self, x):
         x = self.model.forward_features(x)
