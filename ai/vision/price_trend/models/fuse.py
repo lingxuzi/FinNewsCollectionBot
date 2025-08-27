@@ -35,7 +35,7 @@ class FeatureFusedAttention(nn.Module):
             nn.SiLU(),
             nn.Linear(in_features=hidden_dim // 2, out_features=hidden_dim, bias=False),
             nn.Sigmoid(),
-            nn.Dropout(0.5)
+            nn.Identity() #nn.Dropout(0.5)
         )
 
         self.final_projector = nn.Linear(hidden_dim * 2, fused_dim)
@@ -44,10 +44,14 @@ class FeatureFusedAttention(nn.Module):
         fused_features = torch.cat([vision_features, ts_features], dim=1)
         fused_features = self.projector(fused_features)
 
+        fused_features = nn.functional.dropout(fused_features, p=0.5, training=self.training)
+
         att_features = self.att_net(fused_features)
         att_features = att_features * fused_features
 
         fused_features = self.final_projector(torch.cat([fused_features, att_features], dim=1))
+
+        fused_features = nn.functional.dropout(fused_features, p=0.3, training=self.training)
 
         return fused_features
 
