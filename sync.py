@@ -1,5 +1,5 @@
 from kline.kline_sync import StockKlineSynchronizer
-from datasource.news import do_parse_news
+from datasource.news.rss_news_parser import do_parse_news
 import asyncio
 import warnings
 import yaml
