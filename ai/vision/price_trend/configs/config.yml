@@ -13,6 +13,10 @@ data:
     stock_list_file: "../hamuna_stock_data/train_data/hist/eval_stocks.txt"
     hist_data_file: '../hamuna_stock_data/train_data/hist/fundamental_eval.pkl'
     img_caching_path: '../price_trend/eval'
+  finetune:
+    stock_list_file: "../hamuna_stock_data/train_data/hist/finetune_stocks.txt"
+    hist_data_file: '../hamuna_stock_data/train_data/hist/fundamental_finetune.pkl'
+    img_caching_path: '../price_trend/finetune'
   test:
     stock_list_file: "../hamuna_stock_data/train_data/hist/test_stocks.txt"
     hist_data_file: '../hamuna_stock_data/train_data/hist/fundamental_test.pkl'
