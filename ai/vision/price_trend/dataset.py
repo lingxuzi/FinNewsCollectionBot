@@ -157,6 +157,9 @@ class ImagingPriceTrendDataset(Dataset):
         ])
 
         self.cache = FanoutCache(os.path.join(db_path, f'{tag}', 'cache'), shards=32, timeout=5, size_limit=3e11, eviction_policy='none')
+
+
+        self.fix_image(hist_data_file, 'sh.600557', 276)
         
         if self.cache.get('total_count', 0) == 0:
             # 1. 从数据库加载数据
@@ -170,6 +173,7 @@ class ImagingPriceTrendDataset(Dataset):
 
             ts_df = normalize(copy.deepcopy(all_data_df), self.ts_features['features'], self.ts_features['numerical'])
             ts_df[self.ts_features['features'] + self.ts_features['numerical']] = scaler.transform(ts_df[self.ts_features['features'] + self.ts_features['numerical']])
+
 
             images = []
             trends = []
@@ -208,6 +212,16 @@ class ImagingPriceTrendDataset(Dataset):
 
     def accumulative_return(self, returns):
         return np.prod(1 + returns) - 1
+
+    def fix_image(self, hist_data_file, code, idx):
+        all_data_df = pd.read_parquet(hist_data_file)
+        stock_data = all_data_df[all_data_df['code'] == code]
+        price_data = stock_data[self.features].to_numpy()
+        ts_seq = price_data[idx:idx + self.seq_length]
+        img_path = os.path.join(self.img_caching_path, code, f'{idx}.png')
+        image = get_image_with_price(ts_seq)
+        image.save(img_path)
+        print(f'fix image {img_path}')
     
     def generate_sequence_imgs(self, stock_data, ts_data, code):
         try:
