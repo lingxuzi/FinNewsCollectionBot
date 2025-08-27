@@ -116,16 +116,16 @@ def run_training(config, mode='train'):
     else:
         train_dataset = ImagingPriceTrendDataset(
             db_path=config['data']['db_path'],
-            img_caching_path=config['data']['eval']['img_caching_path'],
-            stock_list_file=config['data']['eval']['stock_list_file'],
-            hist_data_file=config['data']['eval']['hist_data_file'],
+            img_caching_path=config['data']['finetune']['img_caching_path'],
+            stock_list_file=config['data']['finetune']['stock_list_file'],
+            hist_data_file=config['data']['finetune']['hist_data_file'],
             seq_length=config['data']['sequence_length'],
             features=config['data']['features'],
             ts_features=config['data']['ts_features'],
             image_size=config['data']['image_size'],
             encoder=encoder,
             scaler=scaler,
-            tag='eval',
+            tag='finetune',
             is_train=False
         )
 
