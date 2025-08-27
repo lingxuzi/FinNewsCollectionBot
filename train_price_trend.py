@@ -126,10 +126,11 @@ if __name__ == '__main__':
 
             for df, code in tqdm(zip(stock_df, codes), desc='分析中...'):
                 signal, data = analysis(inferencer, df, code, prob_thres)
-                if signal == 'up':
-                    recomendations.append(data)
-                elif signal == 'down':
-                    sales.append(data)
+                if signal is not None:
+                    if signal == 'up':
+                        recomendations.append(data)
+                    elif signal == 'down':
+                        sales.append(data)
             
             recomendations = sorted(recomendations, key=lambda x: x['概率'], reverse=True)
             sales = sorted(sales, key=lambda x: x['概率'], reverse=True)
