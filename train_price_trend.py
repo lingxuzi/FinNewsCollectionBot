@@ -64,8 +64,7 @@ def analysis(inferencer: VisionInferencer, df, code, prob_thres):
                 '股票代码': code['code'],
                 '股票名称': code['name'],
                 '信号': '卖出',
-                '概率': down_prob,
-                '回报预测': returns
+                '概率': down_prob
             }
     return None, None
 
@@ -104,6 +103,7 @@ if __name__ == '__main__':
                 raise ValueError("环境变量 SERVER_CHAN_KEYS 未设置")
             server_chan_keys = server_chan_keys_env.split(",")
             
+            print('loading rated stock list from database...')
             engine = StockQueryEngine(host='10.126.126.5', port=2000, username='hmcz', password='Hmcz_12345678')
             engine.connect_async()
             stock_list = engine.stock_list_with_rate_range(3, 8)
@@ -117,13 +117,14 @@ if __name__ == '__main__':
             end_date = datetime.now()
             start_date = end_date - timedelta(days=config['data']['sequence_length'] * 10)
 
-
+            print('loading rated stock data from database...')
             stock_df = engine.get_stock_datas([code['code'] for code in stock_list], start_date, end_date)
             stock_df = [pd.DataFrame(df).sort_values('date') for df in stock_df]
             codes = stock_list
 
             inferencer = VisionInferencer(config)
 
+            print('inferencing...')
             for df, code in tqdm(zip(stock_df, codes), desc='分析中...'):
                 signal, data = analysis(inferencer, df, code, prob_thres)
                 if signal is not None:
@@ -135,6 +136,7 @@ if __name__ == '__main__':
             recomendations = sorted(recomendations, key=lambda x: x['概率'], reverse=True)
             sales = sorted(sales, key=lambda x: x['概率'], reverse=True)
             if len(recomendations) > 0:
+                print('uploading to database...')
                 ret = engine.insert_recommends({
                     'recommends': recomendations,
                     'sales': sales,
@@ -142,8 +144,10 @@ if __name__ == '__main__':
                     'timetag': datetime.now().timestamp()
                 })
 
-                markdowns = json_to_markdown(recomendations) + '\n\n'
-                markdowns += json_to_markdown(sales)
+
+                print('pushing notifications...')
+                markdowns = '# 上涨推荐 \n\n' + json_to_markdown(recomendations) + '\n\n #下跌预警 \n\n'
+                markdowns += json_to_markdown(sales) + '\n\n'
                 send_to_wechat("股票推荐(测试)", markdowns)
             
             
