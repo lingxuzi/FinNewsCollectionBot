@@ -341,6 +341,7 @@ def run_training(config, mode='train'):
 
 
 def generate_gradcam(model, dataset):
+    print('generating gradcams...')
     model.eval()
 
     indices = random.sample(range(len(dataset)), 10)
