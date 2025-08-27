@@ -135,7 +135,8 @@ def normalize(df, features, numerical):
     df['month'] = df['date'].dt.month / 12
     df['day'] = df['date'].dt.day / 31
     df['weekday'] = df['date'].dt.weekday + 1 / 7
-    df.bfill()
+
+    df.bfill(inplace=True)
 
     return df
 
