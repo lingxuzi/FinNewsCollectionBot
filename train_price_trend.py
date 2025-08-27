@@ -148,14 +148,15 @@ if __name__ == '__main__':
             recomendations = sorted(recomendations, key=lambda x: x['概率'], reverse=True)
             sales = sorted(sales, key=lambda x: x['概率'], reverse=True)
             if len(recomendations) > 0:
-                ret, e = engine.insert_recommends({
+                ret = engine.insert_recommends({
                     'recommends': recomendations,
                     'sales': sales,
                     'date': datetime.now().date().strftime('%Y-%m-%d'),
                     'timetag': datetime.now().timestamp()
                 })
 
-                markdowns = json_to_markdown(recomendations)
+                markdowns = json_to_markdown(recomendations) + '\n\n'
+                markdowns += json_to_markdown(sales)
                 send_to_wechat("股票推荐(测试)", markdowns)
             
             
