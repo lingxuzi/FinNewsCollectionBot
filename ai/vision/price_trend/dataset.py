@@ -177,7 +177,7 @@ class ImagingPriceTrendDataset(Dataset):
             industries = []
             ts_sequences = []
             ctx_sequences = []
-            with ThreadPoolExecutor(max_workers=4) as executor:
+            with ThreadPoolExecutor(max_workers=10) as executor:
                 futures = {executor.submit(self.generate_sequence_imgs, all_data_df[all_data_df['code'] == code], ts_df[ts_df['code'] == code], code): code for code in stock_list}
                 for future in tqdm(as_completed(futures), total=len(futures), ncols=120, desc='generate sequence imgs'):
                     code = futures[future]
