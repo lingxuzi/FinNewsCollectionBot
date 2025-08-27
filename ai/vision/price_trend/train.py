@@ -363,8 +363,8 @@ def generate_gradcam(model, dataset):
 
 def gradcam_forward(input_tensor, model):
     img, stock, industry, ts, ctx = input_tensor
-    trend_pred, ts_pred, trend_pred_fused, stock_pred, industry_pred, returns = model(img, None, None)
-    return trend_pred
+    trend_pred = model.vision_logits(img)
+    return trend_pred['vision_logits']
 
 def eval(model, dataset, config, log_agent):
     _model = model#copy.deepcopy(ema.module)
