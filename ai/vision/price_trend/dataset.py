@@ -158,8 +158,8 @@ class ImagingPriceTrendDataset(Dataset):
 
         self.cache = FanoutCache(os.path.join(db_path, f'{tag}', 'cache'), shards=32, timeout=5, size_limit=3e11, eviction_policy='none')
 
-
         self.fix_image(hist_data_file, 'sh.600557', 276)
+        return
         
         if self.cache.get('total_count', 0) == 0:
             # 1. 从数据库加载数据
