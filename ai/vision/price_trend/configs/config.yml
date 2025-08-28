@@ -34,7 +34,7 @@ data:
 # --- 训练参数 ---
 training:
   workers: 4
-  finetune: true
+  finetune: false
   model: 'stocknet'
   awl: false
   clip_norm: 0
