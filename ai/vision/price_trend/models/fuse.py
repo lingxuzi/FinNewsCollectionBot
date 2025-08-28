@@ -24,6 +24,55 @@ class CrossFused(nn.Module):
         # 可再对称做一次 TS→Vision，或简单 FFN
         out = self.norm2(self.out_proj(out))
         return out
+    
+class CrossModalAttention(nn.Module):
+    def __init__(self, fused_dim, hidden_dim):
+        super().__init__()
+        # 共享投影层（保持参数量）
+        self.shared_projector = nn.Linear(fused_dim, hidden_dim)
+        
+        # 分离的注意力分支（参数总量与原网络相当）
+        self.vision_att = nn.Sequential(
+            nn.Linear(hidden_dim * 2, hidden_dim // 2),  # 输入包含时序特征用于交互
+            nn.SiLU(),
+            nn.Linear(hidden_dim // 2, hidden_dim, bias=False),
+            nn.Sigmoid()
+        )
+        
+        self.ts_att = nn.Sequential(
+            nn.Linear(hidden_dim * 2, hidden_dim // 2),  # 输入包含视觉特征用于交互
+            nn.SiLU(),
+            nn.Linear(hidden_dim // 2, hidden_dim, bias=False),
+            nn.Sigmoid()
+        )
+        
+        # 最终融合投影（保持原计算量）
+        self.final_projector = nn.Linear(hidden_dim * 2, fused_dim)
+        self.norm = nn.LayerNorm(fused_dim)
+
+    def forward(self, vision_features, ts_features):
+        # 1. 基础投影（共享权重，减少参数）
+        v_proj = self.shared_projector(vision_features)  # 视觉特征投影
+        t_proj = self.shared_projector(ts_features)      # 时序特征投影
+        
+        # 2. 交叉注意力计算（核心改进）
+        # 视觉注意力同时参考时序特征，增强交互
+        vision_att_input = torch.cat([v_proj, t_proj], dim=1)  # 跨模态输入
+        vision_weights = self.vision_att(vision_att_input)
+        v_att = v_proj * vision_weights
+        
+        # 时序注意力同时参考视觉特征，增强交互
+        ts_att_input = torch.cat([t_proj, v_proj], dim=1)  # 跨模态输入（顺序交换）
+        ts_weights = self.ts_att(ts_att_input)
+        t_att = t_proj * ts_weights
+        
+        # 3. 特征融合与输出
+        fused = torch.cat([v_att, t_att], dim=1)
+        output = self.final_projector(fused)
+        output = self.norm(output)
+        
+        # 残差连接保留原始特征
+        return output + (vision_features + ts_features) * 0.5
 
 class FeatureFusedAttention(nn.Module):
     def __init__(self, fused_dim, hidden_dim):
@@ -81,7 +130,7 @@ class FeatureFusedAttention(nn.Module):
 
 def get_fusing_layer(method='default', fused_dim=1024, hidden_dim=1024, **kwargs):
     if method == 'cross':
-        return CrossFused(fused_dim, hidden_dim, **kwargs)
+        return CrossModalAttention(fused_dim, hidden_dim, **kwargs)
     elif method == 'default':
         return FeatureFusedAttention(fused_dim, hidden_dim, **kwargs)
     else:
