@@ -270,6 +270,7 @@ def run_training(config, mode='train'):
         for _ in pbar:
             img, trend, returns, stock, industry, ts, ctx = train_iter.next()
             optimizer.zero_grad()
+            model.zero_grad()
 
             losses = {}
             if config['training']['module_train'] == 'vision':
@@ -284,8 +285,11 @@ def run_training(config, mode='train'):
                 losses['trend'] = loss_ts
                 trend_loss_meter.update(loss_ts.item())
                 trend_metric_meter.update(trend_logits['ts_logits'].argmax(dim=1).eq(trend.squeeze()).float().mean().item())
-            elif config['training']['module_train'] == 'fusion':
-                trend_logits = model.fuse_logits(img, ts, ctx)
+            elif config['training']['module_train'] in ['fusion', 'all']:
+                if config['training']['module_train'] == 'fusion':
+                    trend_logits = model.fuse_logits(img, ts, ctx)
+                elif config['training']['module_train'] == 'all':
+                    trend_logits = model.all_logits(img, ts, ctx)
                 losses['trend'] = criterion_trend(trend_logits['fused_trend_logits'], trend.squeeze())
                 losses['stock'] = criterion_stock(trend_logits['stock_logits'], stock.squeeze())
                 losses['industry'] = criterion_industry(trend_logits['industry_logits'], industry.squeeze())
@@ -394,8 +398,11 @@ def eval(model, dataset, config, log_agent):
             elif config['training']['module_train'] == 'ts':
                 trend_logits = model.ts_logits(ts, ctx)
                 trend_metric.update(trend.squeeze().cpu().numpy(), trend_logits['ts_logits'].cpu().numpy())
-            elif config['training']['module_train'] == 'fusion':
-                trend_logits = model.fuse_logits(img, ts, ctx)
+            elif config['training']['module_train'] in ['fusion', 'all']:
+                if config['training']['module_train'] == 'fusion':
+                    trend_logits = model.fuse_logits(img, ts, ctx)
+                elif config['training']['module_train'] == 'all':
+                    trend_logits = model.all_logits(img, ts, ctx)
                 trend_metric.update(trend.squeeze().cpu().numpy(), trend_logits['fused_trend_logits'].cpu().numpy())
                 return_metric.update(returns.squeeze().cpu().numpy(), trend_logits['returns'].detach().cpu().numpy())
     

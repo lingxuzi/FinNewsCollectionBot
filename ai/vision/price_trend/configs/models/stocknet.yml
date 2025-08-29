@@ -1,6 +1,6 @@
 trend_classes: 2
 dropout: 0.1
-fused_method: 'cross'
+fused_method: 'default'
 backbone: 'stockchartnet'
 attention_mode: 'ca'
 gradlayer: 'layers[-2].conv2'
