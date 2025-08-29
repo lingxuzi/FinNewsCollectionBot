@@ -57,7 +57,7 @@ def analysis(inferencer: VisionInferencer, df, code, prob_thres):
                 '股票名称': code['name'],
                 '信号': '买入',
                 '概率': up_prob,
-                '回报预测': returns
+                '回报预测': '{:.2f}%'.format(returns)
             }
         elif down_prob > prob_thres:
             return 'down', {
