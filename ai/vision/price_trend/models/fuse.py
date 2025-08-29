@@ -78,54 +78,28 @@ class FeatureFusedAttention(nn.Module):
     def __init__(self, fused_dim, hidden_dim):
         super().__init__()
         self.projector = nn.Linear(fused_dim * 2, hidden_dim)
-        self.norm1 = nn.LayerNorm(hidden_dim)
         self.att_net = nn.Sequential(
             nn.Linear(in_features=hidden_dim, out_features=hidden_dim // 2),
-            nn.LayerNorm(hidden_dim // 2),
             nn.Dropout(0.1),
             nn.SiLU(),
             nn.Linear(in_features=hidden_dim // 2, out_features=hidden_dim, bias=False),
             nn.Sigmoid()
         )
 
-        self.final_projector = nn.Linear(hidden_dim, fused_dim)
-        self.norm2 = nn.LayerNorm(fused_dim)
+        self.final_projector = nn.Linear(hidden_dim * 2, fused_dim)
 
     def forward(self, vision_features, ts_features):
-        # fused_features = torch.cat([vision_features, ts_features], dim=1)
-        # fused_features = self.projector(fused_features)
-
-        # fused_features = nn.functional.dropout(fused_features, p=0.5, training=self.training)
-
-        # att_features = self.att_net(fused_features)
-        # att_features = att_features * fused_features
-
-        # fused_features = self.final_projector(torch.cat([fused_features, att_features], dim=1))
-
-        # return fused_features
-
-        add_features = vision_features + ts_features
-        mul_features = vision_features * ts_features
-        fused_features = torch.cat([add_features, mul_features], dim=1)  # 仍为2*fused_dim
-        
-        # 2. 投影+归一化
+        fused_features = torch.cat([vision_features, ts_features], dim=1)
         fused_features = self.projector(fused_features)
-        fused_features = self.norm1(fused_features)  # 稳定特征分布
-        
-        # 3. 注意力机制（保持计算量）
-        att_weights = self.att_net(fused_features)  # 注意力权重
-        att_features = fused_features * att_weights  # 门控选择
-        
-        # 4. 残差融合：用加法替代拼接，减少维度
-        combined = fused_features + att_features  # 维度为hidden_dim
-        
-        # 5. 最终投影+归一化+残差连接（保留原始特征信息）
-        output = self.final_projector(combined)
-        output = self.norm2(output)
-        # 残差连接：融合结果 + 原始特征的平均（不增加计算量，帮助梯度传播）
-        output = output + (vision_features + ts_features) * 0.5
-        
-        return output
+
+        fused_features = nn.functional.dropout(fused_features, p=0.5, training=self.training)
+
+        att_features = self.att_net(fused_features)
+        att_features = att_features * fused_features
+
+        fused_features = self.final_projector(torch.cat([fused_features, att_features], dim=1))
+
+        return fused_features
 
 
 def get_fusing_layer(method='default', fused_dim=1024, hidden_dim=1024, **kwargs):
