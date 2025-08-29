@@ -1,5 +1,5 @@
 trend_classes: 2
-dropout: 0.8
+dropout: 0.1
 fused_method: 'cross'
 backbone: 'stockchartnet'
 attention_mode: 'ca'
