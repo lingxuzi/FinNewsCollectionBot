@@ -3,6 +3,7 @@ import joblib
 import os
 import ai.vision.price_trend.models.base
 import torch.nn.functional as F
+import copy
 from datetime import datetime, timedelta
 from datasource.stock_basic.baostock_source import BaoSource
 from ai.vision.price_trend.models import create_model, get_model_config
@@ -59,7 +60,7 @@ class VisionInferencer:
 
     def preprocess(self, df):
         df = self.source.calculate_indicators(df)
-        ts_df = normalize(df, self.config['data']['ts_features']['features'], self.config['data']['ts_features']['numerical'])
+        ts_df = normalize(copy.deepcopy(df), self.config['data']['ts_features']['features'], self.config['data']['ts_features']['numerical'])
         ts_df[self.config['data']['ts_features']['features'] + self.config['data']['ts_features']['numerical']] = self.scaler.transform(ts_df[self.config['data']['ts_features']['features'] + self.config['data']['ts_features']['numerical']])
         ts_featured_stock_data = ts_df[self.config['data']['ts_features']['features'] + self.config['data']['ts_features']['temporal']].to_numpy()
         ts_numerical_stock_data = ts_df[self.config['data']['ts_features']['numerical']].to_numpy()
