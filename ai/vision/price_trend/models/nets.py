@@ -169,10 +169,10 @@ class StockNet(nn.Module):
         }
     
     def fuse_logits(self, x, ts_seq, ctx_seq):
-        #with torch.no_grad():
-        vision_features = self.__vision_features(x)
-        ts_features = self.__ts_features(ts_seq, ctx_seq)
-        fused_features = self.fusion(vision_features, ts_features)
+        with torch.no_grad():
+            vision_features = self.__vision_features(x)
+            ts_features = self.__ts_features(ts_seq, ctx_seq)
+        fused_features = self.fusion(vision_features.detach(), ts_features.detach())
         # fused_features = F.dropout(fused_features, p=self.config['dropout'], training=self.training)
         trend_logits_fused = self.trend_classifier_fused(fused_features)
         stock_logits = self.stock_classifier(fused_features)
