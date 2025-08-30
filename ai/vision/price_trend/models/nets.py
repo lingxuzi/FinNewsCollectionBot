@@ -188,16 +188,19 @@ class StockNet(nn.Module):
     def all_logits(self, x, ts_seq, ctx_seq):
         vision_features = self.__vision_features(x)
         ts_features = self.__ts_features(ts_seq, ctx_seq)
+
+        vision_logits = self.__classify_vision(vision_features)
+        ts_logits = self.__classify_ts(ts_features)
+
         fused_features = self.fusion(vision_features, ts_features)
-        # fused_features = F.dropout(fused_features, p=self.config['dropout'], training=self.training)
         trend_logits_fused = self.trend_classifier_fused(fused_features)
-        stock_logits = self.stock_classifier(fused_features)
-        industry_logits = self.industry_classifier(fused_features)
+        # stock_logits = self.stock_classifier(fused_features)
+        # industry_logits = self.industry_classifier(fused_features)
         returns = self.returns_regression(fused_features)
         return {
             'fused_trend_logits': trend_logits_fused,
-            'stock_logits': stock_logits,
-            'industry_logits': industry_logits,
+            'vision_logits': vision_logits,
+            'ts_logits': ts_logits,
             'returns': returns
         }
 
