@@ -9,7 +9,7 @@ import argparse
 def parse_args():
     parser = argparse.ArgumentParser(description='Train price trend model')
     parser.add_argument('--config', type=str, default='./ai/vision/price_trend/configs/config.yml', help='Path to the configuration file')
-    parser.add_argument('--mode', type=str, default='train', help='Mode of operation: train or test')
+    parser.add_argument('--mode', type=str, default='infer', help='Mode of operation: train or test')
     parser.add_argument('--eval_model', type=str, default='')
     return parser.parse_args()
 
@@ -48,16 +48,20 @@ def json_to_markdown(json_list):
         markdown += "| " + " | ".join(row) + " |\n"
     return markdown
 
-def analysis(inferencer: VisionInferencer, df, code, prob_thres):
+def analysis(inferencer: VisionInferencer, index_df, df, code, prob_thres):
     if df is not None and df['date'].iloc[-1].date() >= datetime.now().date() - timedelta(days=2):
         up_prob, down_prob, returns = inferencer.inference(df)
         if up_prob > prob_thres:
+            betas, trend = calu_kalman_beta(df, index_df, lookback_days=5)
             return 'up', {
                 '股票代码': code['code'],
                 '股票名称': code['name'],
                 '信号': '买入',
                 '概率': up_prob,
-                '回报预测': '{:.2f}%'.format(returns)
+                '回报预测': '{:.2f}%'.format(returns),
+                '与指数相关性': betas[-1],
+                '趋势': trend,
+                '风险': '高' if (betas[-1] > 1 and str(trend) == '上涨') or (0 < betas[-1] < 1 and str(trend) == '下跌') else '低',
             }
         elif down_prob > prob_thres:
             return 'down', {
@@ -91,6 +95,7 @@ if __name__ == '__main__':
             from tqdm import tqdm
             from concurrent.futures import ProcessPoolExecutor, as_completed
             from datasource.stock_basic.baostock_source import BaoSource
+            from rating.index_corr_beta import calu_kalman_beta
             import multiprocessing
             import os
             import time
@@ -122,11 +127,15 @@ if __name__ == '__main__':
             stock_df = [pd.DataFrame(df).sort_values('date') for df in stock_df]
             codes = stock_list
 
+            print('loading index data...')
+            source = BaoSource()
+            index_df = source.get_kline_daily('sh.000001', start_date, end_date)
+
             inferencer = VisionInferencer(config)
 
             print('inferencing...')
             for df, code in tqdm(zip(stock_df, codes), desc='分析中...'):
-                signal, data = analysis(inferencer, df, code, prob_thres)
+                signal, data = analysis(inferencer, index_df, df, code, prob_thres)
                 if signal is not None:
                     if signal == 'up':
                         recomendations.append(data)

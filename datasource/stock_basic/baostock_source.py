@@ -21,6 +21,8 @@ class BaoSource(StockSource):
         bs.logout()
         
     def _format_code(self, code):
+        if len(code) == 9:
+            return code
         prefix = self._get_code_prefix(code)
         return f'{prefix}.{code}'
     
