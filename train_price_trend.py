@@ -146,7 +146,7 @@ if __name__ == '__main__':
 
 
                 print('pushing notifications...')
-                markdowns = '# 上涨推荐 \n\n' + json_to_markdown(recomendations) + '\n\n #下跌预警 \n\n'
+                markdowns = '# 上涨推荐 \n\n' + json_to_markdown(recomendations[:10]) + '\n\n #下跌预警 \n\n'
                 markdowns += json_to_markdown(sales) + '\n\n'
                 send_to_wechat("股票推荐(测试)", markdowns)
             else:
