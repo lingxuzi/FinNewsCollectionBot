@@ -415,7 +415,7 @@ def eval(model, dataset, config, log_agent):
     _, trend_score = trend_metric.calculate()
     scores['trend_score'] = trend_score
     
-    if config['training']['module_train'] == 'fusion':
+    if config['training']['module_train'] in ['fusion', 'all'] :
         _, return_score = return_metric.calculate()
         scores['return_score'] = return_score
     
