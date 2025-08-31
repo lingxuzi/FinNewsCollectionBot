@@ -72,10 +72,10 @@ def weights_initialize(module):
         print(f"   -> Module {type(module)} is not a Linear layer, skipping zero-initialization.")
 
 class DropoutPredictionHead(nn.Module):
-    def __init__(self, dropout=0.0, feature_dim=1280, classes=1, regression=False):
+    def __init__(self, dropout=0.0, feature_dim=1280, classes=1, dropout_samples=2, regression=False):
         super().__init__()
         if dropout > 0.0:
-            self.dropout = nn.Dropout(dropout)
+            self.dropout = nn.ModuleList([nn.Dropout(dropout) for _ in range(dropout_samples)])
         else:
             self.dropout = None
 
@@ -84,9 +84,17 @@ class DropoutPredictionHead(nn.Module):
             weights_initialize(self.classifier)
 
     def forward(self, x):
-        if self.dropout is not None:
-            x = self.dropout(x)
-        return self.classifier(x)
+        if self.training:
+            outputs = []
+            if self.dropout is not None:
+                for dropout in self.dropout:
+                    x = dropout(x)
+                    outputs.append(self.classifier(x))
+            else:
+                outputs.append(self.classifier(x))
+            return outputs
+        else:
+            return self.classifier(x)
 
 @register_model('stocknet')
 class StockNet(nn.Module):

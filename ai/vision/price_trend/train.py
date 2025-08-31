@@ -61,6 +61,17 @@ def generate_encoder(hist_data_files, ts_features, ts_numerical, categorical):
 
     return (indus_encoder, code_encoder), scaler
 
+class MutliDropoutLoss(nn.Module):
+    def __init__(self, loss_fn):
+        super().__init__()
+        self.loss_fn = loss_fn
+
+    def forward(self, outputs, targets):
+        loss = 0
+        for output in outputs:
+            loss += self.loss_fn(output, targets)
+        return loss / len(outputs)
+
 def run_training(config, mode='train'):
     # set random seed
     """主训练函数"""
@@ -126,7 +137,7 @@ def run_training(config, mode='train'):
             image_size=config['data']['image_size'],
             encoder=encoder,
             scaler=scaler,
-            tag='finetune',
+            tag='eval',
             is_train=False
         )
 
@@ -217,10 +228,10 @@ def run_training(config, mode='train'):
     #     model.build_vision()
     #     model.build_fusion()
 
-    criterion_trend = nn.CrossEntropyLoss() #ASLSingleLabel() #focal_loss(alpha=0.3, gamma=2, num_classes=model_config['trend_classes'])
-    criterion_stock = nn.CrossEntropyLoss() #ASLSingleLabel()
-    criterion_industry = nn.CrossEntropyLoss() #ASLSingleLabel()
-    criterion_return = nn.HuberLoss(delta=0.1) #HuberTrendLoss(tildeq=True)
+    criterion_trend = MutliDropoutLoss(nn.CrossEntropyLoss()) #ASLSingleLabel() #focal_loss(alpha=0.3, gamma=2, num_classes=model_config['trend_classes'])
+    criterion_stock = MutliDropoutLoss(nn.CrossEntropyLoss()) #ASLSingleLabel()
+    criterion_industry = MutliDropoutLoss(nn.CrossEntropyLoss()) #ASLSingleLabel()
+    criterion_return = MutliDropoutLoss(nn.HuberLoss(delta=0.1)) #HuberTrendLoss(tildeq=True)
 
     parameters = []
     if config['training']['awl']:
@@ -290,9 +301,9 @@ def run_training(config, mode='train'):
                     trend_logits = model.fuse_logits(img, ts, ctx)
                 elif config['training']['module_train'] == 'all':
                     trend_logits = model.all_logits(img, ts, ctx)
+                    losses['vision'] = criterion_trend(trend_logits['vision_logits'], trend.squeeze())
+                    losses['ts'] = criterion_trend(trend_logits['ts_logits'], trend.squeeze())
                 losses['trend'] = criterion_trend(trend_logits['fused_trend_logits'], trend.squeeze())
-                losses['vision'] = criterion_trend(trend_logits['vision_logits'], trend.squeeze())
-                losses['ts'] = criterion_trend(trend_logits['ts_logits'], trend.squeeze())
                 # losses['stock'] = criterion_stock(trend_logits['stock_logits'], stock.squeeze())
                 # losses['industry'] = criterion_industry(trend_logits['industry_logits'], industry.squeeze())
                 losses['returns'] = criterion_return(trend_logits['returns'], returns.squeeze())
@@ -300,8 +311,8 @@ def run_training(config, mode='train'):
                 # stock_loss_meter.update(losses['stock'].item())
                 # industry_loss_meter.update(losses['industry'].item())
                 returns_loss_meter.update(losses['returns'].item())
-                trend_metric_meter.update(trend_logits['fused_trend_logits'].argmax(dim=1).eq(trend.squeeze()).float().mean().item())
-                returns_metric_meter.update(r2_score(returns.squeeze().cpu().numpy(), trend_logits['returns'].detach().cpu().numpy()))
+                trend_metric_meter.update(torch.stack(trend_logits['fused_trend_logits'], dim=1).detach().mean(dim=1).argmax(dim=1).eq(trend.squeeze()).float().mean().item())
+                returns_metric_meter.update(r2_score(returns.squeeze().cpu().numpy(), torch.stack(trend_logits['returns'], dim=1).detach().cpu().mean(dim=1).numpy()))
 
             
             if config['training']['awl']:
