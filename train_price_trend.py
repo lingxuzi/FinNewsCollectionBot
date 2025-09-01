@@ -49,7 +49,7 @@ def json_to_markdown(json_list):
     return markdown
 
 def analysis(inferencer: VisionInferencer, index_df, df, code, prob_thres):
-    if df is not None and df['date'].iloc[-1].date() >= datetime.now().date() - timedelta(days=2):
+    if df is not None and df['date'].iloc[-1].date() >= datetime.now().date() - timedelta(days=3):
         up_prob, down_prob, returns = inferencer.inference(df)
         if up_prob > prob_thres:
             betas, trend = calu_kalman_beta(df, index_df, lookback_days=5)
