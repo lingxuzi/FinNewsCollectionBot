@@ -48,6 +48,12 @@ def json_to_markdown(json_list):
         markdown += "| " + " | ".join(row) + " |\n"
     return markdown
 
+def is_trade_day(date):
+    if is_workday(date):
+        if datetime.isoweekday(date) < 6:
+            return True
+    return False
+
 def analysis(inferencer: VisionInferencer, index_df, df, code, prob_thres):
     if df is not None and df['date'].iloc[-1].date() >= datetime.now().date() - timedelta(days=3):
         up_prob, down_prob, returns = inferencer.inference(df)
@@ -100,7 +106,12 @@ if __name__ == '__main__':
             import os
             import time
             import pandas as pd
-            multiprocessing.set_start_method('spawn', force=True)   
+            from chinese_calendar import is_workday
+            multiprocessing.set_start_method('spawn', force=True) 
+
+            if not is_trade_day(datetime.now()):
+                print('today is not a trade day, exit...')
+                exit(0)
 
             load_dotenv()
             server_chan_keys_env = os.getenv("SERVER_CHAN_KEYS")
