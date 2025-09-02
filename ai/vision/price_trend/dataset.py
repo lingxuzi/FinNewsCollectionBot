@@ -153,7 +153,7 @@ class ImagingPriceTrendDataset(Dataset):
         os.makedirs(self.img_caching_path, exist_ok=True)
 
         self.transforms = transforms.Compose([
-            transforms.Resize(max(60, self.image_size), max(60, self.image_size)),
+            transforms.Resize((max(60, self.image_size), max(60, self.image_size)), interpolation=transforms.InterpolationMode.NEAREST),
             transforms.ToTensor()
         ])
 
