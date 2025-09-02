@@ -58,9 +58,9 @@ class ResidualBlock(nn.Module):
         out = self.relu(out)
         if self.stride > 1:
             mask = F.max_pool2d(mask, kernel_size=self.kernel_size, stride=self.stride, padding=self.kernel_size//2)
+            out = out * mask
         if self.attention:
             out = self.ca(out)
-            out = out * mask
         out = self.conv3(out)
         out = self.bn3(out)
         out += self.shortcut(residual) * mask
