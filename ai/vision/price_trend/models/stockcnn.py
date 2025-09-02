@@ -80,8 +80,8 @@ class StockChartNet(nn.Module):
 
     def build_conv_groups(self, in_chans, channels=[16, 32, 64, 128, 256], kernel_size = 5, attention_mode='ca'):
         self.stem = ResidualBlock(in_chans, channels[0], kernel_size=kernel_size, stride=2, attention=False)
-        self.block2 = ResidualBlock(channels[0], channels[1], kernel_size=kernel_size, stride=2, attention=False)
-        self.block3 = ResidualBlock(channels[1], channels[2], kernel_size=kernel_size, stride=2, attention=False)
+        self.block2 = ResidualBlock(channels[0], channels[1], kernel_size=kernel_size, stride=1, attention=False)
+        self.block3 = ResidualBlock(channels[1], channels[2], kernel_size=kernel_size, stride=1, attention=False)
         self.block4 = ResidualBlock(channels[2], channels[3], kernel_size=kernel_size, stride=2, attention_mode=attention_mode)
         self.block5 = ResidualBlock(channels[3], channels[4], kernel_size=kernel_size, stride=1, attention_mode=attention_mode)
 
