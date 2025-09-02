@@ -145,7 +145,7 @@ class CA_Block(nn.Module):
 
         att_map = A_h * A_w
         if mask is not None:
-            att_map = att_map * (1 + mask)
+            att_map = att_map * (2 * mask)
         out = x * att_map
  
         return out
