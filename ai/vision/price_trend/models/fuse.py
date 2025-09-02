@@ -29,8 +29,14 @@ class CrossModalAttention(nn.Module):
     def __init__(self, fused_dim, hidden_dim):
         super().__init__()
         # 共享投影层（保持参数量）
-        self.vis_projector = nn.Linear(fused_dim, hidden_dim)
-        self.ts_projector = nn.Linear(fused_dim, hidden_dim)
+        self.vis_projector = nn.Sequential(
+            nn.Linear(fused_dim, hidden_dim, bias=False),
+            nn.LayerNorm(hidden_dim)
+        )
+        self.ts_projector = nn.Sequential(
+            nn.Linear(fused_dim, hidden_dim, bias=False),
+            nn.LayerNorm(hidden_dim)
+        )
         
         # 分离的注意力分支（参数总量与原网络相当）
         self.vision_att = nn.Sequential(
@@ -59,19 +65,19 @@ class CrossModalAttention(nn.Module):
         # 视觉注意力同时参考时序特征，增强交互
         vision_att_input = torch.cat([v_proj, t_proj], dim=1)  # 跨模态输入
         vision_weights = self.vision_att(vision_att_input)
-        v_att = v_proj * vision_weights
+        v_att = v_proj * (vision_weights + 1)
         
         # 时序注意力同时参考视觉特征，增强交互
         ts_att_input = torch.cat([t_proj, v_proj], dim=1)  # 跨模态输入（顺序交换）
         ts_weights = self.ts_att(ts_att_input)
-        t_att = t_proj * ts_weights
+        t_att = t_proj * (ts_weights + 1)
         
         # 3. 特征融合与输出
         fused = torch.cat([v_att, t_att], dim=1)
         output = self.final_projector(fused)
         
         # 残差连接保留原始特征
-        return output + (vision_features + ts_features) * 0.5
+        return output
 
 class FeatureFusedAttention(nn.Module):
     def __init__(self, fused_dim, hidden_dim):
