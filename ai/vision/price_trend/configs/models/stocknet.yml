@@ -2,7 +2,7 @@ trend_classes: 2
 dropout: 0.8
 fused_method: 'default'
 backbone: 'stockchartnet'
-attention_mode: 'cbam'
+attention_mode: 'ca'
 gradlayer: 'block5.conv2'
 embedding_dim: 128
 ts_encoder:
