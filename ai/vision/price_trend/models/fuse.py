@@ -80,7 +80,7 @@ class FeatureFusedAttention(nn.Module):
         self.att_net = nn.Sequential(
             nn.Linear(in_features=hidden_dim, out_features=hidden_dim // 2),
             nn.Dropout(0.1),
-            nn.SiLU(),
+            nn.Tanh(),
             nn.Linear(in_features=hidden_dim // 2, out_features=hidden_dim, bias=False),
             nn.Sigmoid()
         )
