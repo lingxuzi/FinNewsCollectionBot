@@ -3,6 +3,59 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 
+class SpatialAttentionEnhanced(nn.Module):
+    """增强版空间注意力：专门强化有效区域的空间定位"""
+    def __init__(self, kernel_size=7):
+        super(SpatialAttentionEnhanced, self).__init__()
+        self.conv = nn.Conv2d(2, 1, kernel_size=kernel_size, padding=kernel_size//2, bias=False)
+        self.sigmoid = nn.Sigmoid()
+        # 增加一个小权重，抑制背景区域的注意力值
+        self.bg_suppress = nn.Parameter(torch.tensor(0.1), requires_grad=True)
+
+    def forward(self, x):
+        # 对特征图做全局平均和最大值池化（突出有效区域）
+        avg_out = torch.mean(x, dim=1, keepdim=True)
+        max_out, _ = torch.max(x, dim=1, keepdim=True)
+        out = torch.cat([avg_out, max_out], dim=1)
+        out = self.conv(out)
+        # 强化有效区域的注意力权重，抑制背景
+        att_map = self.sigmoid(out) * (1 + self.bg_suppress)  # 有效区域权重提升
+        return att_map
+
+
+class ChannelAttention(nn.Module):
+    """通道注意力：聚焦有效特征通道"""
+    def __init__(self, in_channels, reduction_ratio=16):
+        super(ChannelAttention, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.max_pool = nn.AdaptiveMaxPool2d(1)
+        self.fc = nn.Sequential(
+            nn.Conv2d(in_channels, in_channels // reduction_ratio, 1, bias=False),
+            nn.SiLU(),
+            nn.Conv2d(in_channels // reduction_ratio, in_channels, 1, bias=False)
+        )
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        avg_out = self.fc(self.avg_pool(x))
+        max_out = self.fc(self.max_pool(x))
+        return self.sigmoid(avg_out + max_out)
+
+
+class CBAMEnhanced(nn.Module):
+    """增强版CBAM：先空间注意力（锁定有效区域），再通道注意力（强化有效特征）"""
+    def __init__(self, in_channels):
+        super(CBAMEnhanced, self).__init__()
+        self.spatial_att = SpatialAttentionEnhanced()  # 先空间定位
+        self.channel_att = ChannelAttention(in_channels)  # 再通道筛选
+
+    def forward(self, x):
+        # 先通过空间注意力锁定有效区域
+        x = x * self.spatial_att(x)
+        # 再通过通道注意力强化有效特征
+        x = x * self.channel_att(x)
+        return x
+
 class MLCA(nn.Module):
     def __init__(self, in_size,local_size=5,gamma = 2, b = 1,local_weight=0.5):
         super(MLCA, self).__init__()
@@ -132,6 +185,9 @@ def get_attention_module(channels, attention_mode='ca', **kwargs):
     elif attention_mode == 'simam':
         print('build with simam attention')
         return SimAM(channels, **kwargs)
+    elif attention_mode == 'cbam':
+        print('build with cbam attention')
+        return CBAMEnhanced(channels, **kwargs)
     else:
         raise ValueError(f'Unknown attention mode: {attention_mode}')
     
