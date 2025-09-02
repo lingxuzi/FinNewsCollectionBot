@@ -35,14 +35,14 @@ class CrossModalAttention(nn.Module):
         # 分离的注意力分支（参数总量与原网络相当）
         self.vision_att = nn.Sequential(
             nn.Linear(hidden_dim * 2, hidden_dim // 2),  # 输入包含时序特征用于交互
-            nn.SiLU(),
+            nn.Tanh(),
             nn.Linear(hidden_dim // 2, hidden_dim, bias=False),
             nn.Sigmoid()
         )
         
         self.ts_att = nn.Sequential(
             nn.Linear(hidden_dim * 2, hidden_dim // 2),  # 输入包含视觉特征用于交互
-            nn.SiLU(),
+            nn.Tanh(),
             nn.Linear(hidden_dim // 2, hidden_dim, bias=False),
             nn.Sigmoid()
         )
