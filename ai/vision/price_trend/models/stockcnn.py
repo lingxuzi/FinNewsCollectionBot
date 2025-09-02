@@ -63,7 +63,7 @@ class ResidualBlock(nn.Module):
             out = self.ca(out)
         out = self.conv3(out)
         out = self.bn3(out)
-        out += self.shortcut(residual) * mask
+        out += self.shortcut(residual)
         return out, mask
     
 class StockChartNet(nn.Module):
