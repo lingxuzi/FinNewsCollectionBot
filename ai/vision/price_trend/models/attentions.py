@@ -114,8 +114,7 @@ class CA_Block(nn.Module):
 
 
         mip = max(8, channel // reduction)
-
- 
+        
         self.conv1 = nn.Conv2d(in_channels=channel, out_channels=mip, kernel_size=1, stride=1)
  
         self.bn1 = nn.BatchNorm2d(mip)
@@ -127,7 +126,7 @@ class CA_Block(nn.Module):
         self.sigmoid_h = nn.Sigmoid()
         self.sigmoid_w = nn.Sigmoid()
  
-    def forward(self, x):
+    def forward(self, x, mask=None):
         b, c, h, w = x.size()
  
         x_h = self.pool_h(x)
@@ -143,8 +142,11 @@ class CA_Block(nn.Module):
  
         A_h = self.sigmoid_h(self.F_h(x_h))
         A_w = self.sigmoid_w(self.F_w(x_w))
- 
-        out = x * A_h * A_w
+
+        att_map = A_h * A_w
+        if mask is not None:
+            att_map = att_map * mask
+        out = x * att_map
  
         return out
     

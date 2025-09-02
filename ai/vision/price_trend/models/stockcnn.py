@@ -21,7 +21,7 @@ class SPPF(nn.Module):
         x = self.conv2(x)
         return x
     
-class ResidualBlock(nn.Module):
+class  ResidualBlock(nn.Module):
     def __init__(self, in_channels, out_channels, ratio=2, kernel_size=5, stride=1, attention=True, attention_mode='ca'):
         super(ResidualBlock, self).__init__()
         self.attention = attention
@@ -57,10 +57,9 @@ class ResidualBlock(nn.Module):
         out = self.bn2(out)
         out = self.relu(out)
         if self.stride > 1:
-            mask = F.max_pool2d(mask, kernel_size=3, stride=self.stride, padding=1)
-            out = out * mask
+            mask = F.interpolate(mask, size=out.shape[2:], mode='nearest')
         if self.attention:
-            out = self.ca(out)
+            out = self.ca(out, mask)
         out = self.conv3(out)
         out = self.bn3(out)
         out += self.shortcut(residual)
@@ -80,10 +79,10 @@ class StockChartNet(nn.Module):
 
     def build_conv_groups(self, in_chans, channels=[16, 32, 64, 128, 256], kernel_size = 5, attention_mode='ca'):
         self.stem = ResidualBlock(in_chans, channels[0], kernel_size=kernel_size, stride=2, attention=False)
-        self.block2 = ResidualBlock(channels[0], channels[1], kernel_size=kernel_size, stride=2, attention=False)
-        self.block3 = ResidualBlock(channels[1], channels[2], kernel_size=kernel_size, stride=2, attention=False)
-        self.block4 = ResidualBlock(channels[2], channels[3], kernel_size=kernel_size, stride=2, attention_mode=attention_mode)
-        self.block5 = ResidualBlock(channels[3], channels[4], kernel_size=kernel_size, stride=1, attention_mode=attention_mode)
+        self.block2 = ResidualBlock(channels[0], channels[1], kernel_size=kernel_size, stride=2, attention=True, attention_mode=attention_mode)
+        self.block3 = ResidualBlock(channels[1], channels[2], kernel_size=kernel_size, stride=2, attention=True, attention_mode=attention_mode)
+        self.block4 = ResidualBlock(channels[2], channels[3], kernel_size=kernel_size, stride=2, attention=False, attention_mode=attention_mode)
+        self.block5 = ResidualBlock(channels[3], channels[4], kernel_size=kernel_size, stride=1, attention=False, attention_mode=attention_mode)
 
 
     def forward_features(self, x):
