@@ -68,7 +68,6 @@ class CrossModalAttention(nn.Module):
         # 3. 特征融合与输出
         fused = torch.cat([v_att, t_att], dim=1)
         output = self.final_projector(fused)
-        output = self.norm(output)
         
         # 残差连接保留原始特征
         return output + (vision_features + ts_features) * 0.5
