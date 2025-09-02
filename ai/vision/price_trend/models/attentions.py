@@ -114,7 +114,7 @@ class CA_Block(nn.Module):
 
 
         mip = max(8, channel // reduction)
-        
+
         self.conv1 = nn.Conv2d(in_channels=channel, out_channels=mip, kernel_size=1, stride=1)
  
         self.bn1 = nn.BatchNorm2d(mip)
@@ -145,7 +145,7 @@ class CA_Block(nn.Module):
 
         att_map = A_h * A_w
         if mask is not None:
-            att_map = att_map * mask
+            att_map = att_map * (1 + mask)
         out = x * att_map
  
         return out
