@@ -8,6 +8,7 @@ import joblib
 import pandas as pd
 import copy
 import random
+import shutil
 import ai.vision.price_trend.models.base
 from pytorch_optimizer import Lion
 from autoclip.torch import QuantileClip
@@ -368,6 +369,7 @@ def generate_gradcam(model, dataset, device):
 
     indices = random.sample(range(len(dataset)), 10)
 
+    shutil.rmtree('../stock_gradcams', ignore_errors=True)
     os.makedirs('../stock_gradcams', exist_ok=True)
 
     for i in indices:
