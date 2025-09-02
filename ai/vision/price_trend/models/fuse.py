@@ -29,7 +29,8 @@ class CrossModalAttention(nn.Module):
     def __init__(self, fused_dim, hidden_dim):
         super().__init__()
         # 共享投影层（保持参数量）
-        self.shared_projector = nn.Linear(fused_dim, hidden_dim)
+        self.vis_projector = nn.Linear(fused_dim, hidden_dim)
+        self.ts_projector = nn.Linear(fused_dim, hidden_dim)
         
         # 分离的注意力分支（参数总量与原网络相当）
         self.vision_att = nn.Sequential(
@@ -51,8 +52,8 @@ class CrossModalAttention(nn.Module):
 
     def forward(self, vision_features, ts_features):
         # 1. 基础投影（共享权重，减少参数）
-        v_proj = self.shared_projector(vision_features)  # 视觉特征投影
-        t_proj = self.shared_projector(ts_features)      # 时序特征投影
+        v_proj = self.vis_projector(vision_features)  # 视觉特征投影
+        t_proj = self.ts_projector(ts_features)      # 时序特征投影
         
         # 2. 交叉注意力计算（核心改进）
         # 视觉注意力同时参考时序特征，增强交互

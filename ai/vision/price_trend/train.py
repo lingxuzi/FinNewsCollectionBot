@@ -262,7 +262,7 @@ def run_training(config, mode='train'):
     best_val_loss = float('inf') if early_stopper.direction == 'down' else -float('inf')
     for epoch in range(config['training']['num_epochs']):
 
-        generate_gradcam(model, eval_dataset)
+        generate_gradcam(model, eval_dataset, device)
 
         if not config['data']['sampler']:
             train_iter = DataPrefetcher(train_loader, config['device'], enable_queue=False, num_threads=1)
@@ -362,7 +362,7 @@ def run_training(config, mode='train'):
             break
 
 
-def generate_gradcam(model, dataset):
+def generate_gradcam(model, dataset, device):
     print('generating gradcams...')
     model.eval()
 
@@ -372,11 +372,11 @@ def generate_gradcam(model, dataset):
 
     for i in indices:
         img, trend, returns, stock, industry, ts, ctx = dataset[i]
-        img = img.unsqueeze(0).cuda()
-        stock = stock.cuda()
-        industry = industry.cuda()
-        ts = ts.cuda()
-        ctx = ctx.cuda()
+        img = img.unsqueeze(0).to(device)
+        stock = stock.to(device)
+        industry = industry.to(device)
+        ts = ts.to(device)
+        ctx = ctx.to(device)
         img.requires_grad_()
         target_layer = model.gradcam_layer()
         gradcam = GradCAM(model=model, target_layer=target_layer, image_shape=img.shape[2:], forward_callback=gradcam_forward)
