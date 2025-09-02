@@ -89,9 +89,14 @@ class VisionInferencer:
         with torch.no_grad():
             trend_logits = self.model(img, ts_seq, ctx_seq)
             trend_probs = F.softmax(trend_logits['fused_trend_logits'], dim=1).cpu().numpy()
+            vision_trend_probs = F.softmax(trend_logits['vision_logits'], dim=1).cpu().numpy()
+            ts_trend_probs = F.softmax(trend_logits['ts_logits'], dim=1).cpu().numpy()
             returns = trend_logits['returns'].cpu().numpy()
-            up_prob = trend_probs[0][1]
-            down_prob = trend_probs[0][0]
-            
-        return float(up_prob), float(down_prob), float(returns)
+
+            return {
+                'returns': float(returns),
+                'vision_trend_probs': vision_trend_probs[0],
+                'ts_trend_probs': ts_trend_probs[0],
+                'fused_trend_probs': trend_probs[0]
+            }
 

@@ -72,7 +72,7 @@ def weights_initialize(module):
         print(f"   -> Module {type(module)} is not a Linear layer, skipping zero-initialization.")
 
 class DropoutPredictionHead(nn.Module):
-    def __init__(self, dropout=0.0, feature_dim=1280, classes=1, dropout_samples=2, regression=False):
+    def __init__(self, dropout=0.0, feature_dim=1280, classes=1, dropout_samples=8, regression=False):
         super().__init__()
         if dropout > 0.0:
             self.dropout = nn.ModuleList([nn.Dropout(dropout) for _ in range(dropout_samples)])
@@ -137,7 +137,7 @@ class StockNet(nn.Module):
 
     def forward(self, x, ts_seq, ctx_seq):
         if self.infer_mode:
-            return self.fuse_logits(x, ts_seq, ctx_seq)
+            return self.inference(x, ts_seq, ctx_seq)
 
     def __vision_features(self, x):
         x = self.model.forward_features(x)
@@ -192,6 +192,23 @@ class StockNet(nn.Module):
             'industry_logits': industry_logits,
             'returns': returns
         }
+    
+    def inference(self, x, ts_seq, ctx_seq):
+        with torch.no_grad():
+            vision_features = self.__vision_features(x)
+            ts_features = self.__ts_features(ts_seq, ctx_seq)
+            fused_features = self.fusion(vision_features.detach(), ts_features.detach())
+            trend_logits_fused = self.trend_classifier_fused(fused_features)
+            returns = self.returns_regression(fused_features)
+            vision_logits = self.__classify_vision(vision_features)
+            ts_logits = self.__classify_ts(ts_features)
+
+            return {
+                'fused_trend_logits': trend_logits_fused,
+                'vision_logits': vision_logits,
+                'ts_logits': ts_logits,
+                'returns': returns
+            }
     
     def all_logits(self, x, ts_seq, ctx_seq):
         vision_features = self.__vision_features(x)

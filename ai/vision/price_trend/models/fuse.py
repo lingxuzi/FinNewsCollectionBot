@@ -47,8 +47,7 @@ class CrossModalAttention(nn.Module):
         )
         
         # 最终融合投影（保持原计算量）
-        self.final_projector = nn.Linear(hidden_dim * 2, fused_dim, bias=False)
-        self.norm = nn.LayerNorm(fused_dim)
+        self.final_projector = nn.Linear(hidden_dim * 2, fused_dim)
 
     def forward(self, vision_features, ts_features):
         # 1. 基础投影（共享权重，减少参数）
