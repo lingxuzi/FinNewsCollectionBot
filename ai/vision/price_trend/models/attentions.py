@@ -177,6 +177,101 @@ class SimAM(torch.nn.Module):
 
         return x * self.activaton(y)
     
+class LightweightSelfAttention(nn.Module):
+    """
+    轻量级自注意力模块
+    特点：
+    1. 参数共享机制，使用单个投影层生成QKV基础特征
+    2. 简化的维度转换，减少中间计算量
+    3. 可选的稀疏注意力模式，进一步降低计算复杂度
+    4. 精简的残差连接设计
+    """
+    def __init__(self, 
+                 dim, 
+                 head_dim=32,  # 每个注意力头的维度
+                 dropout=0.1,
+                 sparse=False,  # 是否启用稀疏注意力
+                 sparse_window=5):  # 稀疏注意力的窗口大小
+        super().__init__()
+        self.dim = dim
+        self.head_dim = head_dim
+        self.sparse = sparse
+        self.sparse_window = sparse_window
+        
+        # 计算头数（确保能整除）
+        self.num_heads = dim // head_dim
+        assert self.num_heads * head_dim == dim, "dim必须是head_dim的整数倍"
+        
+        # 单个投影层替代三个QKV投影层，大幅减少参数
+        self.qkv_proj = nn.Linear(dim, dim * 2)  # 只使用2倍维度而非3倍
+        
+        # 输出投影
+        self.out_proj = nn.Linear(dim, dim)
+        
+        # 缩放因子
+        self.scale = head_dim ** -0.5
+        
+        # 正则化层
+        self.norm = nn.LayerNorm(dim)
+        self.dropout = nn.Dropout(dropout)
+        
+    def forward(self, x, mask=None):
+        """
+        x: 输入张量，形状为 [batch_size, seq_len, dim]
+        mask: 可选的掩码张量，形状为 [batch_size, seq_len, seq_len]
+        """
+        batch_size, seq_len, _ = x.shape
+        
+        # 简化的QKV生成：通过一次投影+拆分实现
+        qk, v = torch.split(self.qkv_proj(x), [self.dim, self.dim], dim=-1)
+        
+        # 从QK中拆分出Q和K（使用不同激活函数增加区分度）
+        q = F.silu(qk) * self.scale  # 融入缩放因子
+        k = F.tanh(qk)
+        
+        # 重塑为多头结构 [batch_size, num_heads, seq_len, head_dim]
+        q = q.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
+        k = k.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
+        v = v.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
+        
+        # 计算注意力分数
+        attn_scores = torch.matmul(q, k.transpose(-2, -1))  # [batch_size, num_heads, seq_len, seq_len]
+        
+        # 稀疏注意力优化：只关注局部窗口
+        if self.sparse:
+            # 创建窗口掩码
+            window_mask = torch.ones_like(attn_scores)
+            for i in range(seq_len):
+                # 只保留当前位置前后window_size范围内的注意力
+                start = max(0, i - self.sparse_window)
+                end = min(seq_len, i + self.sparse_window + 1)
+                window_mask[:, :, i, :start] = 0
+                window_mask[:, :, i, end:] = 0
+            attn_scores = attn_scores * window_mask.to(attn_scores.device)
+        
+        # 应用掩码
+        if mask is not None:
+            # 扩展掩码维度以适应多头结构
+            mask = mask.unsqueeze(1)  # [batch_size, 1, seq_len, seq_len]
+            attn_scores = attn_scores.masked_fill(mask == 0, -1e9)
+        
+        # 计算注意力权重
+        attn_probs = F.softmax(attn_scores, dim=-1)
+        attn_probs = self.dropout(attn_probs)
+        
+        # 应用注意力到值V
+        attn_output = torch.matmul(attn_probs, v)  # [batch_size, num_heads, seq_len, head_dim]
+        
+        # 重塑回原始形状
+        attn_output = attn_output.transpose(1, 2).contiguous().view(batch_size, seq_len,self.dim)
+        
+        # 输出投影和残差连接
+        attn_output = self.out_proj(attn_output)
+        attn_output = self.dropout(attn_output)
+        
+        # 残差连接 + 层归一化
+        return self.norm(x + attn_output)
+    
 def get_attention_module(channels, attention_mode='ca', **kwargs):
     if attention_mode == 'ca':
         print('build with ca attention')

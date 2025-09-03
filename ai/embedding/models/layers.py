@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from ai.modules.activations import ELSA
+from ai.vision.price_trend.models.attentions import LightweightSelfAttention
 
 class Attention(nn.Module):
     def __init__(self, hidden_size):
@@ -161,6 +162,42 @@ class NormedPredictionHead(nn.Module):
             logvar = self.head_logvar(x)
             return x, logvar
         return x
+    
+class SelfAttLSTMEncoder(nn.Module):
+    def __init__(self, input_dim, hidden_dim, num_layers, embedding_dim, gru=False, kl=False, dropout=0.1):
+        super().__init__()
+        self.gru = gru
+        self.kl = kl
+        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True, dropout=dropout) if not gru else nn.GRU(input_dim, hidden_dim, num_layers, batch_first=True, dropout=dropout)
+        self.embedding_fc = nn.Linear(hidden_dim * 2, embedding_dim, bias=True)
+        if kl:
+            self.embedding_logvar = nn.Linear(hidden_dim * 2, embedding_dim, bias=True)
+        # self.att_net = nn.Sequential(
+        #     nn.Linear(in_features=hidden_dim, out_features=int(hidden_dim / 2)),
+        #     nn.Dropout(dropout) if dropout > 0 else nn.Identity(),
+        #     nn.Tanh(),
+        #     nn.Linear(in_features=int(hidden_dim / 2), out_features=1, bias=False),
+        #     nn.Softmax(dim=1)
+        # )
+        self.att_net = LightweightSelfAttention(hidden_dim)
+
+    def forward(self, x):
+        self.lstm.flatten_parameters()
+        if not self.gru:
+            out, (h, c) = self.lstm(x)
+        else:
+            out, h = self.lstm(x)
+        attention_score = self.att_net(out)
+        out_att = out * attention_score
+        out_att = torch.sum(out_att, dim=1)
+        embedding = self.embedding_fc(torch.cat([h[-1], out_att], dim=1))
+        if self.kl:
+            logvar = self.embedding_logvar(torch.cat([h[-1], out_att], dim=1))
+            if self.training:
+                std = torch.exp(0.5 * logvar)
+                eps = torch.randn_like(std)
+                return eps.mul(std).add_(embedding), embedding, logvar
+        return embedding, None, None
 
 class ALSTMEncoder(nn.Module):
     def __init__(self, input_dim, hidden_dim, num_layers, embedding_dim, gru=False, kl=False, dropout=0.1):
