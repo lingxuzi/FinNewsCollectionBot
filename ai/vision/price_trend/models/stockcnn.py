@@ -22,7 +22,7 @@ class SPPF(nn.Module):
         x = self.conv2(x)
         return x
     
-class  ResidualBlock(nn.Module):
+class ResidualBlock(nn.Module):
     def __init__(self, in_channels, out_channels, ratio=2, kernel_size=5, stride=1, attention=True, attention_mode='ca'):
         super(ResidualBlock, self).__init__()
         self.attention = attention
