@@ -88,10 +88,10 @@ class StockChartNet(nn.Module):
                 nn.SiLU(inplace=True),
             )
 
-            block2 = ResidualBlock(channels[0], channels[1], kernel_size=kernel_size, stride=2, attention=False)
-            block3 = ResidualBlock(channels[1], channels[2], kernel_size=kernel_size, stride=2, attention=False)
-            block4 = ResidualBlock(channels[2], channels[3], kernel_size=kernel_size, stride=2, attention_mode=attention_mode)
-            block5 = ResidualBlock(channels[3], channels[4], kernel_size=kernel_size, stride=1, attention_mode=attention_mode)
+            block2 = ResidualBlock(channels[0], channels[1], kernel_size=kernel_size, stride=2, attention_mode=attention_mode, attention=True)
+            block3 = ResidualBlock(channels[1], channels[2], kernel_size=kernel_size, stride=2, attention_mode=attention_mode, attention=True)
+            block4 = ResidualBlock(channels[2], channels[3], kernel_size=kernel_size, stride=2, attention_mode=attention_mode, attention=True)
+            block5 = ResidualBlock(channels[3], channels[4], kernel_size=kernel_size, stride=1, attention_mode=attention_mode, attention=False)
 
             layers = nn.Sequential(
                 stem,

@@ -1,9 +1,9 @@
 trend_classes: 2
-dropout: 0.4
+dropout: 0.6
 fused_method: 'default'
 backbone: 'stockchartnet'
 attention_mode: 'ca'
-gradlayer: 'layers[-2].conv2'
+gradlayer: 'layers[-3].conv2'
 embedding_dim: 128
 ts_encoder:
   hidden_dim: 64

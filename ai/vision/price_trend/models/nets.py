@@ -220,17 +220,15 @@ class StockNet(nn.Module):
         ts_features = self.__ts_features(ts_seq, ctx_seq)
 
         vision_logits = self.__classify_vision(vision_features)
-        ts_logits = self.__classify_ts(ts_features)
+        # ts_logits = self.__classify_ts(ts_features)
 
-        fused_features = self.fusion(vision_features.detach(), ts_features.detach())
-        trend_logits_fused = self.trend_classifier_fused(fused_features)
+        fused_features = self.fusion(vision_features, ts_features)
+        # trend_logits_fused = self.trend_classifier_fused(fused_features)
         # stock_logits = self.stock_classifier(fused_features)
         # industry_logits = self.industry_classifier(fused_features)
         returns = self.returns_regression(fused_features)
         return {
-            'fused_trend_logits': trend_logits_fused,
-            'vision_logits': vision_logits,
-            'ts_logits': ts_logits,
+            'fused_trend_logits': vision_logits,
             'returns': returns
         }
 

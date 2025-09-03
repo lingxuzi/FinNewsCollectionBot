@@ -310,8 +310,6 @@ def run_training(config, mode='train'):
                     trend_logits = model.fuse_logits(img, ts, ctx)
                 elif config['training']['module_train'] == 'all':
                     trend_logits = model.all_logits(img, ts, ctx)
-                    losses['vision'] = criterion_trend(trend_logits['vision_logits'], trend.squeeze())
-                    losses['ts'] = criterion_trend(trend_logits['ts_logits'], trend.squeeze())
                 losses['trend'] = criterion_trend(trend_logits['fused_trend_logits'], trend.squeeze())
                 # losses['stock'] = criterion_stock(trend_logits['stock_logits'], stock.squeeze())
                 # losses['industry'] = criterion_industry(trend_logits['industry_logits'], industry.squeeze())
