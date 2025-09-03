@@ -94,7 +94,7 @@ class DropoutPredictionHead(nn.Module):
                         logits = self.classifier(x)
                     else:
                         logits += self.classifier(x)
-                if self.regression
+                if self.regression:
                     logits = logits / len(self.dropout)
             else:
                 logits = self.classifier(x)
