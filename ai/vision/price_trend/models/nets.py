@@ -74,6 +74,7 @@ def weights_initialize(module):
 class DropoutPredictionHead(nn.Module):
     def __init__(self, dropout=0.0, feature_dim=1280, classes=1, dropout_samples=4, regression=False):
         super().__init__()
+        self.regression = regression
         if dropout > 0.0:
             self.dropout = nn.ModuleList([nn.Dropout(dropout) for _ in range(dropout_samples)])
         else:
@@ -93,8 +94,8 @@ class DropoutPredictionHead(nn.Module):
                         logits = self.classifier(x)
                     else:
                         logits += self.classifier(x)
-                
-                # logits = logits / len(self.dropout)
+                if self.regression
+                    logits = logits / len(self.dropout)
             else:
                 logits = self.classifier(x)
             return logits
