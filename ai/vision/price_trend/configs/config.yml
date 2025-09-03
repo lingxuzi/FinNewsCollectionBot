@@ -30,6 +30,7 @@ data:
     numerical: ['pe_ttm', 'pb', 'ps_ttm', 'pcf_ncf_ttm']
   sequence_length: 10       # K线序列长度
   image_size: 30
+  min_image_size: 60
 
 # --- 训练参数 ---
 training:

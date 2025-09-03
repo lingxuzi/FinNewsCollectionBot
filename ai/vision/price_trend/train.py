@@ -108,6 +108,7 @@ def run_training(config, mode='train'):
             features=config['data']['features'],
             ts_features=config['data']['ts_features'],
             image_size=config['data']['image_size'],
+            min_image_size=config['data']['min_image_size'],
             encoder=encoder,
             scaler=scaler,
             tag='train'
@@ -121,6 +122,7 @@ def run_training(config, mode='train'):
             features=config['data']['features'],
             ts_features=config['data']['ts_features'],
             image_size=config['data']['image_size'],
+            min_image_size=config['data']['min_image_size'],
             encoder=encoder,
             scaler=scaler,
             tag='test',
@@ -136,6 +138,7 @@ def run_training(config, mode='train'):
             features=config['data']['features'],
             ts_features=config['data']['ts_features'],
             image_size=config['data']['image_size'],
+            min_image_size=config['data']['min_image_size'],
             encoder=encoder,
             scaler=scaler,
             tag='eval',
@@ -151,6 +154,7 @@ def run_training(config, mode='train'):
             features=config['data']['features'],
             ts_features=config['data']['ts_features'],
             image_size=config['data']['image_size'],
+            min_image_size=config['data']['min_image_size'],
             encoder=encoder,
             scaler=scaler,
             tag='test',
@@ -252,7 +256,7 @@ def run_training(config, mode='train'):
 
     if config['training']['clip_norm'] == 0.01:
         optimizer = QuantileClip.as_optimizer(optimizer=optimizer, quantile=0.9, history_length=1000)
-    early_stopper = EarlyStopping(patience=4, direction='up')
+    early_stopper = EarlyStopping(patience=5, direction='up')
     
     if config['data']['sampler']:
         train_iter = DataPrefetcher(train_loader, config['device'], enable_queue=False, num_threads=1)
@@ -282,7 +286,6 @@ def run_training(config, mode='train'):
         for _ in pbar:
             img, trend, returns, stock, industry, ts, ctx = train_iter.next()
             optimizer.zero_grad()
-            model.zero_grad()
 
             losses = {}
             if config['training']['module_train'] == 'vision':
@@ -459,6 +462,7 @@ def run_eval(config):
         features=config['data']['features'],
         ts_features=config['data']['ts_features'],
         image_size=config['data']['image_size'],
+        min_image_size=config['data']['min_image_size'],
         encoder=encoder,
         scaler=scaler,
         tag='test',

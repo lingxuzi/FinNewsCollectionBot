@@ -141,7 +141,7 @@ def normalize(df, features, numerical):
     return df
 
 class ImagingPriceTrendDataset(Dataset):
-    def __init__(self, db_path, img_caching_path, stock_list_file, hist_data_file, seq_length, features, ts_features, scaler, encoder, image_size, tag, is_train=True):
+    def __init__(self, db_path, img_caching_path, stock_list_file, hist_data_file, seq_length, features, ts_features, scaler, encoder, image_size, min_image_size, tag, is_train=True):
         super().__init__()
         self.image_size = image_size
         self.seq_length = seq_length
@@ -153,7 +153,7 @@ class ImagingPriceTrendDataset(Dataset):
         os.makedirs(self.img_caching_path, exist_ok=True)
 
         self.transforms = transforms.Compose([
-            transforms.Resize((self.image_size, self.image_size), interpolation=transforms.InterpolationMode.NEAREST),
+            transforms.Resize((max(self.image_size, min_image_size), max(self.image_size, min_image_size)), interpolation=transforms.InterpolationMode.NEAREST),
             transforms.ToTensor()
         ])
 
