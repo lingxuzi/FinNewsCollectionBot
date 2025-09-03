@@ -126,7 +126,7 @@ class CA_Block(nn.Module):
         self.sigmoid_h = nn.Sigmoid()
         self.sigmoid_w = nn.Sigmoid()
  
-    def forward(self, x):
+    def forward(self, x, mask=None):
         b, c, h, w = x.size()
  
         x_h = self.pool_h(x)
@@ -144,6 +144,8 @@ class CA_Block(nn.Module):
         A_w = self.sigmoid_w(self.F_w(x_w))
 
         att_map = A_h * A_w
+        if mask is not None:
+            att_map = att_map + mask
         out = x * att_map
  
         return out

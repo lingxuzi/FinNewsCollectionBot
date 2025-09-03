@@ -61,10 +61,10 @@ class  ResidualBlock(nn.Module):
         if self.stride > 1:
             mask = F.interpolate(mask, size=out.shape[2:], mode='nearest')
         if self.attention:
-            out = self.ca(out)
+            out = self.ca(out, mask)
         out = self.conv3(out)
         out = self.bn3(out)
-        out += self.shortcut(residual) * mask
+        out += self.shortcut(residual)
         return out, mask
 
 class StemBlock(nn.Module):
