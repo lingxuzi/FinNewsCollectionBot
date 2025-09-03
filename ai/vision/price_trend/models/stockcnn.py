@@ -4,7 +4,6 @@ import torch.nn.functional as F
 import math
 
 from .attentions import get_attention_module
-from ai.modules.activations import MetaAconC
 
 class SPPF(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_sizes=(5, 9, 13)):
@@ -26,17 +25,14 @@ class ResidualBlock(nn.Module):
     def __init__(self, in_channels, out_channels, ratio=2, kernel_size=5, stride=1, attention=True, attention_mode='ca'):
         super(ResidualBlock, self).__init__()
         self.attention = attention
-        self.stride = stride  # 记录下采样倍数
-        self.kernel_size = kernel_size
         init_channels = out_channels // ratio
         # pointwise
         self.conv1 = nn.Conv2d(in_channels, init_channels, kernel_size=1, stride=1, padding=0, bias=False)
         self.bn1 = nn.BatchNorm2d(init_channels)
-        self.relu1 = nn.SiLU(inplace=True) #nn.LeakyReLU(negative_slope=0.1, inplace=True)
+        self.relu = nn.SiLU(inplace=True) #nn.LeakyReLU(negative_slope=0.1, inplace=True)
         # depthwise
         self.conv2 = nn.Conv2d(init_channels, init_channels, kernel_size=kernel_size, stride=stride, padding=kernel_size//2, groups=init_channels, bias=False)
         self.bn2 = nn.BatchNorm2d(init_channels)
-        self.relu2 = nn.SiLU(inplace=True) #nn.LeakyReLU(negative_slope=0.1, inplace=True)
         self.ca = get_attention_module(init_channels, attention_mode)
 
         # pw-linear
@@ -54,28 +50,15 @@ class ResidualBlock(nn.Module):
         residual = x
         out = self.conv1(x)
         out = self.bn1(out)
-        out = self.relu1(out)
+        out = self.relu(out)
         out = self.conv2(out)
         out = self.bn2(out)
-        out = self.relu2(out)
+        out = self.relu(out)
         if self.attention:
             out = self.ca(out)
         out = self.conv3(out)
         out = self.bn3(out)
         out += self.shortcut(residual)
-        return out
-
-class StemBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=5, stride=2):
-        super(StemBlock, self).__init__()
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=kernel_size//2, bias=False)
-        self.bn = nn.BatchNorm2d(out_channels)
-        self.relu = nn.SiLU(inplace=True)
-
-    def forward(self, x):
-        out = self.conv(x)
-        out = self.bn(out)
-        out = self.relu(out)
         return out
     
 class StockChartNet(nn.Module):
@@ -84,26 +67,56 @@ class StockChartNet(nn.Module):
     - 输入: (batch_size, 1, 60, 60) 的图像张量。
     - 输出: (batch_size, 1) 的预测收益率张量。
     """
-    def __init__(self, pretrained=False, in_chans=1, attention_mode='ca'):
+    def __init__(self, pretrained=False, in_chans=1, groups=1, attention_mode='ca'):
         super(StockChartNet, self).__init__()
         channels = [16, 32, 64, 128, 256]
+        self.groups = groups
+        self.group_weights = nn.Parameter(torch.tensor([0.5 /  2 ** (2 - i) for i in range(groups)]), requires_grad=False)
+        
+        if groups == 1:
+            self.layers = self.build_conv_groups(in_chans, groups, channels, 5, attention_mode)
+        else:
+            self.layers = nn.ModuleList(self.build_conv_groups(in_chans, groups, channels, attention_mode))
+
         self.num_features = channels[-1]
-        self.layers = self.build_conv_groups(in_chans, channels, 5, attention_mode)
 
-    def build_conv_groups(self, in_chans, channels=[16, 32, 64, 128, 256], kernel_size = 5, attention_mode='ca'):
-        self.stem = StemBlock(in_chans, channels[0], kernel_size=kernel_size, stride=2) #ResidualBlock(in_chans, channels[0], kernel_size=kernel_size, stride=2, attention=False)
-        self.block2 = ResidualBlock(channels[0], channels[1], kernel_size=kernel_size, stride=2, attention=False, attention_mode=attention_mode)
-        self.block3 = ResidualBlock(channels[1], channels[2], kernel_size=kernel_size, stride=2, attention=False, attention_mode=attention_mode)
-        self.block4 = ResidualBlock(channels[2], channels[3], kernel_size=kernel_size, stride=2, attention=True, attention_mode=attention_mode)
-        self.block5 = ResidualBlock(channels[3], channels[4], kernel_size=kernel_size, stride=1, attention=True, attention_mode=attention_mode)
+    def build_conv_groups(self, in_chans, groups=4, channels=[16, 32, 64, 128, 256], kernel_size = 5, attention_mode='ca'):
+        if groups == 1:
+            stem = nn.Sequential(
+                nn.Conv2d(in_chans, channels[0], kernel_size=kernel_size, stride=2, padding=kernel_size // 2, bias=False),
+                nn.BatchNorm2d(channels[0]),
+                nn.SiLU(inplace=True),
+            )
 
+            block2 = ResidualBlock(channels[0], channels[1], kernel_size=kernel_size, stride=2, attention=False)
+            block3 = ResidualBlock(channels[1], channels[2], kernel_size=kernel_size, stride=2, attention=False)
+            block4 = ResidualBlock(channels[2], channels[3], kernel_size=kernel_size, stride=2, attention_mode=attention_mode)
+            block5 = ResidualBlock(channels[3], channels[4], kernel_size=kernel_size, stride=1, attention_mode=attention_mode)
+
+            layers = nn.Sequential(
+                stem,
+                block2,
+                block3,
+                block4,
+                block5
+            )
+            return layers
+        else:
+            _groups = nn.ModuleList()
+            _channels = [channels[i] // groups for i in range(len(channels))]
+            for i in range(groups):
+                _groups.append(self.build_conv_groups(in_chans, 1, _channels, 3, attention_mode))
+            return _groups
 
     def forward_features(self, x):
-        x = self.stem(x)
-        x = self.block2(x)
-        x = self.block3(x)
-        x = self.block4(x)
-        x = self.block5(x)
+        if self.groups == 1:
+            return self.layers(x)
+        
+        # 切分输入图像
+        x = torch.split(x, _SplitChannels(x.shape[-1], self.groups), dim=-1)
+        # 每个组分别处理
+        x = [self.layers[i](x[i]) * self.group_weights[i] for i in range(self.groups)]
+        x = torch.cat(x, dim=1)
         return x
     
 def _SplitChannels(channels, num_groups):
