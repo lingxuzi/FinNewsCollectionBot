@@ -105,6 +105,20 @@ class FeatureFusedAttention(nn.Module):
         fused_features = self.final_projector(torch.cat([fused_features, att_features], dim=1))
 
         return fused_features
+    
+class ConcatFuse(nn.Module):
+    def __init__(self, fused_dim, hidden_dim):
+        super().__init__()
+
+        self.projector = nn.Sequential(
+            nn.Linear(fused_dim * 2, hidden_dim),
+            nn.SiLU(inplace=True),
+            nn.Dropout(0.3),
+            nn.Linear(hidden_dim, fused_dim)
+        )
+    
+    def forward(self, vision_features, ts_features):
+        return torch.cat([vision_features, ts_features], dim=1)
 
 
 def get_fusing_layer(method='default', fused_dim=1024, hidden_dim=1024, **kwargs):
@@ -112,5 +126,7 @@ def get_fusing_layer(method='default', fused_dim=1024, hidden_dim=1024, **kwargs
         return CrossModalAttention(fused_dim, hidden_dim, **kwargs)
     elif method == 'default':
         return FeatureFusedAttention(fused_dim, hidden_dim, **kwargs)
+    elif method == 'concat':
+        return ConcatFuse(fused_dim, hidden_dim, **kwargs)
     else:
         raise ValueError(f'Unknown fusing method: {method}')

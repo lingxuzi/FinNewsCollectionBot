@@ -7,16 +7,14 @@ class TSEncoder(nn.Module):
         self.config = config
         self.ts_model = ALSTMEncoder(config['ts_input_dim'], config['hidden_dim'], num_layers=config['num_layers'], embedding_dim=config['ts_embedding_dim'], gru=True, kl=False, dropout=config['dropout'])
         self.ctx_model = ResidualMLPBlock(config['ctx_input_dim'], config['hidden_dim'], config['ctx_embedding_dim'],dropout_rate=0, use_batchnorm=True)
-        self.embedding_projector = nn.Linear(config['ts_embedding_dim'] + config['ctx_embedding_dim'], config['hidden_dim'])
-        self.embedding_norm = nn.LayerNorm(config['hidden_dim'])
-        self.fusion_block = ResidualMLPBlock(config['hidden_dim'], config['hidden_dim'] // 2, config['embedding_dim'], dropout_rate=config['dropout'], use_batchnorm=False, elsa=False)
+        # self.embedding_projector = nn.Linear(config['ts_embedding_dim'] + config['ctx_embedding_dim'], config['hidden_dim'])
+        # self.embedding_norm = nn.LayerNorm(config['hidden_dim'])
+        self.fusion_block = ResidualMLPBlock(config['ts_embedding_dim'] + config['ctx_embedding_dim'], config['hidden_dim'], config['embedding_dim'], dropout_rate=config['dropout'], use_batchnorm=True, elsa=False)
     
     def forward(self, x):
         ts_seq, ctx_seq = x
         ts_emb, _, _ = self.ts_model(ts_seq)
         ctx_emb = self.ctx_model(ctx_seq)
         emb = torch.cat([ts_emb, ctx_emb], dim=1)
-        emb = self.embedding_projector(emb)
-        emb = self.embedding_norm(emb)
         emb = self.fusion_block(emb)
         return emb
