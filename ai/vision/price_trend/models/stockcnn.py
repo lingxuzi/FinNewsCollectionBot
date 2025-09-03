@@ -50,7 +50,7 @@ class  ResidualBlock(nn.Module):
                 nn.BatchNorm2d(out_channels)
             )
  
-    def forward(self, x, mask):
+    def forward(self, x):
         residual = x
         out = self.conv1(x)
         out = self.bn1(out)
@@ -58,14 +58,12 @@ class  ResidualBlock(nn.Module):
         out = self.conv2(out)
         out = self.bn2(out)
         out = self.relu2(out)
-        if self.stride > 1:
-            mask = F.interpolate(mask, size=out.shape[2:], mode='nearest')
         if self.attention:
             out = self.ca(out)
         out = self.conv3(out)
         out = self.bn3(out)
         out += self.shortcut(residual)
-        return out, mask
+        return out
 
 class StemBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=5, stride=2):
@@ -74,12 +72,11 @@ class StemBlock(nn.Module):
         self.bn = nn.BatchNorm2d(out_channels)
         self.relu = nn.SiLU(inplace=True)
 
-    def forward(self, x, mask):
+    def forward(self, x):
         out = self.conv(x)
         out = self.bn(out)
         out = self.relu(out)
-        mask = F.interpolate(mask, size=out.shape[2:], mode='nearest')
-        return out, mask
+        return out
     
 class StockChartNet(nn.Module):
     """
@@ -102,12 +99,11 @@ class StockChartNet(nn.Module):
 
 
     def forward_features(self, x):
-        mask = x.clone().detach()
-        x, mask = self.stem(x, mask)
-        x, mask = self.block2(x, mask)
-        x, mask = self.block3(x, mask)
-        x, mask = self.block4(x, mask)
-        x, mask = self.block5(x, mask)
+        x = self.stem(x)
+        x = self.block2(x)
+        x = self.block3(x)
+        x = self.block4(x)
+        x = self.block5(x)
         return x
     
 def _SplitChannels(channels, num_groups):
