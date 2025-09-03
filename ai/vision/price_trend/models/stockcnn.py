@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import math
 
 from .attentions import get_attention_module
+from ai.modules.activations import MetaAconC
 
 class SPPF(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_sizes=(5, 9, 13)):
@@ -31,10 +32,11 @@ class  ResidualBlock(nn.Module):
         # pointwise
         self.conv1 = nn.Conv2d(in_channels, init_channels, kernel_size=1, stride=1, padding=0, bias=False)
         self.bn1 = nn.BatchNorm2d(init_channels)
-        self.relu = nn.SiLU(inplace=True) #nn.LeakyReLU(negative_slope=0.1, inplace=True)
+        self.relu1 = nn.SiLU(inplace=True) #nn.LeakyReLU(negative_slope=0.1, inplace=True)
         # depthwise
         self.conv2 = nn.Conv2d(init_channels, init_channels, kernel_size=kernel_size, stride=stride, padding=kernel_size//2, groups=init_channels, bias=False)
         self.bn2 = nn.BatchNorm2d(init_channels)
+        self.relu2 = nn.SiLU(inplace=True) #nn.LeakyReLU(negative_slope=0.1, inplace=True)
         self.ca = get_attention_module(init_channels, attention_mode)
 
         # pw-linear
@@ -52,17 +54,31 @@ class  ResidualBlock(nn.Module):
         residual = x
         out = self.conv1(x)
         out = self.bn1(out)
-        out = self.relu(out)
+        out = self.relu1(out)
         out = self.conv2(out)
         out = self.bn2(out)
-        out = self.relu(out)
+        out = self.relu2(out)
         if self.stride > 1:
             mask = F.interpolate(mask, size=out.shape[2:], mode='nearest')
         if self.attention:
-            out = self.ca(out, mask)
+            out = self.ca(out)
         out = self.conv3(out)
         out = self.bn3(out)
-        out += self.shortcut(residual)
+        out += self.shortcut(residual) * mask
+        return out, mask
+
+class StemBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=5, stride=2):
+        super(StemBlock, self).__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=kernel_size//2, bias=False)
+        self.bn = nn.BatchNorm2d(out_channels)
+        self.relu = nn.SiLU(inplace=True)
+
+    def forward(self, x, mask):
+        out = self.conv(x)
+        out = self.bn(out)
+        out = self.relu(out)
+        mask = F.interpolate(mask, size=out.shape[2:], mode='nearest')
         return out, mask
     
 class StockChartNet(nn.Module):
@@ -78,15 +94,15 @@ class StockChartNet(nn.Module):
         self.layers = self.build_conv_groups(in_chans, channels, 5, attention_mode)
 
     def build_conv_groups(self, in_chans, channels=[16, 32, 64, 128, 256], kernel_size = 5, attention_mode='ca'):
-        self.stem = ResidualBlock(in_chans, channels[0], kernel_size=kernel_size, stride=2, attention=False)
-        self.block2 = ResidualBlock(channels[0], channels[1], kernel_size=kernel_size, stride=2, attention=True, attention_mode=attention_mode)
-        self.block3 = ResidualBlock(channels[1], channels[2], kernel_size=kernel_size, stride=2, attention=True, attention_mode=attention_mode)
-        self.block4 = ResidualBlock(channels[2], channels[3], kernel_size=kernel_size, stride=2, attention=False, attention_mode=attention_mode)
-        self.block5 = ResidualBlock(channels[3], channels[4], kernel_size=kernel_size, stride=1, attention=False, attention_mode=attention_mode)
+        self.stem = StemBlock(in_chans, channels[0], kernel_size=kernel_size, stride=2) #ResidualBlock(in_chans, channels[0], kernel_size=kernel_size, stride=2, attention=False)
+        self.block2 = ResidualBlock(channels[0], channels[1], kernel_size=kernel_size, stride=2, attention=False, attention_mode=attention_mode)
+        self.block3 = ResidualBlock(channels[1], channels[2], kernel_size=kernel_size, stride=2, attention=False, attention_mode=attention_mode)
+        self.block4 = ResidualBlock(channels[2], channels[3], kernel_size=kernel_size, stride=2, attention=True, attention_mode=attention_mode)
+        self.block5 = ResidualBlock(channels[3], channels[4], kernel_size=kernel_size, stride=1, attention=True, attention_mode=attention_mode)
 
 
     def forward_features(self, x):
-        mask = (torch.sum(torch.abs(x), dim=1, keepdim=True) > 0.1).float()
+        mask = x.clone().detach()
         x, mask = self.stem(x, mask)
         x, mask = self.block2(x, mask)
         x, mask = self.block3(x, mask)
