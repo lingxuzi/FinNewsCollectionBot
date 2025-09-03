@@ -233,10 +233,15 @@ def run_training(config, mode='train'):
     #     model.build_vision()
     #     model.build_fusion()
 
-    criterion_trend = MutliDropoutLoss(nn.CrossEntropyLoss()) #ASLSingleLabel() #focal_loss(alpha=0.3, gamma=2, num_classes=model_config['trend_classes'])
-    criterion_stock = MutliDropoutLoss(nn.CrossEntropyLoss()) #ASLSingleLabel()
-    criterion_industry = MutliDropoutLoss(nn.CrossEntropyLoss()) #ASLSingleLabel()
-    criterion_return = MutliDropoutLoss(nn.HuberLoss(delta=0.1)) #HuberTrendLoss(tildeq=True)
+    # criterion_trend = MutliDropoutLoss(nn.CrossEntropyLoss()) #ASLSingleLabel() #focal_loss(alpha=0.3, gamma=2, num_classes=model_config['trend_classes'])
+    # criterion_stock = MutliDropoutLoss(nn.CrossEntropyLoss()) #ASLSingleLabel()
+    # criterion_industry = MutliDropoutLoss(nn.CrossEntropyLoss()) #ASLSingleLabel()
+    # criterion_return = MutliDropoutLoss(nn.HuberLoss(delta=0.1)) #HuberTrendLoss(tildeq=True)
+
+    criterion_trend = nn.CrossEntropyLoss()
+    criterion_stock = nn.CrossEntropyLoss()
+    criterion_industry = nn.CrossEntropyLoss()
+    criterion_return = nn.MSELoss()
 
     parameters = []
     if config['training']['awl']:
@@ -293,13 +298,13 @@ def run_training(config, mode='train'):
                 loss_vision = criterion_trend(trend_logits['vision_logits'], trend.squeeze())
                 losses['trend'] = loss_vision
                 trend_loss_meter.update(loss_vision.item())
-                trend_metric_meter.update(torch.stack(trend_logits['vision_logits'], dim=1).detach().mean(dim=1).argmax(dim=1).eq(trend.squeeze()).float().mean().item())
+                trend_metric_meter.update(trend_logits['vision_logits'].detach().argmax(dim=1).eq(trend.squeeze()).float().mean().item())
             elif config['training']['module_train'] == 'ts':
                 trend_logits = model.ts_logits(ts, ctx)
                 loss_ts = criterion_trend(trend_logits['ts_logits'], trend.squeeze())
                 losses['trend'] = loss_ts
                 trend_loss_meter.update(loss_ts.item())
-                trend_metric_meter.update(torch.stack(trend_logits['ts_logits'], dim=1).detach().mean(dim=1).argmax(dim=1).eq(trend.squeeze()).float().mean().item())
+                trend_metric_meter.update(trend_logits['ts_logits'].detach().argmax(dim=1).eq(trend.squeeze()).float().mean().item())
             elif config['training']['module_train'] in ['fusion', 'all']:
                 if config['training']['module_train'] == 'fusion':
                     trend_logits = model.fuse_logits(img, ts, ctx)
@@ -315,8 +320,8 @@ def run_training(config, mode='train'):
                 # stock_loss_meter.update(losses['stock'].item())
                 # industry_loss_meter.update(losses['industry'].item())
                 returns_loss_meter.update(losses['returns'].item())
-                trend_metric_meter.update(torch.stack(trend_logits['fused_trend_logits'], dim=1).detach().mean(dim=1).argmax(dim=1).eq(trend.squeeze()).float().mean().item())
-                returns_metric_meter.update(r2_score(returns.squeeze().cpu().numpy(), torch.stack(trend_logits['returns'], dim=1).detach().cpu().mean(dim=1).numpy()))
+                trend_metric_meter.update(trend_logits['fused_trend_logits'].detach().argmax(dim=1).eq(trend.squeeze()).float().mean().item())
+                returns_metric_meter.update(r2_score(returns.squeeze().cpu().numpy(), trend_logits['returns'].detach().cpu().numpy()))
 
             
             if config['training']['awl']:
