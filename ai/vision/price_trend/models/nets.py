@@ -231,6 +231,8 @@ class StockNet(nn.Module):
         returns = self.returns_regression(fused_features)
         return {
             'fused_trend_logits': vision_logits,
+            'stock_logits': stock_logits,
+            'industry_logits': industry_logits,
             'returns': returns
         }
 
