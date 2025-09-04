@@ -240,7 +240,7 @@ def run_training(config, mode='train'):
     criterion_trend = nn.CrossEntropyLoss()
     criterion_stock = nn.CrossEntropyLoss()
     criterion_industry = nn.CrossEntropyLoss()
-    criterion_return = nn.MSELoss()
+    criterion_return = nn.HuberLoss(delta=0.1)
 
     parameters = []
     if config['training']['awl']:
