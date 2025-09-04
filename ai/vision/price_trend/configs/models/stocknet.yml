@@ -3,7 +3,7 @@ dropout: 0.8
 fused_method: 'default'
 backbone: 'stockchartnet'
 attention_mode: 'ca'
-gradlayer: 'layers[-3].conv2'
+gradlayer: 'layers[-3]'
 embedding_dim: 128
 kernel_size: 2
 ts_encoder:
