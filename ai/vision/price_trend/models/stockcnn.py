@@ -61,6 +61,34 @@ class ResidualBlock(nn.Module):
         out += self.shortcut(residual)
         return out
     
+class ResidualBlockV2(nn.Module):
+    def __init__(self, inp, oup, ratio=2, kernel_size=5, stride=1, attention=True, attention_mode='ca'):
+        super(ResidualBlockV2, self).__init__()
+        self.attention = attention
+        
+        hidden_dim = round(inp // ratio)
+
+        self.conv = nn.Sequential(
+            # dw
+            nn.Conv2d(inp, inp, kernel_size, 1, kernel_size//2, groups=inp, bias=False),
+            nn.BatchNorm2d(inp),
+            nn.SiLU(inplace=True),
+            get_attention_module(inp, attention_mode) if attention else nn.Identity(),
+            # pw-linear
+            nn.Conv2d(inp, hidden_dim, 1, 1, 0, bias=False),
+            nn.BatchNorm2d(hidden_dim),
+            # pw
+            nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False),
+            nn.BatchNorm2d(oup),
+            nn.SiLU(inplace=True),
+            # dw-linear
+            nn.Conv2d(oup, oup, kernel_size, stride, kernel_size//2, groups=oup, bias=False),
+            nn.BatchNorm2d(oup),
+        )
+
+    def forward(self, x):
+        return self.conv(x)
+
 class StockChartNet(nn.Module):
     """
     一个集成了CBAM注意力机制的轻量级单一分支CNN模型。
@@ -88,10 +116,10 @@ class StockChartNet(nn.Module):
                 nn.SiLU(inplace=True),
             )
 
-            block2 = ResidualBlock(channels[0], channels[1], kernel_size=kernel_size, stride=2, attention_mode=attention_mode, attention=False)
-            block3 = ResidualBlock(channels[1], channels[2], kernel_size=kernel_size, stride=2, attention_mode=attention_mode, attention=True)
-            block4 = ResidualBlock(channels[2], channels[3], kernel_size=kernel_size, stride=2, attention_mode=attention_mode, attention=True)
-            block5 = ResidualBlock(channels[3], channels[4], kernel_size=kernel_size, stride=1, attention_mode=attention_mode, attention=False)
+            block2 = ResidualBlockV2(channels[0], channels[1], kernel_size=kernel_size, stride=2, attention_mode=attention_mode, attention=False)
+            block3 = ResidualBlockV2(channels[1], channels[2], kernel_size=kernel_size, stride=2, attention_mode=attention_mode, attention=True)
+            block4 = ResidualBlockV2(channels[2], channels[3], kernel_size=kernel_size, stride=2, attention_mode=attention_mode, attention=True)
+            block5 = ResidualBlockV2(channels[3], channels[4], kernel_size=kernel_size, stride=1, attention_mode=attention_mode, attention=False)
 
             layers = nn.Sequential(
                 stem,
