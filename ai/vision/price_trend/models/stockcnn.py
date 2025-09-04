@@ -117,9 +117,9 @@ class StockChartNet(nn.Module):
             )
 
             block2 = ResidualBlockV2(channels[0], channels[1], kernel_size=kernel_size, stride=2, attention_mode=attention_mode, attention=False)
-            block3 = ResidualBlockV2(channels[1], channels[2], kernel_size=kernel_size, stride=2, attention_mode=attention_mode, attention=True)
+            block3 = ResidualBlockV2(channels[1], channels[2], kernel_size=kernel_size, stride=2, attention_mode=attention_mode, attention=False)
             block4 = ResidualBlockV2(channels[2], channels[3], kernel_size=kernel_size, stride=2, attention_mode=attention_mode, attention=True)
-            block5 = ResidualBlockV2(channels[3], channels[4], kernel_size=kernel_size, stride=1, attention_mode=attention_mode, attention=False)
+            block5 = ResidualBlockV2(channels[3], channels[4], kernel_size=kernel_size, stride=1, attention_mode=attention_mode, attention=True)
 
             layers = nn.Sequential(
                 stem,
