@@ -176,7 +176,7 @@ class ImagingPriceTrendDataset(Dataset):
 
             label_return_cols = []
             for i in range(5):
-                label_return_cols.append(f'label_return_{i+1}')
+                label_return_cols.append(f'label_close_{i+1}')
 
             ts_df, price_df = normalize(all_data_df, features + ['industry'] + label_return_cols, self.ts_features['features'], self.ts_features['numerical'])
             ts_df[self.ts_features['features'] + self.ts_features['numerical']] = scaler.transform(ts_df[self.ts_features['features'] + self.ts_features['numerical']])
@@ -235,9 +235,9 @@ class ImagingPriceTrendDataset(Dataset):
     def generate_sequence_imgs(self, stock_data, ts_data, code):
         try:
             print('preparing sequences for ', code)
-            label_return_cols = []
+            label_close_cols = []
             for i in range(5):
-                label_return_cols.append(f'label_return_{i+1}')
+                label_close_cols.append(f'label_close_{i+1}')
 
             stock_data.sort_values(by='date', inplace=True)
             ts_data.sort_values(by='date', inplace=True)
@@ -249,7 +249,7 @@ class ImagingPriceTrendDataset(Dataset):
             
             industry= self.indus_encoder.transform(stock_data['industry'].to_numpy())[0]
             price_data = stock_data[self.features].to_numpy()
-            labels = stock_data[label_return_cols].to_numpy()
+            labels = stock_data[label_close_cols].to_numpy()
 
             ts_featured_stock_data = ts_data[self.ts_features['features'] + self.ts_features['temporal']].to_numpy()
             ts_numerical_stock_data = ts_data[self.ts_features['numerical']].to_numpy()
@@ -260,12 +260,17 @@ class ImagingPriceTrendDataset(Dataset):
             imgs = []
             ts_sequences = [] # 时间序列部分
             ctx_sequences = [] # 上下文部分
-            for i in range(0, len(stock_data) - self.seq_length + 1, 5):
+            for i in range(0, len(stock_data) - self.seq_length + 1, 2):
                 ts_seq = price_data[i:i + self.seq_length]
                 if len(ts_seq) < self.seq_length:
                     return None, None, None, None, None
                 
-                if self.accumulative_return(labels[i + self.seq_length - 1]) == 0:
+                # if self.accumulative_return(labels[i + self.seq_length - 1]) == 0:
+                #     continue
+
+                future_5d_returns = (labels[i + self.seq_length - 1] - ts_seq[-1, 3]) / ts_seq[-1, 3]
+
+                if 0 in list(future_5d_returns):
                     continue
                 
                 img_path = os.path.join(self.img_caching_path, code, f'{i}.png')
@@ -279,7 +284,7 @@ class ImagingPriceTrendDataset(Dataset):
                 # 上下文部分
                 ctx_sequences.append(ts_numerical_stock_data[i + self.seq_length - 1])
 
-                returns.append(labels[i + self.seq_length - 1])
+                returns.append(future_5d_returns)
                 imgs.append(img_path)
             return imgs, returns, industry, ts_sequences, ctx_sequences
         except Exception as e:
