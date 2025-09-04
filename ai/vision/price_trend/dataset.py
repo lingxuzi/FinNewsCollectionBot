@@ -129,10 +129,10 @@ def normalize(df, ohclv_features, features, numerical):
     
     price_cols = ['open', 'high', 'low', 'close']
     for col in price_cols:
-        df[col] = (df[col] / df['prev_close']) - 1
+        df[f'{col}_pct'] = (df[col] / df['prev_close']) - 1
         
-    print("   -> 步骤2: 对成交量进行对数变换...")
-    df['volume'] = np.log1p(df['volume'])
+    # print("   -> 步骤2: 对成交量进行对数变换...")
+    # df['volume'] = np.log1p(df['volume'])
     df.drop(columns=['prev_close'], inplace=True)
 
     df['month'] = df['date'].dt.month / 12
