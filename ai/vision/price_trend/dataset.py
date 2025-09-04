@@ -299,7 +299,7 @@ class ImagingPriceTrendDataset(Dataset):
         #     _trend = 1
         # elif acu_return <= -0.01:
         #     _trend = 0
-        if acu_return > 0:
+        if acu_return > 0.01:
             _trend = 1
         else:
             _trend = 0
