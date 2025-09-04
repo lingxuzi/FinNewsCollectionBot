@@ -151,11 +151,9 @@ class StockNet(nn.Module):
 
     def __vision_features(self, x):
         x = self.model.forward_features(x)
-        x = self.global_pool(x)
-        
         x = self.last_conv(x)
         x = self.hardswish(x)
-
+        x = self.global_pool(x)
         x = x.view(x.size(0), -1)
         return x
     
@@ -228,8 +226,8 @@ class StockNet(nn.Module):
 
         fused_features = self.fusion(vision_features, ts_features)
         # trend_logits_fused = self.trend_classifier_fused(fused_features)
-        # stock_logits = self.stock_classifier(fused_features)
-        # industry_logits = self.industry_classifier(fused_features)
+        stock_logits = self.stock_classifier(fused_features)
+        industry_logits = self.industry_classifier(fused_features)
         returns = self.returns_regression(fused_features)
         return {
             'fused_trend_logits': vision_logits,
