@@ -150,6 +150,7 @@ def normalize(df, ohclv_features, features, numerical):
 class ImagingPriceTrendDataset(Dataset):
     def __init__(self, db_path, img_caching_path, stock_list_file, hist_data_file, seq_length, features, ts_features, scaler, encoder, image_size, min_image_size, tag, is_train=True):
         super().__init__()
+        self.hist_data_file = hist_data_file
         self.image_size = image_size
         self.min_image_size = min_image_size
         self.seq_length = seq_length
@@ -221,6 +222,8 @@ class ImagingPriceTrendDataset(Dataset):
 
     def fix_image(self, hist_data_file, code, idx):
         all_data_df = pd.read_parquet(hist_data_file)
+        if not isinstance(code, str):
+            code = self.stock_encoder.inverse_transform([code])[0]
         stock_data = all_data_df[all_data_df['code'] == code]
         price_data = stock_data[self.features].to_numpy()
         ts_seq = price_data[idx:idx + self.seq_length]
