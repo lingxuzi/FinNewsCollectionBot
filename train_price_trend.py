@@ -62,7 +62,9 @@ def moe_downward_matched(output, threshold=0.7):
 
 def analysis(inferencer: VisionInferencer, index_df, df, code, prob_thres):
     if df is not None and df['date'].iloc[-1].date() >= datetime.now().date() - timedelta(days=3):
-        output = inferencer.inference(df)
+        ts_featured_stock_data, ts_numerical_stock_data, price_data, dates = inferencer.prepare_raws(df)
+        img, ts_seq, ctx_seq = inferencer.preprocess(price_data[-inferencer.config['data']['sequence_length']:], ts_featured_stock_data[-inferencer.config['data']['sequence_length']:], ts_numerical_stock_data[-inferencer.config['data']['sequence_length']:])
+        output = inferencer.inference(img, ts_seq, ctx_seq)
 
         is_up, up_prob = moe_upward_matched(output)
         is_down, down_prob = moe_downward_matched(output)
