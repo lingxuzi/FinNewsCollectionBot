@@ -111,15 +111,15 @@ class StockChartNet(nn.Module):
     def build_conv_groups(self, in_chans, groups=4, channels=[16, 32, 64, 128, 256], kernel_size = 5, attention_mode='ca'):
         if groups == 1:
             stem = nn.Sequential(
-                nn.Conv2d(in_chans, channels[0], kernel_size=kernel_size, stride=2, padding=kernel_size // 2, bias=False),
+                nn.Conv2d(in_chans, channels[0], kernel_size=3, stride=2, padding=kernel_size // 2, bias=False),
                 nn.BatchNorm2d(channels[0]),
                 nn.SiLU(inplace=True),
             )
 
             block2 = ResidualBlockV2(channels[0], channels[1], kernel_size=3, stride=2, attention_mode=attention_mode, attention=False)
-            block3 = ResidualBlockV2(channels[1], channels[2], kernel_size=3, stride=2, attention_mode=attention_mode, attention=False)
-            block4 = ResidualBlockV2(channels[2], channels[3], kernel_size=3, stride=2, attention_mode=attention_mode, attention=False)
-            block5 = ResidualBlockV2(channels[3], channels[4], kernel_size=3, stride=1, attention_mode=attention_mode, attention=False)
+            block3 = ResidualBlockV2(channels[1], channels[2], kernel_size=kernel_size, stride=2, attention_mode=attention_mode, attention=False)
+            block4 = ResidualBlockV2(channels[2], channels[3], kernel_size=kernel_size, stride=2, attention_mode=attention_mode, attention=True)
+            block5 = ResidualBlockV2(channels[3], channels[4], kernel_size=kernel_size, stride=1, attention_mode=attention_mode, attention=True)
 
             layers = nn.Sequential(
                 stem,
