@@ -121,8 +121,11 @@ def get_image_with_price(price):
     except Exception as e:
         traceback.print_exc()
 
-def normalize(df, features, numerical):
+def normalize(df, ohclv_features, features, numerical):
     df['prev_close'] = df.groupby('code')['close'].shift(1)
+
+    clone_features = ['ori_' + f for f in ohclv_features]
+    df[clone_features] = df[ohclv_features].copy()
     
     price_cols = ['open', 'high', 'low', 'close']
     for col in price_cols:
@@ -136,14 +139,19 @@ def normalize(df, features, numerical):
     df['day'] = df['date'].dt.day / 31
     df['weekday'] = df['date'].dt.weekday / 7
 
-    df.bfill(inplace=True)
+    df.dropna(inplace=True)
 
-    return df
+    price_df = pd.DataFrame()
+    price_df[['code', 'date'] + ohclv_features] = df[['code', 'date'] + clone_features].copy()
+    df.drop(columns=clone_features, inplace=True)
+
+    return df, price_df
 
 class ImagingPriceTrendDataset(Dataset):
     def __init__(self, db_path, img_caching_path, stock_list_file, hist_data_file, seq_length, features, ts_features, scaler, encoder, image_size, min_image_size, tag, is_train=True):
         super().__init__()
         self.image_size = image_size
+        self.min_image_size = min_image_size
         self.seq_length = seq_length
         self.features = features
         self.ts_features = ts_features
@@ -165,11 +173,11 @@ class ImagingPriceTrendDataset(Dataset):
             all_data_df = pd.read_parquet(hist_data_file)
             stock_list = read_text(stock_list_file).split(',')
 
-            # all_data_df['month'] = all_data_df['date'].dt.month / 12
-            # all_data_df['day'] = all_data_df['date'].dt.day / 31
-            # all_data_df['weekday'] = all_data_df['date'].dt.weekday + 1 / 7
+            label_return_cols = []
+            for i in range(5):
+                label_return_cols.append(f'label_return_{i+1}')
 
-            ts_df = normalize(copy.deepcopy(all_data_df), self.ts_features['features'], self.ts_features['numerical'])
+            ts_df, price_df = normalize(all_data_df, features + ['industry'] + label_return_cols, self.ts_features['features'], self.ts_features['numerical'])
             ts_df[self.ts_features['features'] + self.ts_features['numerical']] = scaler.transform(ts_df[self.ts_features['features'] + self.ts_features['numerical']])
 
 
@@ -180,7 +188,7 @@ class ImagingPriceTrendDataset(Dataset):
             ts_sequences = []
             ctx_sequences = []
             with ThreadPoolExecutor(max_workers=10) as executor:
-                futures = {executor.submit(self.generate_sequence_imgs, all_data_df[all_data_df['code'] == code], ts_df[ts_df['code'] == code], code): code for code in stock_list}
+                futures = {executor.submit(self.generate_sequence_imgs, price_df[price_df['code'] == code], ts_df[ts_df['code'] == code], code): code for code in stock_list}
                 for future in tqdm(as_completed(futures), total=len(futures), ncols=120, desc='generate sequence imgs'):
                     code = futures[future]
                     if self.onehot.get(code) is None:
@@ -228,8 +236,8 @@ class ImagingPriceTrendDataset(Dataset):
             for i in range(5):
                 label_return_cols.append(f'label_return_{i+1}')
 
-            # stock_data.sort_values(by='date', inplace=True)
-            # ts_data.sort_values(by='date', inplace=True)
+            stock_data.sort_values(by='date', inplace=True)
+            ts_data.sort_values(by='date', inplace=True)
 
             # stock_data.set_index('date', inplace=True)
             # ts_data.set_index('date', inplace=True)
