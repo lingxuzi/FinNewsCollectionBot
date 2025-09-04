@@ -37,9 +37,9 @@ def initialize(module: nn.Module):
         #print(m)
         if isinstance(m, nn.Conv2d):
             #print(m.weight.size())
-            n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-            m.weight.data.normal_(0, math.sqrt(2. / n))
-            # nn.init.xavier_uniform_(m.weight)
+            # n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+            # m.weight.data.normal_(0, math.sqrt(2. / n))
+            nn.init.xavier_uniform_(m.weight)
             if m.bias is not None:
                 m.bias.data.zero_()
         elif isinstance(m, nn.BatchNorm2d):
@@ -201,21 +201,16 @@ class StockNet(nn.Module):
         }
     
     def inference(self, x, ts_seq, ctx_seq):
-        with torch.no_grad():
-            vision_features = self.__vision_features(x)
-            ts_features = self.__ts_features(ts_seq, ctx_seq)
-            fused_features = self.fusion(vision_features.detach(), ts_features.detach())
-            trend_logits_fused = self.trend_classifier_fused(fused_features)
-            returns = self.returns_regression(fused_features)
-            vision_logits = self.__classify_vision(vision_features)
-            ts_logits = self.__classify_ts(ts_features)
+        vision_features = self.__vision_features(x)
+        ts_features = self.__ts_features(ts_seq, ctx_seq)
+        fused_features = self.fusion(vision_features, ts_features)
+        returns = self.returns_regression(fused_features)
+        vision_logits = self.__classify_vision(vision_features)
 
-            return {
-                'fused_trend_logits': trend_logits_fused,
-                'vision_logits': vision_logits,
-                'ts_logits': ts_logits,
-                'returns': returns
-            }
+        return {
+            'logits': vision_logits,
+            'returns': returns
+        }
     
     def all_logits(self, x, ts_seq, ctx_seq):
         vision_features = self.__vision_features(x)

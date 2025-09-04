@@ -18,20 +18,12 @@ source = BaoSource()
 def build_historical_stock_db(task, opts):
     task_map = {
         'train': {
-            'start_date': TRAIN_FUNDAMENTAL_DATA_START_DATE,
-            'end_date': TRAIN_FUNDAMENTAL_DATA_END_DATE
-        },
-        'eval': {
-            'start_date': EVAL_FUNDAMENTAL_DATA_START_DATE,
-            'end_date': EVAL_FUNDAMENTAL_DATA_END_DATE
+            'start_date': FINETUNE_FUNDAMENTAL_DATA_START_DATE,
+            'end_date': FINETUNE_FUNDAMENTAL_DATA_END_DATE
         },
         'test': {
             'start_date': TEST_FUNDAMENTAL_DATA_START_DATE,
             'end_date': TEST_FUNDAMENTAL_DATA_END_DATE
-        },
-        'finetune': {
-            'start_date': FINETUNE_FUNDAMENTAL_DATA_START_DATE,
-            'end_date': FINETUNE_FUNDAMENTAL_DATA_END_DATE
         }
     }
     hist_db_path = DATA_DIR('hist')
@@ -47,7 +39,7 @@ def build_historical_stock_db(task, opts):
         for future in tqdm(as_completed(futures), total=len(futures), desc='获取股票数据', ncols=120):
             try:
                 result = future.result()
-                if result is not None and not result.empty and len(result) >= 200:
+                if result is not None and not result.empty and len(result) >= 100:
                     result = source.calculate_indicators(result)
                     result = source.generate_predict_labels(result)
                     result = source.post_process(result)
@@ -56,19 +48,6 @@ def build_historical_stock_db(task, opts):
             except Exception as e:
                 print(f"处理时发生错误: {e}")
                 time.sleep(1)
-    # for i, code in enumerate(pbar):
-    #     try:
-    #         pbar.set_description(f'正在处理: {i}/{len(stock_list)}: {code}')
-    #         result = source.get_kline_daily(code, task_map[task]['start_date'], task_map[task]['end_date'], True, True)
-    #         if result is not None and not result.empty and len(result) >= 500:
-    #             result = source.calculate_indicators(result)
-    #             result = source.generate_predict_labels(result)
-    #             result = source.post_process(result)
-    #             stock_df.append(result)
-    #             codes.append(result['code'].iloc[0])
-    #     except Exception as e:
-    #         print(f"处理 {code} 时发生错误: {e}")
-    #         time.sleep(1)
             
     stock_df = pd.concat(stock_df)
     task_path = os.path.join(hist_db_path, f'fundamental_{task}.pkl')
@@ -96,7 +75,7 @@ def parse_args():
     import argparse
     parser = argparse.ArgumentParser(description='Prepare historical stock data for training, evaluation, and testing.')
     parser.add_argument('--workers', type=int, default=10, help='Number of worker threads to use for data processing.')
-    parser.add_argument('--runs', type=str, default='train,eval,test,finetune', help='Number of runs to perform.')
+    parser.add_argument('--runs', type=str, default='test', help='Number of runs to perform.')
     parser.add_argument('--mode', type=str, default='kline', help='kline or financial')
     return parser.parse_args()
 

@@ -23,18 +23,21 @@ multiprocessing.set_start_method('spawn', force=True)
 def parse_args():
     parser = argparse.ArgumentParser(description='Train price trend model')
     parser.add_argument('--config', type=str, default='./ai/vision/price_trend/configs/config.yml', help='Path to the configuration file')
-    parser.add_argument('--codes', type=str, default='603661', help='Stock codes')
+    parser.add_argument('--codes', type=str, default='605179', help='Stock codes')
     return parser.parse_args()
 
 def analyze_buy_signal(inferencer: VisionInferencer, df):
     ts_featured_stock_data, ts_numerical_stock_data, price_data, dates = inferencer.prepare_raws(df)
     buy_signal = np.zeros(len(price_data))
     sell_signal = np.zeros(len(price_data))
-    for i in range(inferencer.config['data']['sequence_length'], len(price_data)):
+    for i in range(inferencer.config['data']['sequence_length'], len(price_data) - 5):
         img, ts_seq, ctx_seq = inferencer.preprocess(price_data[i-inferencer.config['data']['sequence_length']:i], ts_featured_stock_data[i-inferencer.config['data']['sequence_length']:i], ts_numerical_stock_data[i-inferencer.config['data']['sequence_length']:i])
         output = inferencer.inference(img, ts_seq, ctx_seq)
 
-        if output['vision_trend_probs'][1] > 0.7:
+        future_5d_close = price_data[i+5, 3]
+        actual_return = (future_5d_close - price_data[i, 3]) / price_data[i, 3] 
+
+        if output['trend_probs'][1] > 0.65:
             buy_signal[i] = 1
     close_prices = price_data[:, 3]
     buy_prices = close_prices[buy_signal == 1]
@@ -77,7 +80,7 @@ def analyze_buy_signal(inferencer: VisionInferencer, df):
     plt.tight_layout()
 
     # 显示图形
-    plt.show()
+    plt.show(block=True)
     return buy_signal
 
 if __name__ == '__main__':

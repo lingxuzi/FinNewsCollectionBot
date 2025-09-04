@@ -41,11 +41,11 @@ random.seed(42)
 def num_iters_per_epoch(loader, batch_size):
     return len(loader) // batch_size
 
-def generate_encoder(hist_data_files, ts_features, ts_numerical, categorical):
+def generate_encoder(hist_data_files, features, ts_features, ts_numerical, categorical):
     hist_data = []
     for hist_data_file in hist_data_files:
         df = pd.read_parquet(hist_data_file)
-        df = normalize(df, ts_features, ts_numerical)
+        df, _ = normalize(df, features, ts_features, ts_numerical)
         hist_data.append(df)
     
     df = pd.concat(hist_data)
@@ -89,9 +89,8 @@ def run_training(config, mode='train'):
         encoder, scaler = generate_encoder(
         [
             config['data']['train']['hist_data_file'],
-            config['data']['eval']['hist_data_file'],
             config['data']['test']['hist_data_file']
-        ], config['data']['ts_features']['features'], config['data']['ts_features']['numerical'], config['data']['categorical'])
+        ], config['data']['features'], config['data']['ts_features']['features'], config['data']['ts_features']['numerical'], config['data']['categorical'])
         joblib.dump(encoder, encoder_path)
         joblib.dump(scaler, scaler_path)
 
