@@ -60,11 +60,11 @@ class VisionInferencer:
 
     def preprocess(self, df):
         df = self.source.calculate_indicators(df)
-        ts_df = normalize(copy.deepcopy(df), self.config['data']['ts_features']['features'], self.config['data']['ts_features']['numerical'])
+        ts_df, price_df = normalize(df, self.config['data']['ts_features']['features'], self.config['data']['ts_features']['numerical'])
         ts_df[self.config['data']['ts_features']['features'] + self.config['data']['ts_features']['numerical']] = self.scaler.transform(ts_df[self.config['data']['ts_features']['features'] + self.config['data']['ts_features']['numerical']])
         ts_featured_stock_data = ts_df[self.config['data']['ts_features']['features'] + self.config['data']['ts_features']['temporal']].to_numpy()
         ts_numerical_stock_data = ts_df[self.config['data']['ts_features']['numerical']].to_numpy()
-        price_data = df[self.config['data']['features']].to_numpy()
+        price_data = price_df[self.config['data']['features']].to_numpy()
         price_seq = price_data[-self.config['data']['sequence_length']:]
         ts_seq = ts_featured_stock_data[-self.config['data']['sequence_length']:]
         ctx_seq = ts_numerical_stock_data[-1]

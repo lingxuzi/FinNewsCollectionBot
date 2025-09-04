@@ -2,7 +2,7 @@ trend_classes: 2
 dropout: 0.85
 fused_method: 'default'
 backbone: 'stockchartnet'
-attention_mode: 'sa'
+attention_mode: 'ca'
 gradlayer: 'layers[-3]'
 embedding_dim: 128
 kernel_size: 2

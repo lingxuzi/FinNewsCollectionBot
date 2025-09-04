@@ -151,10 +151,11 @@ class StockNet(nn.Module):
 
     def __vision_features(self, x):
         x = self.model.forward_features(x)
+        x = self.global_pool(x)
+        
         x = self.last_conv(x)
         x = self.hardswish(x)
 
-        x = self.global_pool(x)
         x = x.view(x.size(0), -1)
         return x
     
