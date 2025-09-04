@@ -200,6 +200,7 @@ class StockSource:
             df[f'label_vwap_std_{i+1}'] = df['vwap_std'].shift(-i-1)
             # 计算未来i天的收益率
             df[f'label_return_{i+1}'] = df['return'].shift(-i-1)
+            df[f'label_close_{i+1}'] = df['close'].shift(-i-1)
             # 计算未来i天的趋势
             df[f'label_trend_{i+1}'] = df['return'].shift(-i-1) > 0
         return df

@@ -134,7 +134,7 @@ def normalize(df, features, numerical):
 
     df['month'] = df['date'].dt.month / 12
     df['day'] = df['date'].dt.day / 31
-    df['weekday'] = df['date'].dt.weekday + 1 / 7
+    df['weekday'] = df['date'].dt.weekday / 7
 
     df.bfill(inplace=True)
 
@@ -228,7 +228,13 @@ class ImagingPriceTrendDataset(Dataset):
             for i in range(5):
                 label_return_cols.append(f'label_return_{i+1}')
 
-            stock_data.sort_values(by='date', inplace=True)
+            # stock_data.sort_values(by='date', inplace=True)
+            # ts_data.sort_values(by='date', inplace=True)
+
+            # stock_data.set_index('date', inplace=True)
+            # ts_data.set_index('date', inplace=True)
+            # stock_data.sort_index(inplace=True)
+            # ts_data.sort_index(inplace=True)
             
             industry= self.indus_encoder.transform(stock_data['industry'].to_numpy())[0]
             price_data = stock_data[self.features].to_numpy()
@@ -243,13 +249,13 @@ class ImagingPriceTrendDataset(Dataset):
             imgs = []
             ts_sequences = [] # 时间序列部分
             ctx_sequences = [] # 上下文部分
-            for i in range(0, len(stock_data) - self.seq_length + 1, 3):
+            for i in range(0, len(stock_data) - self.seq_length + 1, 5):
                 ts_seq = price_data[i:i + self.seq_length]
                 if len(ts_seq) < self.seq_length:
                     return None, None, None, None, None
                 
-                if self.accumulative_return(labels[i + self.seq_length - 1]) == 0:
-                    continue
+                # if self.accumulative_return(labels[i + self.seq_length - 1]) == 0:
+                #     continue
                 
                 img_path = os.path.join(self.img_caching_path, code, f'{i}.png')
                 os.makedirs(os.path.dirname(img_path), exist_ok=True)

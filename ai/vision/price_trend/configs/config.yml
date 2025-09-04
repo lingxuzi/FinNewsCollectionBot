@@ -29,8 +29,8 @@ data:
     temporal: ['month', 'day', 'weekday']
     numerical: ['pe_ttm', 'pb', 'ps_ttm', 'pcf_ncf_ttm']
   sequence_length: 10       # K线序列长度
-  image_size: 30
-  min_image_size: 30
+  image_size: 32
+  min_image_size: 32
 
 # --- 训练参数 ---
 training:
@@ -39,14 +39,14 @@ training:
   model: 'stocknet'
   awl: false
   clip_norm: 0
-  optimizer: 'sgd'
+  optimizer: 'adam'
   learning_rate: 0.0001
   min_learning_rate: 0.00001
-  module_train: 'vision'
+  module_train: 'ts'
   weight_decay: 0.05
-  warmup_epochs: 0
+  warmup_epochs: 5
   batch_size: 512
-  num_epochs: 100
+  num_epochs: 20
   model_save_path: "../fin_models/trend.pth"
   pretrained_path: "../fin_models/trend_pretrained.pth"
   finetune_path: "../fin_models/trend_finetune.pth"
