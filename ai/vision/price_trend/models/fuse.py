@@ -118,7 +118,7 @@ class ConcatFuse(nn.Module):
         )
     
     def forward(self, vision_features, ts_features):
-        return torch.cat([vision_features, ts_features], dim=1)
+        return self.projector(torch.cat([vision_features, ts_features], dim=1))
 
 
 def get_fusing_layer(method='default', fused_dim=1024, hidden_dim=1024, **kwargs):
