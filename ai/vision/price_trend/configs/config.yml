@@ -30,7 +30,7 @@ data:
     numerical: ['pe_ttm', 'pb', 'ps_ttm', 'pcf_ncf_ttm']
   sequence_length: 10       # K线序列长度
   image_size: 30
-  min_image_size: 40
+  min_image_size: 30
 
 # --- 训练参数 ---
 training:
@@ -42,7 +42,7 @@ training:
   optimizer: 'sgd'
   learning_rate: 0.0001
   min_learning_rate: 0.00001
-  module_train: 'ts'
+  module_train: 'vision'
   weight_decay: 0.05
   warmup_epochs: 0
   batch_size: 512

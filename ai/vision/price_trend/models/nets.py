@@ -119,7 +119,11 @@ class StockNet(nn.Module):
             padding=0,
             bias=False)
         self.hardswish = nn.SiLU(inplace=True)
-        self.global_pool = nn.AdaptiveAvgPool2d((1, 1)) # 全局平均池化
+        # self.global_pool = nn.AdaptiveAvgPool2d((1, 1)) # 全局平均池化
+        self.global_pool = nn.Sequential(
+            nn.Conv2d(self.config['embedding_dim'], self.config['embedding_dim'], kernel_size=self.config['kernel_size'], stride=1, padding=0, groups=self.config['embedding_dim'], bias=False),
+            nn.BatchNorm2d(self.config['embedding_dim'])
+        )
         self.trend_classifier = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=self.config["trend_classes"], dropout=self.config['dropout'])
         if 'models.' not in self.config["backbone"]:
             initialize(self.model)
@@ -147,12 +151,10 @@ class StockNet(nn.Module):
 
     def __vision_features(self, x):
         x = self.model.forward_features(x)
-        x = self.global_pool(x)
-        # x = torch.cat([x, ts_emb.unsqueeze(2).unsqueeze(3)], dim=1)
-        
         x = self.last_conv(x)
         x = self.hardswish(x)
 
+        x = self.global_pool(x)
         x = x.view(x.size(0), -1)
         return x
     
