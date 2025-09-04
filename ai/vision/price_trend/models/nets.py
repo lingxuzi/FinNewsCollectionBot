@@ -94,8 +94,8 @@ class DropoutPredictionHead(nn.Module):
                         logits = self.classifier(x)
                     else:
                         logits += self.classifier(x)
-                if self.regression:
-                    logits = logits / len(self.dropout)
+                # if self.regression:
+                logits = logits / len(self.dropout)
             else:
                 logits = self.classifier(x)
             return logits
@@ -111,6 +111,10 @@ class StockNet(nn.Module):
 
     def build_vision(self):
         self.model = eval(f'{self.config["backbone"]}(pretrained=True, in_chans=1, attention_mode="{self.config["attention_mode"]}")')
+        # self.global_pool = nn.Sequential(
+        #     nn.Conv2d(self.config['embedding_dim'], self.config['embedding_dim'], kernel_size=self.config['kernel_size'], stride=1, padding=0, groups=self.config['embedding_dim'], bias=False),
+        #     nn.BatchNorm2d(self.config['embedding_dim'])
+        # )
         self.last_conv = nn.Conv2d(
             in_channels=self.model.num_features,
             out_channels=self.config['embedding_dim'],  
@@ -119,27 +123,23 @@ class StockNet(nn.Module):
             padding=0,
             bias=False)
         self.hardswish = nn.SiLU(inplace=True)
-        # self.global_pool = nn.AdaptiveAvgPool2d((1, 1)) # 全局平均池化
-        self.global_pool = nn.Sequential(
-            nn.Conv2d(self.config['embedding_dim'], self.config['embedding_dim'], kernel_size=self.config['kernel_size'], stride=1, padding=0, groups=self.config['embedding_dim'], bias=False),
-            nn.BatchNorm2d(self.config['embedding_dim'])
-        )
-        self.trend_classifier = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=self.config["trend_classes"], dropout=self.config['dropout'])
+        self.global_pool = nn.AdaptiveAvgPool2d((1, 1)) # 全局平均池化
+        self.trend_classifier = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=self.config["trend_classes"], dropout=self.config['dropout'], dropout_samples=self.config['dropout_times'])
         if 'models.' not in self.config["backbone"]:
             initialize(self.model)
     
     def build_ts(self):
         self.ts_model = TSEncoder(self.config['ts_encoder'])
-        self.trend_ts_classifier = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=self.config["trend_classes"], dropout=self.config['dropout'])
+        self.trend_ts_classifier = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=self.config["trend_classes"], dropout=self.config['dropout'], dropout_samples=self.config['dropout_times'])
         orthogonal_init(self.ts_model)
 
     def build_fusion(self):
         self.fusion = get_fusing_layer(self.config['fused_method'], fused_dim=self.config['embedding_dim'], hidden_dim=self.config['embedding_dim'] // 2)
 
-        self.trend_classifier_fused = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=self.config["trend_classes"], dropout=self.config['dropout'])
-        self.stock_classifier = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=self.config["stock_classes"], dropout=self.config['dropout'])
-        self.industry_classifier = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=self.config["industry_classes"], dropout=self.config['dropout'])
-        self.returns_regression = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=1, dropout=self.config['dropout'], regression=True)
+        self.trend_classifier_fused = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=self.config["trend_classes"], dropout=self.config['dropout'], dropout_samples=self.config['dropout_times'])
+        self.stock_classifier = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=self.config["stock_classes"], dropout=self.config['dropout'], dropout_samples=self.config['dropout_times'])
+        self.industry_classifier = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=self.config["industry_classes"], dropout=self.config['dropout'], dropout_samples=self.config['dropout_times'])
+        self.returns_regression = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=1, dropout=self.config['dropout'], regression=True, dropout_samples=self.config['dropout_times'])
 
     def export(self):
         self.eval()
