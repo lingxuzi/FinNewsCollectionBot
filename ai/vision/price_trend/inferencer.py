@@ -58,22 +58,26 @@ class VisionInferencer:
 
         self.model = model
 
-    def preprocess(self, df):
+    def prepare_raws(self, df):
         df = self.source.calculate_indicators(df)
-        ts_df, price_df = normalize(df, self.config['data']['ts_features']['features'], self.config['data']['ts_features']['numerical'])
+        ts_df, price_df = normalize(df, self.config['data']['features'], self.config['data']['ts_features']['features'], self.config['data']['ts_features']['numerical'])
         ts_df[self.config['data']['ts_features']['features'] + self.config['data']['ts_features']['numerical']] = self.scaler.transform(ts_df[self.config['data']['ts_features']['features'] + self.config['data']['ts_features']['numerical']])
         ts_featured_stock_data = ts_df[self.config['data']['ts_features']['features'] + self.config['data']['ts_features']['temporal']].to_numpy()
         ts_numerical_stock_data = ts_df[self.config['data']['ts_features']['numerical']].to_numpy()
+        dates = price_df['date'].values
         price_data = price_df[self.config['data']['features']].to_numpy()
+
+        return ts_featured_stock_data, ts_numerical_stock_data, price_data, dates
+
+    def preprocess(self, price_data, ts_featured_stock_data, ts_numerical_stock_data):
         price_seq = price_data[-self.config['data']['sequence_length']:]
         ts_seq = ts_featured_stock_data[-self.config['data']['sequence_length']:]
         ctx_seq = ts_numerical_stock_data[-1]
         img = get_image_with_price(price_seq)
 
         return img, ts_seq, ctx_seq
-
-    def inference(self, df):
-        img, ts_seq, ctx_seq = self.preprocess(df)
+    
+    def inference(self, img, ts_seq, ctx_seq):
         # convert to tensor
         img = self.transforms(img)
         ts_seq = torch.from_numpy(ts_seq).float()
