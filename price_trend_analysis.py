@@ -26,9 +26,6 @@ def parse_args():
     parser.add_argument('--codes', type=str, default='603661', help='Stock codes')
     return parser.parse_args()
 
-def moe_upward_matched(output, threshold=0.65):
-    return output['fused_trend_probs'][1] >= threshold and output['vision_trend_probs'][1] >= threshold and output['ts_trend_probs'][1] >= threshold, float((output['fused_trend_probs'][1] + output['vision_trend_probs'][1] + output['ts_trend_probs'][1]) / 3)
-
 def analyze_buy_signal(inferencer: VisionInferencer, df):
     ts_featured_stock_data, ts_numerical_stock_data, price_data, dates = inferencer.prepare_raws(df)
     buy_signal = np.zeros(len(price_data))
@@ -37,7 +34,7 @@ def analyze_buy_signal(inferencer: VisionInferencer, df):
         img, ts_seq, ctx_seq = inferencer.preprocess(price_data[i-inferencer.config['data']['sequence_length']:i], ts_featured_stock_data[i-inferencer.config['data']['sequence_length']:i], ts_numerical_stock_data[i-inferencer.config['data']['sequence_length']:i])
         output = inferencer.inference(img, ts_seq, ctx_seq)
 
-        if output['fused_trend_probs'][1] > 0.7:
+        if output['vision_trend_probs'][1] > 0.7:
             buy_signal[i] = 1
     close_prices = price_data[:, 3]
     buy_prices = close_prices[buy_signal == 1]

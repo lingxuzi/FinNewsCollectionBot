@@ -9,7 +9,7 @@ import argparse
 def parse_args():
     parser = argparse.ArgumentParser(description='Train price trend model')
     parser.add_argument('--config', type=str, default='./ai/vision/price_trend/configs/config.yml', help='Path to the configuration file')
-    parser.add_argument('--mode', type=str, default='eval', help='Mode of operation: train or test')
+    parser.add_argument('--mode', type=str, default='infer', help='Mode of operation: train or test')
     parser.add_argument('--eval_model', type=str, default='')
     return parser.parse_args()
 
@@ -54,11 +54,11 @@ def is_trade_day(date):
             return True
     return False
 
-def moe_upward_matched(output, threshold=0.65):
-    return output['fused_trend_probs'][1] >= threshold and output['vision_trend_probs'][1] >= threshold and output['ts_trend_probs'][1] >= threshold, float((output['fused_trend_probs'][1] + output['vision_trend_probs'][1] + output['ts_trend_probs'][1]) / 3)
+def moe_upward_matched(output, threshold=0.7):
+    return output['vision_trend_probs'][1] > threshold, float(output['vision_trend_probs'][1])
 
-def moe_downward_matched(output, threshold=0.65):
-    return output['fused_trend_probs'][0] >= threshold and output['vision_trend_probs'][0] >= threshold and output['ts_trend_probs'][0] >= threshold, float((output['fused_trend_probs'][0] + output['vision_trend_probs'][0] + output['ts_trend_probs'][0]) / 3)
+def moe_downward_matched(output, threshold=0.7):
+    return output['vision_trend_probs'][0] >= threshold, float(output['vision_trend_probs'][0])
 
 def analysis(inferencer: VisionInferencer, index_df, df, code, prob_thres):
     if df is not None and df['date'].iloc[-1].date() >= datetime.now().date() - timedelta(days=3):
