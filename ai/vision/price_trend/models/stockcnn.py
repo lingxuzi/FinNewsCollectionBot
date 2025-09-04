@@ -47,7 +47,7 @@ class ResidualBlock(nn.Module):
             )
  
     def forward(self, x):
-        residual = x
+        # residual = x
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.relu(out)
@@ -58,7 +58,7 @@ class ResidualBlock(nn.Module):
             out = self.ca(out)
         out = self.conv3(out)
         out = self.bn3(out)
-        out += self.shortcut(residual)
+        # out += self.shortcut(residual)
         return out
     
 class ResidualBlockV2(nn.Module):
@@ -116,10 +116,10 @@ class StockChartNet(nn.Module):
                 nn.SiLU(inplace=True),
             )
 
-            block2 = ResidualBlockV2(channels[0], channels[1], kernel_size=kernel_size, stride=2, attention_mode=attention_mode, attention=False)
-            block3 = ResidualBlockV2(channels[1], channels[2], kernel_size=kernel_size, stride=2, attention_mode=attention_mode, attention=False)
-            block4 = ResidualBlockV2(channels[2], channels[3], kernel_size=kernel_size, stride=2, attention_mode=attention_mode, attention=True)
-            block5 = ResidualBlockV2(channels[3], channels[4], kernel_size=kernel_size, stride=1, attention_mode=attention_mode, attention=True)
+            block2 = ResidualBlock(channels[0], channels[1], kernel_size=kernel_size, stride=2, attention_mode=attention_mode, attention=False)
+            block3 = ResidualBlock(channels[1], channels[2], kernel_size=kernel_size, stride=2, attention_mode=attention_mode, attention=False)
+            block4 = ResidualBlock(channels[2], channels[3], kernel_size=kernel_size, stride=2, attention_mode=attention_mode, attention=True)
+            block5 = ResidualBlock(channels[3], channels[4], kernel_size=kernel_size, stride=1, attention_mode=attention_mode, attention=True)
 
             layers = nn.Sequential(
                 stem,
