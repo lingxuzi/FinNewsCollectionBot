@@ -331,6 +331,14 @@ def run_training(config, mode='train'):
                 total_loss = sum(losses.values())
             total_loss.backward()
 
+            log_agent.log({
+                'total_loss': total_loss.item(),
+                'trend_loss': trend_loss_meter.avg,
+                'stock_loss': stock_loss_meter.avg,
+                'industry_loss': industry_loss_meter.avg,
+                'returns_loss': returns_loss_meter.avg,
+            })
+
             clip_norm = config['training']['clip_norm']
             if clip_norm > 0.01:
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=clip_norm)
