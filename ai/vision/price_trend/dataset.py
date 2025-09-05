@@ -322,7 +322,7 @@ class ImagingPriceTrendDataset(Dataset):
         assert np.isnan(ts_seq).sum() == 0, print(ts_seq)
         assert np.isnan(ctx_seq).sum() == 0, print(ctx_seq)
 
-        acu_return = np.clip(returns[-1], -3, 3)
+        acu_return = returns[-1]
         # if acu_return > 0.01:
         #     _trend = 2
         # elif -0.01 < acu_return <= 0.01:
@@ -334,7 +334,7 @@ class ImagingPriceTrendDataset(Dataset):
         else:
             _trend = 0
         
-        return image, _trend, acu_return * 100, code, industry, ts_seq, ctx_seq
+        return image, _trend, np.clip(acu_return * 100, -3, 3), code, industry, ts_seq, ctx_seq
     
     def __getitem__(self, idx):
         image, _trend, returns, code, industry, ts_seq, ctx_seq = self.parse_item(idx)
