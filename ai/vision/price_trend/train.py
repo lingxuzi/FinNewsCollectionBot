@@ -317,8 +317,8 @@ def run_training(config, mode='train'):
                 losses['industry'] = criterion_industry(trend_logits['industry_logits'], industry.squeeze())
                 losses['returns'] = criterion_return(trend_logits['returns'], returns.squeeze())
                 trend_loss_meter.update(losses['trend'].item())
-                # stock_loss_meter.update(losses['stock'].item())
-                # industry_loss_meter.update(losses['industry'].item())
+                stock_loss_meter.update(losses['stock'].item())
+                industry_loss_meter.update(losses['industry'].item())
                 returns_loss_meter.update(losses['returns'].item())
                 trend_metric_meter.update(trend_logits['fused_trend_logits'].detach().argmax(dim=1).eq(trend.squeeze()).float().mean().item())
                 returns_metric_meter.update(r2_score(returns.squeeze().cpu().numpy(), trend_logits['returns'].detach().cpu().numpy()))
@@ -331,13 +331,7 @@ def run_training(config, mode='train'):
                 total_loss = sum(losses.values())
             total_loss.backward()
 
-            log_agent.log({
-                'total_loss': total_loss.item(),
-                'trend_loss': trend_loss_meter.avg,
-                'stock_loss': stock_loss_meter.avg,
-                'industry_loss': industry_loss_meter.avg,
-                'returns_loss': returns_loss_meter.avg,
-            })
+            
 
             clip_norm = config['training']['clip_norm']
             if clip_norm > 0.01:
@@ -351,6 +345,13 @@ def run_training(config, mode='train'):
             pbar.set_description(f"Total({epoch+1}/{config['training']['num_epochs']}): {train_loss_meter.avg:.4f} | Trend: {trend_loss_meter.avg:.4f} | Trend Metric: {trend_metric_meter.avg:.4f} | Stock: {stock_loss_meter.avg:.4f} | Industry: {industry_loss_meter.avg:.4f} | Returns: {returns_loss_meter.avg:.4f} | Returns Metric: {returns_metric_meter.avg:.4f}")
             del img, trend, returns, stock, industry, ts, ctx
             del total_loss, losses
+
+        log_agent.log({
+            'trend_loss': trend_loss_meter.avg,
+            'stock_loss': stock_loss_meter.avg,
+            'industry_loss': industry_loss_meter.avg,
+            'returns_loss': returns_loss_meter.avg,
+        })
         scheduler.step()
 
         # --- 5. 验证循环 ---
