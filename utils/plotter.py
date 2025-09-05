@@ -11,7 +11,7 @@ plt.rcParams["axes.unicode_minus"] = False  # 解决负号显示问题
 
 
 class SequenceDistributionPlotter:
-    def __init__(self, sequence=None, length=1000, seq_type="random", **kwargs):
+    def __init__(self, title, sequence=None, length=1000, seq_type="random", **kwargs):
         """
         初始化序列分布绘图工具
         :param sequence: 自定义序列数据（1D数组或Series），若为None则自动生成
@@ -26,12 +26,12 @@ class SequenceDistributionPlotter:
         if sequence is not None:
             self.sequence = sequence if isinstance(sequence, pd.Series) else pd.Series(sequence)
             self.length = len(self.sequence)
-            self.title = "自定义序列分布分析"
+            self.title = title
         else:
             # 生成示例序列
             self.length = length
             self.sequence = self._generate_sequence(seq_type,** kwargs)
-            self.title = f"{seq_type}序列分布分析（长度：{length}）"
+            self.title = title
         
         # 时间索引（假设为等间隔）
         self.time = np.arange(self.length)
@@ -83,20 +83,20 @@ class SequenceDistributionPlotter:
         
         # 直方图+核密度
         sns.histplot(self.sequence, bins=bins, kde=True, color="green", edgecolor="black",
-                     stat="density", label="序列值分布")
+                     stat="density", label="Sequence Distribution")
         
         # 对比正态分布（若需要）
         if compare_normal:
             x_range = np.linspace(self.sequence.min(), self.sequence.max(), 100)
             normal_dist = stats.norm.pdf(x_range, loc=self.sequence.mean(), scale=self.sequence.std())
-            plt.plot(x_range, normal_dist, "r--", label="正态分布拟合")
+            plt.plot(x_range, normal_dist, "r--", label="Normal Distribution")
         
-        plt.title(f"{self.title} - 序列值整体分布")
-        plt.xlabel("序列值")
-        plt.ylabel("密度")
+        plt.title(f"{self.title} - Sequence Distribution")
+        plt.xlabel("Sequence Value")
+        plt.ylabel("Density")
         plt.legend()
         plt.grid(alpha=0.3)
-        plt.show()
+        plt.savefig(f'{self.title}_sequence_distribution.png')
 
     def plot_sliding_stats(self, window_size=50):
         """绘制滑动窗口统计量（均值和标准差的时序变化）"""

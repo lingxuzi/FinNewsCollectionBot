@@ -157,6 +157,7 @@ class ImagingPriceTrendDataset(Dataset):
         self.features = features
         self.ts_features = ts_features
         self.is_train = is_train
+        self.tag = tag
         self.indus_encoder, self.stock_encoder = encoder
         self.img_caching_path = img_caching_path
         os.makedirs(self.img_caching_path, exist_ok=True)
@@ -217,17 +218,19 @@ class ImagingPriceTrendDataset(Dataset):
                 self.cache.set('total_count', len(images))
             except Exception as e:
                 traceback.print_exc()
-        # else:
-        #     # self.check()
-        #     self.plot_return_distr()
+        else:
+            # self.check()
+            if self.cache.get('return_plotted', 0) == 0:
+                self.plot_return_distr()
+                self.cache.set('return_plotted', 1)
 
     def plot_return_distr(self):
         from utils.plotter import SequenceDistributionPlotter
         returns = []
         for i in tqdm(range(self.cache.get('total_count', 0)), 'checking'):
-            image, _trend, acu_return, code, industry, ts_seq, ctx_seq = self.parse_item(i)
-            returns.append(acu_return)
-        plotter = SequenceDistributionPlotter(sequence=returns)
+            image, _returns, code, industry, ts_seq, ctx_seq = self.cache.get(i)
+            returns.append(_returns[-1])
+        plotter = SequenceDistributionPlotter(title=f'return distribution {self.tag}', sequence=returns)
         plotter.plot_value_distribution()
 
     def check(self):
@@ -334,7 +337,7 @@ class ImagingPriceTrendDataset(Dataset):
         else:
             _trend = 0
         
-        return image, _trend, np.log1p(np.clip(acu_return, -1, 1)), code, industry, ts_seq, ctx_seq
+        return image, _trend, np.clip(acu_return, -0.5, 0.5), code, industry, ts_seq, ctx_seq
     
     def __getitem__(self, idx):
         image, _trend, returns, code, industry, ts_seq, ctx_seq = self.parse_item(idx)
