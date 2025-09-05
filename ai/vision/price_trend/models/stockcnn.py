@@ -102,7 +102,7 @@ class StockChartNet(nn.Module):
         self.group_weights = nn.Parameter(torch.tensor([0.5 /  2 ** (2 - i) for i in range(groups)]), requires_grad=False)
         
         if groups == 1:
-            self.layers = self.build_conv_groups(in_chans, groups, channels, 5, attention_mode)
+            self.layers = self.build_conv_groups(in_chans, groups, channels, 7, attention_mode)
         else:
             self.layers = nn.ModuleList(self.build_conv_groups(in_chans, groups, channels, attention_mode))
 
@@ -116,7 +116,7 @@ class StockChartNet(nn.Module):
                 nn.SiLU(inplace=True),
             )
 
-            block2 = ResidualBlock(channels[0], channels[1], kernel_size=3, stride=2, attention_mode=attention_mode, attention=False)
+            block2 = ResidualBlock(channels[0], channels[1], kernel_size=3, stride=2, attention_mode=attention_mode, attention=True)
             block3 = ResidualBlock(channels[1], channels[2], kernel_size=3, stride=2, attention_mode=attention_mode, attention=False)
             block4 = ResidualBlock(channels[2], channels[3], kernel_size=3, stride=2, attention_mode=attention_mode, attention=True)
             block5 = ResidualBlock(channels[3], channels[4], kernel_size=3, stride=1, attention_mode=attention_mode, attention=True)
