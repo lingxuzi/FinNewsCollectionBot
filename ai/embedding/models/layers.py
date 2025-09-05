@@ -197,7 +197,7 @@ class ALSTMEncoder(nn.Module):
         super().__init__()
         self.gru = gru
         self.kl = kl
-        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True) if not gru else nn.GRU(input_dim, hidden_dim, num_layers, batch_first=True, dropout=dropout)
+        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True) if not gru else nn.GRU(input_dim, hidden_dim, num_layers, batch_first=True)
         self.att_net = nn.Sequential(
             nn.Linear(in_features=hidden_dim, out_features=int(hidden_dim / 2)),
             nn.Dropout(dropout) if dropout > 0 else nn.Identity(),

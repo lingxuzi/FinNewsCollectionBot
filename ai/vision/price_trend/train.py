@@ -313,9 +313,9 @@ def run_training(config, mode='train'):
                 elif config['training']['module_train'] == 'all':
                     trend_logits = model.all_logits(img, ts, ctx)
                 losses['trend'] = criterion_trend(trend_logits['fused_trend_logits'], trend.squeeze())
-                losses['stock'] = criterion_stock(trend_logits['stock_logits'], stock.squeeze())
-                losses['industry'] = criterion_industry(trend_logits['industry_logits'], industry.squeeze())
-                losses['returns'] = criterion_return(trend_logits['returns'], returns.squeeze())
+                losses['stock'] = criterion_stock(trend_logits['stock_logits'], stock.squeeze()) * 0.1
+                losses['industry'] = criterion_industry(trend_logits['industry_logits'], industry.squeeze()) * 0.1
+                losses['returns'] = criterion_return(trend_logits['returns'], returns.squeeze()) * 10
                 trend_loss_meter.update(losses['trend'].item())
                 stock_loss_meter.update(losses['stock'].item())
                 industry_loss_meter.update(losses['industry'].item())
