@@ -167,6 +167,7 @@ class ImagingPriceTrendDataset(Dataset):
         ])
 
         self.cache = FanoutCache(os.path.join(db_path, f'{tag}', 'cache'), shards=32, timeout=5, size_limit=3e11, eviction_policy='none')
+
         
         if self.cache.get('total_count', 0) == 0:
             # 1. 从数据库加载数据
@@ -216,6 +217,17 @@ class ImagingPriceTrendDataset(Dataset):
                 self.cache.set('total_count', len(images))
             except Exception as e:
                 traceback.print_exc()
+        # else:
+        #     self.check()
+
+    def check(self):
+        total = self.cache.get('total_count', 0)
+        for i in tqdm(range(total), 'checking'):
+            img, trend, code, industry, ts_seq, ctx_seq = self.cache.get(i)
+            try:
+                Image.open(img).verify()
+            except Exception as e:
+                self.fix_image(self.hist_data_file, code, int(os.path.basename(img).split('.')[0]))
 
     def accumulative_return(self, returns):
         return np.prod(1 + returns) - 1
@@ -300,7 +312,7 @@ class ImagingPriceTrendDataset(Dataset):
         assert np.isnan(ts_seq).sum() == 0, print(ts_seq)
         assert np.isnan(ctx_seq).sum() == 0, print(ctx_seq)
 
-        acu_return = self.accumulative_return(returns)
+        acu_return = returns[-1]
         # if acu_return > 0.01:
         #     _trend = 2
         # elif -0.01 < acu_return <= 0.01:

@@ -79,6 +79,9 @@ def run_training(config, mode='train'):
     # --- 1. 加载配置 ---
     device = torch.device(config['device'] if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
+    if 'cuda' in str(device):
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
     encoder_path = config['data']['encoder_path']
     scaler_path = config['data']['scaler_path']
     if os.path.exists(encoder_path):

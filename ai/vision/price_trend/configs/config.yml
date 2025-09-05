@@ -37,7 +37,7 @@ training:
   module_train: 'vision'
   weight_decay: 0.05
   warmup_epochs: 5
-  batch_size: 512
+  batch_size: 1024
   num_epochs: 20
   model_save_path: "../fin_models/trend.pth"
   pretrained_path: "../fin_models/trend_pretrained.pth"
