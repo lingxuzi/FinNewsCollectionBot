@@ -169,8 +169,10 @@ class LayerNormedResidualMLP(nn.Module):
         super().__init__()
         self.p = nn.Sequential(
             nn.LayerNorm(input_dim) if use_batchnorm else nn.Identity(),
-            nn.Linear(input_dim, output_dim),
-            nn.Dropout(dropout_rate) if dropout_rate > 0 else nn.Identity()
+            nn.Linear(input_dim, input_dim // 2, bias=False),
+            nn.Hardswish(),
+            nn.Dropout(dropout_rate) if dropout_rate > 0 else nn.Identity(),
+            nn.Linear(input_dim // 2, output_dim)
         )
         # 如果输入和输出维度不同，则需要一个跳跃连接的线性投影
         self.residual = residual
