@@ -34,7 +34,7 @@ training:
   optimizer: 'adam'
   learning_rate: 0.0001
   min_learning_rate: 0.00001
-  module_train: 'vision'
+  module_train: 'all'
   weight_decay: 0.05
   warmup_epochs: 5
   batch_size: 1024

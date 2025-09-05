@@ -4,11 +4,11 @@ class TSEncoder(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
-        self.ts_model = ALSTMEncoder(config['ts_input_dim'], config['hidden_dim'], num_layers=config['num_layers'], embedding_dim=config['ts_embedding_dim'], gru=True, kl=False, dropout=0.1)
+        self.ts_model = ALSTMEncoder(config['ts_input_dim'], config['hidden_dim'], num_layers=config['num_layers'], embedding_dim=config['ts_embedding_dim'], gru=True, kl=False, dropout=0.1, embedding=False)
         self.ctx_model = ResidualMLPBlock(config['ctx_input_dim'], config['hidden_dim'], config['ctx_embedding_dim'],dropout_rate=0, use_batchnorm=True)
         # self.embedding_projector = nn.Linear(config['ts_embedding_dim'] + config['ctx_embedding_dim'], config['hidden_dim'])
         # self.embedding_norm = nn.LayerNorm(config['hidden_dim'])
-        self.fusion_block = LayerNormedResidualMLP(config['ts_embedding_dim'] + config['ctx_embedding_dim'], config['embedding_dim'], dropout_rate=config['dropout'])
+        self.fusion_block = LayerNormedResidualMLP(config['hidden_dim'] * 2 + config['ctx_embedding_dim'], config['embedding_dim'], dropout_rate=config['dropout'])
     
     def forward(self, x):
         ts_seq, ctx_seq = x

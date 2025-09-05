@@ -191,13 +191,11 @@ class LayerNormedResidualMLP(nn.Module):
             return self.act(self.p(x))
 
 class ALSTMEncoder(nn.Module):
-    def __init__(self, input_dim, hidden_dim, num_layers, embedding_dim, gru=False, kl=False, dropout=0.1):
+    def __init__(self, input_dim, hidden_dim, num_layers, embedding_dim, gru=False, kl=False, dropout=0.1, embedding=True):
         super().__init__()
         self.gru = gru
         self.kl = kl
         self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True) if not gru else nn.GRU(input_dim, hidden_dim, num_layers, batch_first=True, dropout=dropout)
-        # self.lstm.activation = nn.ReLU(inplace=True)
-        self.embedding_fc = nn.Linear(hidden_dim * 2, embedding_dim, bias=True)
         if kl:
             self.embedding_logvar = nn.Linear(hidden_dim * 2, embedding_dim, bias=True)
         self.att_net = nn.Sequential(
@@ -207,6 +205,9 @@ class ALSTMEncoder(nn.Module):
             nn.Linear(in_features=int(hidden_dim / 2), out_features=1),
             nn.Softmax(dim=1)
         )
+        if embedding:
+            self.embedding = embedding
+            self.embedding_fc = nn.Linear(hidden_dim * 2, embedding_dim, bias=True)
 
     def forward(self, x):
         self.lstm.flatten_parameters()
@@ -217,14 +218,17 @@ class ALSTMEncoder(nn.Module):
         attention_score = self.att_net(out)
         out_att = out * attention_score
         out_att = torch.sum(out_att, dim=1)
-        embedding = self.embedding_fc(torch.cat([h[-1], out_att], dim=1))
-        if self.kl:
-            logvar = self.embedding_logvar(torch.cat([h[-1], out_att], dim=1))
-            if self.training:
-                std = torch.exp(0.5 * logvar)
-                eps = torch.randn_like(std)
-                return eps.mul(std).add_(embedding), embedding, logvar
-        return embedding, None, None
+        if self.embedding:
+            embedding = self.embedding_fc(torch.cat([h[-1], out_att], dim=1))
+            if self.kl:
+                logvar = self.embedding_logvar(torch.cat([h[-1], out_att], dim=1))
+                if self.training:
+                    std = torch.exp(0.5 * logvar)
+                    eps = torch.randn_like(std)
+                    return eps.mul(std).add_(embedding), embedding, logvar
+            return embedding, None, None
+        else:
+            return torch.cat([h[-1], out_att], dim=1)
 
 class ALSTMDecoder(nn.Module):
     def __init__(self, output_dim, hidden_dim, num_layers, embedding_dim, gru=False):
