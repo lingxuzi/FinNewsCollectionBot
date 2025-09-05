@@ -334,7 +334,7 @@ class ImagingPriceTrendDataset(Dataset):
         else:
             _trend = 0
         
-        return image, _trend, np.clip(acu_return * 100, -3, 3), code, industry, ts_seq, ctx_seq
+        return image, _trend, np.log1p(np.clip(acu_return, -1, 1)), code, industry, ts_seq, ctx_seq
     
     def __getitem__(self, idx):
         image, _trend, returns, code, industry, ts_seq, ctx_seq = self.parse_item(idx)

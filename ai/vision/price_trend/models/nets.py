@@ -81,8 +81,8 @@ class DropoutPredictionHead(nn.Module):
             self.dropout = None
 
         self.classifier = nn.Linear(feature_dim, classes)
-        if regression:
-            weights_initialize(self.classifier)
+        # if regression:
+        #     weights_initialize(self.classifier)
 
     def forward(self, x):
         if self.training:
