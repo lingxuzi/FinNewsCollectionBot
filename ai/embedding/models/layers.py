@@ -202,7 +202,7 @@ class ALSTMEncoder(nn.Module):
             nn.Linear(in_features=hidden_dim, out_features=int(hidden_dim / 2)),
             nn.Dropout(dropout) if dropout > 0 else nn.Identity(),
             nn.Tanh(),
-            nn.Linear(in_features=int(hidden_dim / 2), out_features=1),
+            nn.Linear(in_features=int(hidden_dim / 2), out_features=1, bias=False),
             nn.Softmax(dim=1)
         )
         if self.kl:
