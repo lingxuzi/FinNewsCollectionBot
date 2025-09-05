@@ -8,7 +8,7 @@ class TSEncoder(nn.Module):
         self.ctx_model = ResidualMLPBlock(config['ctx_input_dim'], config['hidden_dim'], config['ctx_embedding_dim'],dropout_rate=0, use_batchnorm=True)
         # self.embedding_projector = nn.Linear(config['ts_embedding_dim'] + config['ctx_embedding_dim'], config['hidden_dim'])
         # self.embedding_norm = nn.LayerNorm(config['hidden_dim'])
-        self.fusion_block = LayerNormedResidualMLP(config['ts_embedding_dim'] + config['ctx_embedding_dim'], config['hidden_dim'], config['embedding_dim'], dropout_rate=config['dropout'], use_batchnorm=True, elsa=False)
+        self.fusion_block = LayerNormedResidualMLP(config['ts_embedding_dim'] + config['ctx_embedding_dim'], config['embedding_dim'], dropout_rate=config['dropout'])
     
     def forward(self, x):
         ts_seq, ctx_seq = x
