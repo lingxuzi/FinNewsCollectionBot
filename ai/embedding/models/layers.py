@@ -209,7 +209,7 @@ class ALSTMEncoder(nn.Module):
             self.embedding_fc = nn.Linear(hidden_dim * 2, embedding_dim, bias=True)
             self.embedding_logvar = nn.Linear(hidden_dim * 2, embedding_dim, bias=True)
         else:
-            self.residual_fc = LayerNormedResidualMLP(hidden_dim * 2, embedding_dim)
+            self.residual_fc = nn.Linear(hidden_dim * 2, embedding_dim, bias=True)#LayerNormedResidualMLP(hidden_dim * 2, embedding_dim)
 
     def forward(self, x):
         self.lstm.flatten_parameters()
