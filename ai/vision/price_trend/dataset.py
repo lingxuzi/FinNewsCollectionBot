@@ -334,11 +334,11 @@ class ImagingPriceTrendDataset(Dataset):
         else:
             _trend = 0
         
-        return image, _trend, acu_return, code, industry, ts_seq, ctx_seq
+        return image, _trend, acu_return * 100, code, industry, ts_seq, ctx_seq
     
     def __getitem__(self, idx):
         image, _trend, returns, code, industry, ts_seq, ctx_seq = self.parse_item(idx)
         image = Image.open(image)
         image = self.transforms(image)
 
-        return image, torch.LongTensor([_trend]), torch.FloatTensor([np.log1p(returns)]), torch.LongTensor([code]), torch.LongTensor([industry]), torch.FloatTensor(ts_seq), torch.FloatTensor(ctx_seq)
+        return image, torch.LongTensor([_trend]), torch.FloatTensor([returns]), torch.LongTensor([code]), torch.LongTensor([industry]), torch.FloatTensor(ts_seq), torch.FloatTensor(ctx_seq)
