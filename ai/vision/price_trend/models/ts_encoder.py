@@ -11,7 +11,14 @@ class TSEncoder(nn.Module):
 
         full_dim = config['hidden_dim']#config['ts_embedding_dim'] + config['ctx_embedding_dim']
         self.fusion_block = ResidualMLPBlock(full_dim, full_dim // 2, config['embedding_dim'], use_batchnorm=True, dropout_rate=config['dropout'])
-    
+
+    def init(self):
+        for name, param in self.ts_model.lstm.named_parameters():
+            if 'weight' in name:
+                nn.init.kaiming_uniform_(param)
+            elif 'bias' in name:
+                nn.init.zeros_(param)
+
     def forward(self, x):
         ts_seq, ctx_seq = x
         ts_emb, _, _ = self.ts_model(ts_seq)

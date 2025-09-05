@@ -131,7 +131,8 @@ class StockNet(nn.Module):
     def build_ts(self):
         self.ts_model = TSEncoder(self.config['ts_encoder'])
         self.trend_ts_classifier = DropoutPredictionHead(feature_dim=self.config['embedding_dim'], classes=self.config["trend_classes"], dropout=self.config['dropout'], dropout_samples=self.config['dropout_times'])
-        orthogonal_init(self.ts_model)
+        # orthogonal_init(self.ts_model)
+        self.ts_model.init()
 
     def build_fusion(self):
         self.fusion = get_fusing_layer(self.config['fused_method'], fused_dim=self.config['embedding_dim'], hidden_dim=self.config['embedding_dim'] // 2)
