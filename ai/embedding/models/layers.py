@@ -228,7 +228,7 @@ class ALSTMEncoder(nn.Module):
                     return eps.mul(std).add_(embedding), embedding, logvar
             return embedding, None, None
         else:
-            return torch.cat([h[-1], out_att], dim=1)
+            return torch.cat([h[-1], out_att], dim=1), None, None
 
 class ALSTMDecoder(nn.Module):
     def __init__(self, output_dim, hidden_dim, num_layers, embedding_dim, gru=False):
