@@ -1,12 +1,12 @@
 trend_classes: 2
-dropout: 0.4
+dropout: 0.8
 fused_method: 'concat'
 backbone: 'stockchartnet'
 attention_mode: 'ca'
 gradlayer: 'layers[-3]'
 embedding_dim: 128
 kernel_size: 2
-dropout_times: 4
+dropout_times: 1
 ts_encoder:
   hidden_dim: 64
   num_layers: 2
