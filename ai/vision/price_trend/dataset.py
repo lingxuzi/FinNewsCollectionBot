@@ -218,7 +218,17 @@ class ImagingPriceTrendDataset(Dataset):
             except Exception as e:
                 traceback.print_exc()
         # else:
-        #     self.check()
+        #     # self.check()
+        #     self.plot_return_distr()
+
+    def plot_return_distr(self):
+        from utils.plotter import SequenceDistributionPlotter
+        returns = []
+        for i in tqdm(range(self.cache.get('total_count', 0)), 'checking'):
+            image, _trend, acu_return, code, industry, ts_seq, ctx_seq = self.parse_item(i)
+            returns.append(acu_return)
+        plotter = SequenceDistributionPlotter(sequence=returns)
+        plotter.plot_value_distribution()
 
     def check(self):
         total = self.cache.get('total_count', 0)
@@ -312,7 +322,7 @@ class ImagingPriceTrendDataset(Dataset):
         assert np.isnan(ts_seq).sum() == 0, print(ts_seq)
         assert np.isnan(ctx_seq).sum() == 0, print(ctx_seq)
 
-        acu_return = returns[-1]
+        acu_return = np.clip(returns[-1], -3, 3)
         # if acu_return > 0.01:
         #     _trend = 2
         # elif -0.01 < acu_return <= 0.01:
