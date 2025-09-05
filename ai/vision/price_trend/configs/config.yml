@@ -17,7 +17,7 @@ data:
   features: ['open', 'high', 'low', 'close', 'MA20', 'turn_over']
   categorical: ['industry', 'code']
   ts_features:
-    features: ['open', 'high', 'low', 'close', 'volume', 'amount', 'turn_over', 'MA5', 'MA10', 'MA20', 'RSI', 'MACD', 'ATR', 'OBV', 'CCI', 'ADX', 'vwap']
+    features: ['open', 'high', 'low', 'close', 'volume', 'turn_over', 'MA5', 'MA10', 'MA20', 'RSI', 'MACD', 'ATR', 'OBV', 'CCI', 'ADX', 'vwap']
     temporal: ['month', 'day', 'weekday', 'open_pct', 'high_pct', 'low_pct', 'close_pct']
     numerical: ['pe_ttm', 'pb', 'ps_ttm', 'pcf_ncf_ttm']
   sequence_length: 10       # K线序列长度
