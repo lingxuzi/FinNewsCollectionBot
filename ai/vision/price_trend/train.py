@@ -300,7 +300,7 @@ def run_training(config, mode='train'):
                 loss_vision = criterion_trend(trend_logits['vision_logits'], trend.squeeze())
                 losses['trend'] = loss_vision
                 trend_loss_meter.update(loss_vision.item())
-                trend_metric_meter.update(trend_logits['vision_logits'].detach().argmax(dim=1).eq(trend.squeeze()).float().mean().item())
+                trend_metric_meter.update(balanced_accuracy_score(trend.squeeze().cpu().numpy(), trend_logits['vision_logits'].argmax(dim=1).cpu().numpy()))
             elif config['training']['module_train'] == 'ts':
                 trend_logits = model.ts_logits(ts, ctx)
                 loss_ts = criterion_trend(trend_logits['ts_logits'], trend.squeeze())
