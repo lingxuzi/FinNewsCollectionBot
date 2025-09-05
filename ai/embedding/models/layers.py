@@ -205,8 +205,8 @@ class ALSTMEncoder(nn.Module):
             nn.Linear(in_features=int(hidden_dim / 2), out_features=1),
             nn.Softmax(dim=1)
         )
-        if embedding:
-            self.embedding = embedding
+        self.embedding = embedding
+        if self.embedding:
             self.embedding_fc = nn.Linear(hidden_dim * 2, embedding_dim, bias=True)
 
     def forward(self, x):
