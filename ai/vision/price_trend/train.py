@@ -347,10 +347,10 @@ def run_training(config, mode='train'):
             del total_loss, losses
 
         log_agent.log({
-            'trend_loss': trend_loss_meter.avg,
-            'stock_loss': stock_loss_meter.avg,
-            'industry_loss': industry_loss_meter.avg,
-            'returns_loss': returns_loss_meter.avg,
+            'train/trend_loss': trend_loss_meter.avg,
+            'train/stock_loss': stock_loss_meter.avg,
+            'train/industry_loss': industry_loss_meter.avg,
+            'train/returns_loss': returns_loss_meter.avg,
         })
         scheduler.step()
 
@@ -442,14 +442,17 @@ def eval(model, dataset, config, log_agent):
 
     scores = {}
     
-    _, trend_score = trend_metric.calculate()
-    scores['trend_score'] = trend_score
+    trend_metrics, trend_score = trend_metric.calculate()
+    scores['eval/trend_score'] = trend_score
     
     if config['training']['module_train'] in ['fusion', 'all'] :
-        _, return_score = return_metric.calculate()
-        scores['return_score'] = return_score
+        return_metric, return_score = return_metric.calculate()
+        scores['eval/return_score'] = return_score
+        log_agent.log(return_metric)
     
     log_agent.log(scores)
+
+    log_agent.log(trend_metrics)
 
     mean_r2 = trend_score
 

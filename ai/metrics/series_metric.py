@@ -62,4 +62,9 @@ class Metric:
             self.r2 = (1 - (self.sse / (sst + 1e-8))).mean()
         
         print(f"{self.tag} -> R2 Score = {self.r2}, MSE = {self.mse}, MAE = {self.mae}, MAPE = {self.mape}, ME = {self.me}")
-        return (self.r2, self.mse, self.mae, self.mape), self.r2# + 1 / ((self.mse + self.mae) * self.mape)
+        return {
+            f'{self.tag}/mse': self.mse,
+            f'{self.tag}/mae': self.mae,
+            f'{self.tag}/mape': self.mape,
+            f'{self.tag}/me': self.me,
+        }, self.r2
